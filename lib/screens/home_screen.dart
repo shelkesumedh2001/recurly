@@ -8,13 +8,27 @@ import 'archived_screen.dart';
 import 'settings_screen.dart';
 import 'recently_deleted_screen.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  bool _isSearchMode = false;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final subscriptionsAsync = ref.watch(subscriptionProvider);
+    final subscriptionsAsync = ref.watch(filteredSubscriptionsProvider);
     final totalSpend = ref.watch(totalMonthlySpendProvider);
     final subscriptionCount = ref.watch(activeSubscriptionCountProvider);
 
@@ -24,14 +38,40 @@ class HomeScreen extends ConsumerWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
         backgroundColor: theme.colorScheme.surface,
-        title: Text(
-          AppConstants.appName,
-          style: theme.textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.5,
-          ),
-        ),
+        title: _isSearchMode
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Search subscriptions...',
+                  border: InputBorder.none,
+                  prefixIcon: Icon(Icons.search),
+                ),
+                onChanged: (value) {
+                  ref.read(searchQueryProvider.notifier).state = value;
+                },
+              )
+            : Text(
+                AppConstants.appName,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                ),
+              ),
         actions: [
+          IconButton(
+            icon: Icon(_isSearchMode ? Icons.close : Icons.search, size: 24),
+            tooltip: _isSearchMode ? 'Close search' : 'Search',
+            onPressed: () {
+              setState(() {
+                _isSearchMode = !_isSearchMode;
+                if (!_isSearchMode) {
+                  _searchController.clear();
+                  ref.read(searchQueryProvider.notifier).state = '';
+                }
+              });
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.more_horiz, size: 24),
             tooltip: 'Menu',
@@ -41,8 +81,13 @@ class HomeScreen extends ConsumerWidget {
       ),
       body: subscriptionsAsync.when(
         data: (subscriptions) {
-          return CustomScrollView(
-            slivers: [
+          return RefreshIndicator(
+            onRefresh: () async {
+              // Reload subscriptions from database
+              await ref.read(subscriptionProvider.notifier).loadSubscriptions();
+            },
+            child: CustomScrollView(
+              slivers: [
               // Hero section
               SliverToBoxAdapter(
                 child: _buildHeroSection(context, totalSpend, subscriptionCount),
@@ -52,7 +97,7 @@ class HomeScreen extends ConsumerWidget {
               if (subscriptions.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
-                  child: _buildEmptyState(context),
+                  child: _buildEmptyState(context, ref.watch(searchQueryProvider)),
                 )
               else
                 SliverPadding(
@@ -80,6 +125,7 @@ class HomeScreen extends ConsumerWidget {
                 padding: EdgeInsets.only(bottom: 100),
               ),
             ],
+            ),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -142,9 +188,53 @@ class HomeScreen extends ConsumerWidget {
   }
 
   /// Minimal empty state
-  Widget _buildEmptyState(BuildContext context) {
+  Widget _buildEmptyState(BuildContext context, String searchQuery) {
     final theme = Theme.of(context);
 
+    // Show "no results" if searching
+    if (searchQuery.isNotEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.search_off,
+                  size: 64,
+                  color: theme.colorScheme.primary.withOpacity(0.4),
+                ),
+              ),
+              const SizedBox(height: 32),
+              Text(
+                'No results found',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Try searching with a different term',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Original empty state for no subscriptions
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 40),

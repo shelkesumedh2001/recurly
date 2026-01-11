@@ -4,14 +4,46 @@ import '../providers/subscription_providers.dart';
 import '../services/database_service.dart';
 import '../models/subscription.dart';
 
-class RecentlyDeletedScreen extends ConsumerWidget {
+class RecentlyDeletedScreen extends ConsumerStatefulWidget {
   const RecentlyDeletedScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RecentlyDeletedScreen> createState() => _RecentlyDeletedScreenState();
+}
+
+class _RecentlyDeletedScreenState extends ConsumerState<RecentlyDeletedScreen> {
+  List<Subscription> _deletedSubscriptions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDeletedSubscriptions();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh list when navigating back to this screen
+    _loadDeletedSubscriptions();
+  }
+
+  void _loadDeletedSubscriptions() {
+    final databaseService = ref.read(databaseServiceProvider);
+    setState(() {
+      _deletedSubscriptions = databaseService.getRecentlyDeletedSubscriptions();
+    });
+  }
+
+  void _removeItemFromList(String subscriptionId) {
+    setState(() {
+      _deletedSubscriptions.removeWhere((s) => s.id == subscriptionId);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final databaseService = ref.watch(databaseServiceProvider);
-    final deletedSubscriptions = databaseService.getRecentlyDeletedSubscriptions();
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -64,18 +96,19 @@ class RecentlyDeletedScreen extends ConsumerWidget {
 
           // List or empty state
           Expanded(
-            child: deletedSubscriptions.isEmpty
+            child: _deletedSubscriptions.isEmpty
                 ? _buildEmptyState(context)
                 : ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: deletedSubscriptions.length,
+                    itemCount: _deletedSubscriptions.length,
                     itemBuilder: (context, index) {
-                      final subscription = deletedSubscriptions[index];
+                      final subscription = _deletedSubscriptions[index];
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _DeletedCard(
                           subscription: subscription,
                           databaseService: databaseService,
+                          onItemRemoved: _removeItemFromList,
                         ),
                       );
                     },
@@ -134,16 +167,23 @@ class RecentlyDeletedScreen extends ConsumerWidget {
 class _DeletedCard extends ConsumerWidget {
   final Subscription subscription;
   final DatabaseService databaseService;
+  final void Function(String) onItemRemoved;
 
   const _DeletedCard({
     required this.subscription,
     required this.databaseService,
+    required this.onItemRemoved,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final daysRemaining = databaseService.getDaysUntilPermanentDeletion(subscription);
+
+    // Capture provider and data before widget can be disposed
+    final subscriptionNotifier = ref.read(subscriptionProvider.notifier);
+    final subscriptionId = subscription.id;
+    final subscriptionName = subscription.name;
 
     return Dismissible(
       key: Key(subscription.id),
@@ -169,25 +209,30 @@ class _DeletedCard extends ConsumerWidget {
         }
       },
       onDismissed: (direction) async {
+        // CRITICAL: Remove item from list immediately so Dismissible can be removed from tree
+        onItemRemoved(subscriptionId);
+
         if (direction == DismissDirection.endToStart) {
           // Delete permanently
-          await databaseService.deleteSubscription(subscription.id);
+          await databaseService.deleteSubscription(subscriptionId);
+
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('${subscription.name} deleted permanently'),
+                content: Text('$subscriptionName deleted permanently'),
                 behavior: SnackBarBehavior.floating,
               ),
             );
           }
         } else {
           // Restore
-          await databaseService.restoreFromRecentlyDeleted(subscription.id);
-          await ref.read(subscriptionProvider.notifier).loadSubscriptions();
+          await databaseService.restoreFromRecentlyDeleted(subscriptionId);
+          await subscriptionNotifier.loadSubscriptions();
+
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('${subscription.name} restored'),
+                content: Text('$subscriptionName restored'),
                 behavior: SnackBarBehavior.floating,
               ),
             );
