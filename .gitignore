@@ -60,3 +60,7 @@ app.*.map.json
 google-services.json
 GoogleService-Info.plist
 firebase_options.dart
+
+# Internal documentation (not for public repo)
+PROJECT_STATE.md
+running missil.txt
