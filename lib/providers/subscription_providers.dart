@@ -168,3 +168,34 @@ final subscriptionsByCategoryProvider = Provider.family<List<Subscription>, Stri
     );
   },
 );
+
+/// Provider for search query state
+final searchQueryProvider = StateProvider<String>((ref) => '');
+
+/// Provider for filtered subscriptions based on search query
+final filteredSubscriptionsProvider = Provider<AsyncValue<List<Subscription>>>((ref) {
+  final subscriptionsAsync = ref.watch(subscriptionProvider);
+  final searchQuery = ref.watch(searchQueryProvider);
+
+  return subscriptionsAsync.when(
+    data: (subscriptions) {
+      if (searchQuery.isEmpty) {
+        return AsyncValue.data(subscriptions);
+      }
+
+      final filtered = subscriptions.where((sub) {
+        return sub.name.toLowerCase().contains(searchQuery.toLowerCase());
+      }).toList();
+
+      return AsyncValue.data(filtered);
+    },
+    loading: () => const AsyncValue.loading(),
+    error: (error, stack) => AsyncValue.error(error, stack),
+  );
+});
+
+/// Provider for recently deleted subscriptions
+final recentlyDeletedProvider = StateProvider<List<Subscription>>((ref) {
+  final databaseService = ref.watch(databaseServiceProvider);
+  return databaseService.getRecentlyDeletedSubscriptions();
+});

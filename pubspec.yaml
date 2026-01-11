@@ -29,6 +29,7 @@ dependencies:
   # UI & Theming
   # dynamic_color: ^1.6.8  # Temporarily disabled - compatibility issue
   # fl_chart: ^0.66.0  # Phase 4 - Analytics
+  cached_network_image: ^3.3.0  # For efficient image caching
 
   # Notifications (Phase 3 - will add later)
   # flutter_local_notifications: ^16.3.0
@@ -50,7 +51,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # Uncomment and add assets when ready
-  # assets:
-  #   - assets/images/
-  #   - assets/logos/
+  # Assets
+  assets:
+    - assets/images/logos/

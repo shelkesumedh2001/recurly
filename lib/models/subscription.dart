@@ -205,6 +205,7 @@ class Subscription extends HiveObject {
     DateTime? createdAt,
     List<String>? sharedWith,
     DateTime? deletedAt,
+    bool clearDeletedAt = false,
   }) {
     return Subscription(
       id: id ?? this.id,
@@ -220,7 +221,7 @@ class Subscription extends HiveObject {
       isArchived: isArchived ?? this.isArchived,
       createdAt: createdAt ?? this.createdAt,
       sharedWith: sharedWith ?? this.sharedWith,
-      deletedAt: deletedAt ?? this.deletedAt,
+      deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
     );
   }
 }

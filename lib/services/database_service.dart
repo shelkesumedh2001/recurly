@@ -270,7 +270,7 @@ class DatabaseService {
     try {
       final subscription = _box.get(id);
       if (subscription != null) {
-        final updated = subscription.copyWith(deletedAt: null);
+        final updated = subscription.copyWith(clearDeletedAt: true);
         await _box.put(id, updated);
       }
     } catch (e) {

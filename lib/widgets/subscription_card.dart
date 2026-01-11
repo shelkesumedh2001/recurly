@@ -22,6 +22,12 @@ class SubscriptionCard extends ConsumerWidget {
       subscription.daysUntilRenewal,
     );
 
+    // Capture providers and data before widget can be disposed
+    final databaseService = ref.read(databaseServiceProvider);
+    final subscriptionNotifier = ref.read(subscriptionProvider.notifier);
+    final subscriptionId = subscription.id;
+    final subscriptionName = subscription.name;
+
     return Dismissible(
       key: Key(subscription.id),
       background: _buildSwipeBackground(context, Alignment.centerLeft, Colors.blue, Icons.edit),
@@ -39,18 +45,19 @@ class SubscriptionCard extends ConsumerWidget {
       onDismissed: (direction) async {
         if (direction == DismissDirection.endToStart) {
           // Move to recently deleted instead of permanent delete
-          await ref.read(databaseServiceProvider).moveToRecentlyDeleted(subscription.id);
-          await ref.read(subscriptionProvider.notifier).loadSubscriptions();
+          await databaseService.moveToRecentlyDeleted(subscriptionId);
+          await subscriptionNotifier.loadSubscriptions();
+
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('${subscription.name} moved to recently deleted'),
+                content: Text('$subscriptionName moved to recently deleted'),
                 behavior: SnackBarBehavior.floating,
                 action: SnackBarAction(
                   label: 'Undo',
                   onPressed: () async {
-                    await ref.read(databaseServiceProvider).restoreFromRecentlyDeleted(subscription.id);
-                    await ref.read(subscriptionProvider.notifier).loadSubscriptions();
+                    await databaseService.restoreFromRecentlyDeleted(subscriptionId);
+                    await subscriptionNotifier.loadSubscriptions();
                   },
                 ),
               ),
@@ -170,6 +177,44 @@ class SubscriptionCard extends ConsumerWidget {
 
   /// Build logo or placeholder
   Widget _buildLogo(BuildContext context, Color urgencyColor) {
+    // If logoUrl exists, try to load network image
+    if (subscription.logoUrl != null && subscription.logoUrl!.isNotEmpty) {
+      return Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white,
+          border: Border.all(
+            color: urgencyColor.withOpacity(0.2),
+            width: 2,
+          ),
+        ),
+        child: ClipOval(
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: Image.asset(
+              subscription.logoUrl!,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                // Fallback to emoji if image fails
+                return Container(
+                  color: urgencyColor.withOpacity(0.12),
+                  child: Center(
+                    child: Text(
+                      subscription.category.icon,
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Original emoji fallback
     return Container(
       width: 48,
       height: 48,

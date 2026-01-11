@@ -5,7 +5,9 @@ import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import '../models/subscription.dart';
 import '../models/enums.dart';
+import '../models/subscription_template.dart';
 import '../providers/subscription_providers.dart';
+import '../providers/template_providers.dart';
 import '../utils/constants.dart';
 
 class AddSubscriptionSheet extends ConsumerStatefulWidget {
@@ -29,6 +31,9 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   SubscriptionCategory _selectedCategory = SubscriptionCategory.entertainment;
   DateTime _firstBillDate = DateTime.now();
   bool _isLoading = false;
+  bool _showTemplates = true;
+  String? _logoUrl;
+  String? _templateColor;
 
   bool get _isEditMode => widget.subscription != null;
 
@@ -43,8 +48,12 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       _selectedBillingCycle = sub.billingCycle;
       _selectedCategory = sub.category;
       _firstBillDate = sub.firstBillDate;
+      _logoUrl = sub.logoUrl;
+      _templateColor = sub.color;
+      _showTemplates = false; // Don't show templates when editing
     }
   }
+
 
   @override
   void dispose() {
@@ -57,6 +66,24 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mediaQuery = MediaQuery.of(context);
+
+    // Listen to selected template (only when adding new)
+    if (!_isEditMode) {
+      ref.listen<SubscriptionTemplate?>(selectedTemplateProvider, (previous, next) {
+        if (next != null) {
+          setState(() {
+            _nameController.text = next.name;
+            _selectedCategory = next.category;
+            _selectedBillingCycle = next.defaultBillingCycle;
+            // Don't pre-fill price - let user enter their plan price
+            _priceController.clear();
+            _logoUrl = next.logoUrl;
+            _templateColor = next.color;
+            _showTemplates = false;
+          });
+        }
+      });
+    }
 
     return Container(
       margin: const EdgeInsets.all(12),
@@ -97,7 +124,49 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
+
+                  // Template Picker Section (only show when adding new)
+                  if (!_isEditMode && _showTemplates) ...[
+                    _buildTemplateSection(context, theme),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(child: Divider(color: theme.colorScheme.outline.withOpacity(0.3))),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            'Or create custom',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withOpacity(0.6),
+                            ),
+                          ),
+                        ),
+                        Expanded(child: Divider(color: theme.colorScheme.outline.withOpacity(0.3))),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Toggle back to templates button
+                  if (!_isEditMode && !_showTemplates) ...[
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _showTemplates = true;
+                          _nameController.clear();
+                          _priceController.clear();
+                          _logoUrl = null;
+                          _templateColor = null;
+                          ref.read(selectedTemplateProvider.notifier).state = null;
+                        });
+                      },
+                      icon: const Icon(Icons.arrow_back, size: 18),
+                      label: const Text('Choose from templates'),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                 // Service Name
                 TextFormField(
@@ -285,6 +354,8 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
         billingCycle: _selectedBillingCycle,
         firstBillDate: _firstBillDate,
         category: _selectedCategory,
+        logoUrl: _logoUrl, // Add logo from template
+        color: _templateColor, // Add color from template
         createdAt: _isEditMode ? widget.subscription!.createdAt : DateTime.now(),
       );
 
@@ -293,6 +364,9 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       } else {
         await ref.read(subscriptionProvider.notifier).addSubscription(subscription);
       }
+
+      // Clear template selection
+      ref.read(selectedTemplateProvider.notifier).state = null;
 
       if (mounted) {
         Navigator.pop(context);
@@ -325,5 +399,117 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
         });
       }
     }
+  }
+
+  /// Build template section with categories
+  Widget _buildTemplateSection(BuildContext context, ThemeData theme) {
+    final templates = ref.watch(allTemplatesProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Popular Services',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Show templates by category
+        ...templates.entries.map((entry) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 8, top: 8, bottom: 8),
+                child: Text(
+                  '${entry.key.icon} ${entry.key.displayName}',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: 80,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: entry.value.length,
+                  itemBuilder: (context, index) {
+                    final template = entry.value[index];
+                    return _buildTemplateChip(context, theme, template);
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  /// Build individual template chip
+  Widget _buildTemplateChip(BuildContext context, ThemeData theme, SubscriptionTemplate template) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 12),
+      child: InkWell(
+        onTap: () {
+          ref.read(selectedTemplateProvider.notifier).state = template;
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 70,
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: theme.colorScheme.outline.withOpacity(0.2),
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Logo
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: Image.asset(
+                      template.logoUrl,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Icon(
+                          Icons.image_not_supported,
+                          size: 24,
+                          color: theme.colorScheme.onSurface.withOpacity(0.3),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              // Name
+              Text(
+                template.name,
+                style: theme.textTheme.labelSmall,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
