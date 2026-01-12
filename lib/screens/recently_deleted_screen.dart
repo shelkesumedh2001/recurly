@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../models/subscription.dart';
 import '../providers/subscription_providers.dart';
 import '../services/database_service.dart';
-import '../models/subscription.dart';
 
 class RecentlyDeletedScreen extends ConsumerStatefulWidget {
   const RecentlyDeletedScreen({super.key});
@@ -66,10 +67,10 @@ class _RecentlyDeletedScreenState extends ConsumerState<RecentlyDeletedScreen> {
             margin: const EdgeInsets.fromLTRB(20, 8, 20, 16),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: theme.colorScheme.errorContainer.withOpacity(0.3),
+              color: theme.colorScheme.errorContainer.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: theme.colorScheme.error.withOpacity(0.2),
+                color: theme.colorScheme.error.withValues(alpha: 0.2),
                 width: 1,
               ),
             ),
@@ -131,13 +132,13 @@ class _RecentlyDeletedScreenState extends ConsumerState<RecentlyDeletedScreen> {
             Container(
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.delete_outline,
                 size: 64,
-                color: theme.colorScheme.primary.withOpacity(0.4),
+                color: theme.colorScheme.primary.withValues(alpha: 0.4),
               ),
             ),
             const SizedBox(height: 32),
@@ -152,7 +153,7 @@ class _RecentlyDeletedScreenState extends ConsumerState<RecentlyDeletedScreen> {
             Text(
               'Deleted subscriptions will appear here for 30 days',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 height: 1.5,
               ),
               textAlign: TextAlign.center,
@@ -165,15 +166,15 @@ class _RecentlyDeletedScreenState extends ConsumerState<RecentlyDeletedScreen> {
 }
 
 class _DeletedCard extends ConsumerWidget {
-  final Subscription subscription;
-  final DatabaseService databaseService;
-  final void Function(String) onItemRemoved;
 
   const _DeletedCard({
     required this.subscription,
     required this.databaseService,
     required this.onItemRemoved,
   });
+  final Subscription subscription;
+  final DatabaseService databaseService;
+  final void Function(String) onItemRemoved;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -202,7 +203,7 @@ class _DeletedCard extends ConsumerWidget {
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.endToStart) {
           // Delete permanently
-          return await _showDeleteDialog(context);
+          return _showDeleteDialog(context);
         } else {
           // Restore
           return true;
@@ -241,10 +242,10 @@ class _DeletedCard extends ConsumerWidget {
       },
       child: Container(
         decoration: BoxDecoration(
-          color: theme.colorScheme.errorContainer.withOpacity(0.1),
+          color: theme.colorScheme.errorContainer.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: theme.colorScheme.error.withOpacity(0.1),
+            color: theme.colorScheme.error.withValues(alpha: 0.1),
             width: 1,
           ),
         ),
@@ -258,7 +259,7 @@ class _DeletedCard extends ConsumerWidget {
                 height: 48,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 ),
                 child: Center(
                   child: Opacity(
@@ -283,7 +284,7 @@ class _DeletedCard extends ConsumerWidget {
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                         letterSpacing: -0.2,
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                         decoration: TextDecoration.lineThrough,
                       ),
                       maxLines: 1,
@@ -293,7 +294,7 @@ class _DeletedCard extends ConsumerWidget {
                     Text(
                       'Deletes in $daysRemaining ${daysRemaining == 1 ? 'day' : 'days'}',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error.withOpacity(0.7),
+                        color: theme.colorScheme.error.withValues(alpha: 0.7),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -306,7 +307,7 @@ class _DeletedCard extends ConsumerWidget {
                 subscription.formattedPrice,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurface.withOpacity(0.4),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                 ),
               ),
             ],

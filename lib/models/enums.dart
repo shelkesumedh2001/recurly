@@ -34,13 +34,13 @@ enum BillingCycle {
   double getMonthlyMultiplier() {
     switch (this) {
       case BillingCycle.monthly:
-        return 1.0;
+        return 1;
       case BillingCycle.yearly:
         return 1.0 / 12.0;
       case BillingCycle.weekly:
         return 52.0 / 12.0; // ~4.33
       case BillingCycle.custom:
-        return 1.0; // Default to monthly
+        return 1; // Default to monthly
     }
   }
 

@@ -30,7 +30,7 @@ extension DateTimeExtensions on DateTime {
   /// Get days between this date and now
   int get daysFromNow {
     final now = DateTime.now();
-    final diff = this.difference(now);
+    final diff = difference(now);
     return diff.inDays;
   }
 }

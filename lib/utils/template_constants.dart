@@ -1,5 +1,5 @@
-import '../models/subscription_template.dart';
 import '../models/enums.dart';
+import '../models/subscription_template.dart';
 
 /// Predefined subscription templates
 class TemplateConstants {

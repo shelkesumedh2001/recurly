@@ -8,6 +8,14 @@ class AppConstants {
   static const String subscriptionsBox = 'subscriptions';
   static const String settingsBox = 'settings';
 
+  // Notification Settings (Phase 3)
+  static const String notificationChannelId = 'subscription_reminders';
+  static const String notificationChannelName = 'Subscription Reminders';
+  static const String notificationChannelDescription =
+      'Reminders for upcoming subscription renewals';
+  static const int defaultNotificationHour = 9;
+  static const int defaultNotificationMinute = 0;
+
   // Limits
   static const int freeSubscriptionLimit = 5;
 
@@ -21,22 +29,22 @@ class AppConstants {
   static const Duration longAnimationDuration = Duration(milliseconds: 500);
 
   // Spacing (8dp grid system)
-  static const double spacing4 = 4.0;
-  static const double spacing8 = 8.0;
-  static const double spacing12 = 12.0;
-  static const double spacing16 = 16.0;
-  static const double spacing24 = 24.0;
-  static const double spacing32 = 32.0;
-  static const double spacing48 = 48.0;
+  static const double spacing4 = 4;
+  static const double spacing8 = 8;
+  static const double spacing12 = 12;
+  static const double spacing16 = 16;
+  static const double spacing24 = 24;
+  static const double spacing32 = 32;
+  static const double spacing48 = 48;
 
   // Border Radius
-  static const double radiusSmall = 8.0;
-  static const double radiusMedium = 16.0;
-  static const double radiusLarge = 28.0;
+  static const double radiusSmall = 8;
+  static const double radiusMedium = 16;
+  static const double radiusLarge = 28;
 
   // Card Dimensions
-  static const double cardMinHeight = 88.0;
-  static const double logoSize = 40.0;
+  static const double cardMinHeight = 88;
+  static const double logoSize = 40;
 
   // Renewal Urgency Thresholds (in days)
   static const int renewalUrgentThreshold = 7;

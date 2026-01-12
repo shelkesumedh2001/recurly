@@ -1,22 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
-import '../models/subscription.dart';
+import 'package:uuid/uuid.dart';
+
 import '../models/enums.dart';
+import '../models/subscription.dart';
 import '../models/subscription_template.dart';
 import '../providers/subscription_providers.dart';
 import '../providers/template_providers.dart';
 import '../utils/constants.dart';
 
-class AddSubscriptionSheet extends ConsumerStatefulWidget {
-  final Subscription? subscription; // Null for add, populated for edit
+class AddSubscriptionSheet extends ConsumerStatefulWidget { // Null for add, populated for edit
 
   const AddSubscriptionSheet({
     super.key,
     this.subscription,
   });
+  final Subscription? subscription;
 
   @override
   ConsumerState<AddSubscriptionSheet> createState() => _AddSubscriptionSheetState();
@@ -110,7 +111,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                       width: 36,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.onSurface.withOpacity(0.2),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -132,17 +133,17 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                     const SizedBox(height: 24),
                     Row(
                       children: [
-                        Expanded(child: Divider(color: theme.colorScheme.outline.withOpacity(0.3))),
+                        Expanded(child: Divider(color: theme.colorScheme.outline.withValues(alpha: 0.3))),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Text(
                             'Or create custom',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(0.6),
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                             ),
                           ),
                         ),
-                        Expanded(child: Divider(color: theme.colorScheme.outline.withOpacity(0.3))),
+                        Expanded(child: Divider(color: theme.colorScheme.outline.withValues(alpha: 0.3))),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -280,7 +281,8 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                   borderRadius: BorderRadius.circular(AppConstants.radiusSmall),
                   child: InputDecorator(
                     decoration: const InputDecoration(
-                      labelText: 'First Bill Date',
+                      labelText: 'Start Date',
+                      helperText: 'When did this subscription start?',
                       prefixIcon: Icon(Icons.calendar_today),
                     ),
                     child: Text(
@@ -321,11 +323,13 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
 
   /// Show date picker
   Future<void> _selectDate(BuildContext context) async {
+    final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _firstBillDate,
+      initialDate: _firstBillDate.isAfter(now) ? now : _firstBillDate,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: now.add(const Duration(days: 30)),
+      helpText: 'When did this subscription start?',
     );
 
     if (picked != null) {
@@ -444,7 +448,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
               const SizedBox(height: 8),
             ],
           );
-        }).toList(),
+        }),
       ],
     );
   }
@@ -462,10 +466,10 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           width: 70,
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: theme.colorScheme.outline.withOpacity(0.2),
+              color: theme.colorScheme.outline.withValues(alpha: 0.2),
             ),
           ),
           child: Column(
@@ -490,7 +494,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                         return Icon(
                           Icons.image_not_supported,
                           size: 24,
-                          color: theme.colorScheme.onSurface.withOpacity(0.3),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
                         );
                       },
                     ),

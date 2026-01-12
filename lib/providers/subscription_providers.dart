@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/subscription.dart';
 import '../services/database_service.dart';
+import '../services/notification_service.dart';
+import 'preferences_providers.dart';
 
 /// Provider for the database service singleton
 final databaseServiceProvider = Provider<DatabaseService>((ref) {
@@ -9,11 +11,18 @@ final databaseServiceProvider = Provider<DatabaseService>((ref) {
 
 /// State notifier for managing subscriptions
 class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>> {
-  final DatabaseService _databaseService;
 
-  SubscriptionNotifier(this._databaseService) : super(const AsyncValue.loading()) {
+  SubscriptionNotifier(
+    this._databaseService,
+    this._notificationService,
+    this._ref,
+  ) : super(const AsyncValue.loading()) {
     loadSubscriptions();
   }
+
+  final DatabaseService _databaseService;
+  final NotificationService _notificationService;
+  final Ref _ref;
 
   /// Load all active subscriptions
   Future<void> loadSubscriptions() async {
@@ -31,6 +40,13 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
     try {
       await _databaseService.addSubscription(subscription);
       await loadSubscriptions();
+
+      // Schedule notifications for new subscription
+      final preferences = _ref.read(preferencesProvider);
+      await _notificationService.scheduleSubscriptionNotifications(
+        subscription,
+        preferences,
+      );
     } catch (e) {
       rethrow;
     }
@@ -41,6 +57,13 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
     try {
       await _databaseService.updateSubscription(subscription);
       await loadSubscriptions();
+
+      // Reschedule notifications for updated subscription
+      final preferences = _ref.read(preferencesProvider);
+      await _notificationService.scheduleSubscriptionNotifications(
+        subscription,
+        preferences,
+      );
     } catch (e) {
       rethrow;
     }
@@ -49,6 +72,8 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
   /// Delete a subscription
   Future<void> deleteSubscription(String id) async {
     try {
+      // Cancel notifications before deleting
+      await _notificationService.cancelSubscriptionNotifications(id);
       await _databaseService.deleteSubscription(id);
       await loadSubscriptions();
     } catch (e) {
@@ -59,8 +84,30 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
   /// Archive a subscription
   Future<void> archiveSubscription(String id) async {
     try {
+      // Cancel notifications before archiving
+      await _notificationService.cancelSubscriptionNotifications(id);
       await _databaseService.archiveSubscription(id);
       await loadSubscriptions();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Restore subscription from recently deleted
+  Future<void> restoreFromRecentlyDeleted(String id) async {
+    try {
+      await _databaseService.restoreFromRecentlyDeleted(id);
+      await loadSubscriptions();
+
+      // Reschedule notifications after restoring
+      final subscription = _databaseService.getSubscriptionById(id);
+      if (subscription != null) {
+        final preferences = _ref.read(preferencesProvider);
+        await _notificationService.scheduleSubscriptionNotifications(
+          subscription,
+          preferences,
+        );
+      }
     } catch (e) {
       rethrow;
     }
@@ -100,7 +147,8 @@ final subscriptionProvider =
     StateNotifierProvider<SubscriptionNotifier, AsyncValue<List<Subscription>>>(
   (ref) {
     final databaseService = ref.watch(databaseServiceProvider);
-    return SubscriptionNotifier(databaseService);
+    final notificationService = ref.watch(notificationServiceProvider);
+    return SubscriptionNotifier(databaseService, notificationService, ref);
   },
 );
 
@@ -111,7 +159,7 @@ final totalMonthlySpendProvider = Provider<double>((ref) {
   return subscriptionsAsync.when(
     data: (subscriptions) {
       return subscriptions.fold<double>(
-        0.0,
+        0,
         (sum, sub) => sum + sub.monthlyEquivalent,
       );
     },
@@ -134,7 +182,6 @@ final activeSubscriptionCountProvider = Provider<int>((ref) {
 /// Provider for checking if free limit is reached
 final hasReachedFreeLimitProvider = Provider<bool>((ref) {
   final count = ref.watch(activeSubscriptionCountProvider);
-  final databaseService = ref.watch(databaseServiceProvider);
   return count >= 5; // Free limit
 });
 
@@ -190,7 +237,7 @@ final filteredSubscriptionsProvider = Provider<AsyncValue<List<Subscription>>>((
       return AsyncValue.data(filtered);
     },
     loading: () => const AsyncValue.loading(),
-    error: (error, stack) => AsyncValue.error(error, stack),
+    error: AsyncValue.error,
   );
 });
 

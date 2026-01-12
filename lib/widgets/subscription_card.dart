@@ -7,12 +7,12 @@ import '../theme/app_theme.dart';
 import 'add_subscription_sheet.dart';
 
 class SubscriptionCard extends ConsumerWidget {
-  final Subscription subscription;
 
   const SubscriptionCard({
     super.key,
     required this.subscription,
   });
+  final Subscription subscription;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -35,7 +35,7 @@ class SubscriptionCard extends ConsumerWidget {
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.endToStart) {
           // Swipe left to delete
-          return await _showDeleteDialog(context);
+          return _showDeleteDialog(context);
         } else {
           // Swipe right to edit
           _showEditDialog(context, ref);
@@ -67,10 +67,10 @@ class SubscriptionCard extends ConsumerWidget {
       },
       child: Container(
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: theme.colorScheme.outline.withOpacity(0.08),
+            color: theme.colorScheme.outline.withValues(alpha: 0.08),
             width: 1,
           ),
         ),
@@ -118,7 +118,7 @@ class SubscriptionCard extends ConsumerWidget {
                               child: Text(
                                 _getRenewalText(),
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                                   fontWeight: FontWeight.w500,
                                 ),
                                 maxLines: 1,
@@ -148,7 +148,7 @@ class SubscriptionCard extends ConsumerWidget {
                       Text(
                         subscription.billingCycle.displayName.toLowerCase(),
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.5),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -186,7 +186,7 @@ class SubscriptionCard extends ConsumerWidget {
           shape: BoxShape.circle,
           color: Colors.white,
           border: Border.all(
-            color: urgencyColor.withOpacity(0.2),
+            color: urgencyColor.withValues(alpha: 0.2),
             width: 2,
           ),
         ),
@@ -199,7 +199,7 @@ class SubscriptionCard extends ConsumerWidget {
               errorBuilder: (context, error, stackTrace) {
                 // Fallback to emoji if image fails
                 return Container(
-                  color: urgencyColor.withOpacity(0.12),
+                  color: urgencyColor.withValues(alpha: 0.12),
                   child: Center(
                     child: Text(
                       subscription.category.icon,
@@ -220,7 +220,7 @@ class SubscriptionCard extends ConsumerWidget {
       height: 48,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: urgencyColor.withOpacity(0.12),
+        color: urgencyColor.withValues(alpha: 0.12),
       ),
       child: Center(
         child: Text(
@@ -330,7 +330,7 @@ class SubscriptionCard extends ConsumerWidget {
                             Text(
                               subscription.category.displayName,
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                               ),
                             ),
                           ],
@@ -422,7 +422,7 @@ class SubscriptionCard extends ConsumerWidget {
           Text(
             label,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.6),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
             ),
           ),
           Text(
