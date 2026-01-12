@@ -43,7 +43,7 @@ class AppTheme {
       ),
 
       // Bottom sheet theme
-      bottomSheetTheme: BottomSheetThemeData(
+      bottomSheetTheme: const BottomSheetThemeData(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(AppConstants.radiusLarge),
@@ -70,8 +70,8 @@ class AppTheme {
       ),
 
       // List tile theme
-      listTileTheme: ListTileThemeData(
-        contentPadding: const EdgeInsets.symmetric(
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.symmetric(
           horizontal: AppConstants.spacing16,
           vertical: AppConstants.spacing8,
         ),
@@ -120,7 +120,7 @@ class AppTheme {
       ),
 
       // Bottom sheet theme
-      bottomSheetTheme: BottomSheetThemeData(
+      bottomSheetTheme: const BottomSheetThemeData(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(AppConstants.radiusLarge),
@@ -147,8 +147,8 @@ class AppTheme {
       ),
 
       // List tile theme
-      listTileTheme: ListTileThemeData(
-        contentPadding: const EdgeInsets.symmetric(
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.symmetric(
           horizontal: AppConstants.spacing16,
           vertical: AppConstants.spacing8,
         ),

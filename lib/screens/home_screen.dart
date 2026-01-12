@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../providers/subscription_providers.dart';
-import '../widgets/subscription_card.dart';
-import '../widgets/add_subscription_sheet.dart';
 import '../utils/constants.dart';
+import '../widgets/add_subscription_sheet.dart';
+import '../widgets/subscription_card.dart';
 import 'archived_screen.dart';
-import 'settings_screen.dart';
 import 'recently_deleted_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -147,10 +148,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       margin: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: theme.colorScheme.outline.withOpacity(0.1),
+          color: theme.colorScheme.outline.withValues(alpha: 0.1),
           width: 1,
         ),
       ),
@@ -160,7 +161,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Text(
             'Monthly Total',
             style: theme.textTheme.labelLarge?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.6),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               fontWeight: FontWeight.w500,
               letterSpacing: 0.5,
             ),
@@ -179,7 +180,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Text(
             '$count ${count == 1 ? 'subscription' : 'subscriptions'}',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.5),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
             ),
           ),
         ],
@@ -202,13 +203,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               Container(
                 padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.search_off,
                   size: 64,
-                  color: theme.colorScheme.primary.withOpacity(0.4),
+                  color: theme.colorScheme.primary.withValues(alpha: 0.4),
                 ),
               ),
               const SizedBox(height: 32),
@@ -223,7 +224,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               Text(
                 'Try searching with a different term',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   height: 1.5,
                 ),
                 textAlign: TextAlign.center,
@@ -244,13 +245,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Container(
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.receipt_long_outlined,
                 size: 64,
-                color: theme.colorScheme.primary.withOpacity(0.4),
+                color: theme.colorScheme.primary.withValues(alpha: 0.4),
               ),
             ),
             const SizedBox(height: 32),
@@ -265,7 +266,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Text(
               'Track your subscriptions\nand never miss a renewal',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 height: 1.5,
               ),
               textAlign: TextAlign.center,
@@ -289,7 +290,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Icon(
               Icons.error_outline,
               size: 64,
-              color: theme.colorScheme.error.withOpacity(0.5),
+              color: theme.colorScheme.error.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
@@ -340,7 +341,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.onSurface.withOpacity(0.2),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

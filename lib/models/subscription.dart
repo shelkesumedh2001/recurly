@@ -4,7 +4,50 @@ import 'enums.dart';
 part 'subscription.g.dart';
 
 @HiveType(typeId: 0)
-class Subscription extends HiveObject {
+class Subscription extends HiveObject { // For recently deleted feature
+
+  Subscription({
+    required this.id,
+    required this.name,
+    required this.price,
+    this.currency = 'USD',
+    required this.billingCycle,
+    required this.firstBillDate,
+    required this.category,
+    this.logoUrl,
+    this.color,
+    this.notes,
+    this.isArchived = false,
+    required this.createdAt,
+    this.sharedWith,
+    this.deletedAt,
+  });
+
+  /// Create from JSON (Firebase)
+  factory Subscription.fromJson(Map<String, dynamic> json) {
+    return Subscription(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      price: (json['price'] as num).toDouble(),
+      currency: json['currency'] as String? ?? 'USD',
+      billingCycle: BillingCycle.values.firstWhere(
+        (e) => e.name == json['billingCycle'],
+      ),
+      firstBillDate: DateTime.parse(json['firstBillDate'] as String),
+      category: SubscriptionCategory.values.firstWhere(
+        (e) => e.name == json['category'],
+      ),
+      logoUrl: json['logoUrl'] as String?,
+      color: json['color'] as String?,
+      notes: json['notes'] as String?,
+      isArchived: json['isArchived'] as bool? ?? false,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      sharedWith: (json['sharedWith'] as List<dynamic>?)?.cast<String>(),
+      deletedAt: json['deletedAt'] != null
+          ? DateTime.parse(json['deletedAt'] as String)
+          : null,
+    );
+  }
   @HiveField(0)
   final String id;
 
@@ -45,61 +88,62 @@ class Subscription extends HiveObject {
   List<String>? sharedWith;
 
   @HiveField(13)
-  DateTime? deletedAt; // For recently deleted feature
-
-  Subscription({
-    required this.id,
-    required this.name,
-    required this.price,
-    this.currency = 'USD',
-    required this.billingCycle,
-    required this.firstBillDate,
-    required this.category,
-    this.logoUrl,
-    this.color,
-    this.notes,
-    this.isArchived = false,
-    required this.createdAt,
-    this.sharedWith,
-    this.deletedAt,
-  });
+  DateTime? deletedAt;
 
   /// Calculate the next bill date based on billing cycle
   DateTime get nextBillDate {
     final now = DateTime.now();
     var nextDate = firstBillDate;
 
-    // Keep adding billing cycles until we're in the future
-    while (nextDate.isBefore(now)) {
-      switch (billingCycle) {
-        case BillingCycle.monthly:
-          nextDate = DateTime(
-            nextDate.year,
-            nextDate.month + 1,
-            nextDate.day,
-          );
-          break;
-        case BillingCycle.yearly:
-          nextDate = DateTime(
-            nextDate.year + 1,
-            nextDate.month,
-            nextDate.day,
-          );
-          break;
-        case BillingCycle.weekly:
-          nextDate = nextDate.add(const Duration(days: 7));
-          break;
-        case BillingCycle.custom:
-          nextDate = DateTime(
-            nextDate.year,
-            nextDate.month + 1,
-            nextDate.day,
-          );
-          break;
+    // If firstBillDate is in the future, we need to check if it's too far ahead
+    // This handles the case where users set a future date incorrectly
+    if (nextDate.isAfter(now)) {
+      final daysAhead = nextDate.difference(now).inDays;
+      final maxDaysForCycle = billingCycle.getDaysInCycle();
+
+      // If the date is too far in the future for this billing cycle,
+      // calculate from today instead
+      if (daysAhead > maxDaysForCycle) {
+        nextDate = now;
+        // Add one billing cycle to get the next bill date
+        nextDate = _addBillingCycle(nextDate);
       }
+      // Otherwise, the future date is valid (within one billing cycle)
+      return nextDate;
+    }
+
+    // Keep adding billing cycles until we're in the future
+    while (nextDate.isBefore(now) || nextDate.isAtSameMomentAs(now)) {
+      nextDate = _addBillingCycle(nextDate);
     }
 
     return nextDate;
+  }
+
+  /// Helper method to add one billing cycle to a date
+  DateTime _addBillingCycle(DateTime date) {
+    switch (billingCycle) {
+      case BillingCycle.monthly:
+        return DateTime(
+          date.year,
+          date.month + 1,
+          date.day,
+        );
+      case BillingCycle.yearly:
+        return DateTime(
+          date.year + 1,
+          date.month,
+          date.day,
+        );
+      case BillingCycle.weekly:
+        return date.add(const Duration(days: 7));
+      case BillingCycle.custom:
+        return DateTime(
+          date.year,
+          date.month + 1,
+          date.day,
+        );
+    }
   }
 
   /// Days until the next renewal
@@ -161,32 +205,6 @@ class Subscription extends HiveObject {
       'sharedWith': sharedWith,
       'deletedAt': deletedAt?.toIso8601String(),
     };
-  }
-
-  /// Create from JSON (Firebase)
-  factory Subscription.fromJson(Map<String, dynamic> json) {
-    return Subscription(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      price: (json['price'] as num).toDouble(),
-      currency: json['currency'] as String? ?? 'USD',
-      billingCycle: BillingCycle.values.firstWhere(
-        (e) => e.name == json['billingCycle'],
-      ),
-      firstBillDate: DateTime.parse(json['firstBillDate'] as String),
-      category: SubscriptionCategory.values.firstWhere(
-        (e) => e.name == json['category'],
-      ),
-      logoUrl: json['logoUrl'] as String?,
-      color: json['color'] as String?,
-      notes: json['notes'] as String?,
-      isArchived: json['isArchived'] as bool? ?? false,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      sharedWith: (json['sharedWith'] as List<dynamic>?)?.cast<String>(),
-      deletedAt: json['deletedAt'] != null
-          ? DateTime.parse(json['deletedAt'] as String)
-          : null,
-    );
   }
 
   /// Copy with method for updates

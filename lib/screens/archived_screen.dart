@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/subscription_providers.dart';
-import '../services/database_service.dart';
+
 import '../models/subscription.dart';
-import 'package:intl/intl.dart';
+import '../providers/subscription_providers.dart';
 
 class ArchivedScreen extends ConsumerWidget {
   const ArchivedScreen({super.key});
@@ -64,13 +63,13 @@ class ArchivedScreen extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.archive_outlined,
                 size: 64,
-                color: theme.colorScheme.primary.withOpacity(0.4),
+                color: theme.colorScheme.primary.withValues(alpha: 0.4),
               ),
             ),
             const SizedBox(height: 32),
@@ -85,7 +84,7 @@ class ArchivedScreen extends ConsumerWidget {
             Text(
               'Archived subscriptions will appear here',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 height: 1.5,
               ),
               textAlign: TextAlign.center,
@@ -98,9 +97,9 @@ class ArchivedScreen extends ConsumerWidget {
 }
 
 class _ArchivedCard extends ConsumerWidget {
-  final Subscription subscription;
 
   const _ArchivedCard({required this.subscription});
+  final Subscription subscription;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -123,7 +122,7 @@ class _ArchivedCard extends ConsumerWidget {
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.endToStart) {
           // Delete permanently
-          return await _showDeleteDialog(context);
+          return _showDeleteDialog(context);
         } else {
           // Unarchive
           return true;
@@ -157,10 +156,10 @@ class _ArchivedCard extends ConsumerWidget {
       },
       child: Container(
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.2),
+          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: theme.colorScheme.outline.withOpacity(0.08),
+            color: theme.colorScheme.outline.withValues(alpha: 0.08),
             width: 1,
           ),
         ),
@@ -174,7 +173,7 @@ class _ArchivedCard extends ConsumerWidget {
                 height: 48,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                 ),
                 child: Center(
                   child: Text(
@@ -196,7 +195,7 @@ class _ArchivedCard extends ConsumerWidget {
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                         letterSpacing: -0.2,
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -205,7 +204,7 @@ class _ArchivedCard extends ConsumerWidget {
                     Text(
                       'Archived ${_getArchivedDuration()}',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.4),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                       ),
                     ),
                   ],
@@ -217,7 +216,7 @@ class _ArchivedCard extends ConsumerWidget {
                 subscription.formattedPrice,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurface.withOpacity(0.5),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
             ],

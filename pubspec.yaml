@@ -31,8 +31,10 @@ dependencies:
   # fl_chart: ^0.66.0  # Phase 4 - Analytics
   cached_network_image: ^3.3.0  # For efficient image caching
 
-  # Notifications (Phase 3 - will add later)
-  # flutter_local_notifications: ^16.3.0
+  # Notifications (Phase 3)
+  flutter_local_notifications: ^17.0.0
+  timezone: ^0.9.2
+  permission_handler: ^11.0.1
 
   # Utilities
   uuid: ^4.3.3

@@ -1,13 +1,15 @@
 import 'package:hive_flutter/hive_flutter.dart';
-import '../models/subscription.dart';
+
 import '../models/enums.dart';
+import '../models/subscription.dart';
+import '../models/app_preferences.dart';
 import '../utils/constants.dart';
 
 /// Database service for managing subscriptions with Hive
 class DatabaseService {
-  static final DatabaseService _instance = DatabaseService._internal();
   factory DatabaseService() => _instance;
   DatabaseService._internal();
+  static final DatabaseService _instance = DatabaseService._internal();
 
   Box<Subscription>? _subscriptionsBox;
 
@@ -25,6 +27,13 @@ class DatabaseService {
       }
       if (!Hive.isAdapterRegistered(2)) {
         Hive.registerAdapter(SubscriptionCategoryAdapter());
+      }
+      // Phase 3: Notification preferences adapters
+      if (!Hive.isAdapterRegistered(3)) {
+        Hive.registerAdapter(AppPreferencesAdapter());
+      }
+      if (!Hive.isAdapterRegistered(4)) {
+        Hive.registerAdapter(TimeOfDayPreferenceAdapter());
       }
 
       // Open boxes
@@ -203,7 +212,7 @@ class DatabaseService {
     try {
       final subscriptions = getActiveSubscriptions();
       return subscriptions.fold<double>(
-        0.0,
+        0,
         (sum, sub) => sum + sub.monthlyEquivalent,
       );
     } catch (e) {
