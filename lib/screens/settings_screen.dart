@@ -16,6 +16,7 @@ class SettingsScreen extends ConsumerWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
         backgroundColor: theme.colorScheme.surface,
+        automaticallyImplyLeading: false, // Remove back button since it's a main tab
         title: Text(
           'Settings',
           style: theme.textTheme.headlineMedium?.copyWith(

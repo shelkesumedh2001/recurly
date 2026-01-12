@@ -7,7 +7,6 @@ import '../widgets/add_subscription_sheet.dart';
 import '../widgets/subscription_card.dart';
 import 'archived_screen.dart';
 import 'recently_deleted_screen.dart';
-import 'settings_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -333,76 +332,63 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             borderRadius: BorderRadius.circular(24),
           ),
           child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 8),
-                Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(2),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                _buildMenuItem(
-                  context,
-                  icon: Icons.sort,
-                  title: 'Sort',
-                  subtitle: 'Change order',
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showSortOptions(context, ref);
-                  },
-                ),
-                _buildMenuItem(
-                  context,
-                  icon: Icons.archive_outlined,
-                  title: 'Archived',
-                  subtitle: 'View archived subscriptions',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ArchivedScreen(),
-                      ),
-                    );
-                  },
-                ),
-                _buildMenuItem(
-                  context,
-                  icon: Icons.delete_outline,
-                  title: 'Recently Deleted',
-                  subtitle: 'Restore within 30 days',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const RecentlyDeletedScreen(),
-                      ),
-                    );
-                  },
-                ),
-                _buildMenuItem(
-                  context,
-                  icon: Icons.settings_outlined,
-                  title: 'Settings',
-                  subtitle: 'App preferences',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SettingsScreen(),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 8),
-              ],
+                  const SizedBox(height: 8),
+                  _buildMenuItem(
+                    context,
+                    icon: Icons.sort,
+                    title: 'Sort',
+                    subtitle: 'Change order',
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showSortOptions(context, ref);
+                    },
+                  ),
+                  _buildMenuItem(
+                    context,
+                    icon: Icons.archive_outlined,
+                    title: 'Archived',
+                    subtitle: 'View archived subscriptions',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ArchivedScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildMenuItem(
+                    context,
+                    icon: Icons.delete_outline,
+                    title: 'Recently Deleted',
+                    subtitle: 'Restore within 30 days',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RecentlyDeletedScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
             ),
           ),
         );
