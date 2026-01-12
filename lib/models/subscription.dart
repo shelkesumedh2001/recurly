@@ -93,27 +93,19 @@ class Subscription extends HiveObject { // For recently deleted feature
   /// Calculate the next bill date based on billing cycle
   DateTime get nextBillDate {
     final now = DateTime.now();
-    var nextDate = firstBillDate;
+    final today = DateTime(now.year, now.month, now.day);
+    var nextDate = DateTime(firstBillDate.year, firstBillDate.month, firstBillDate.day);
 
-    // If firstBillDate is in the future, we need to check if it's too far ahead
-    // This handles the case where users set a future date incorrectly
-    if (nextDate.isAfter(now)) {
-      final daysAhead = nextDate.difference(now).inDays;
-      final maxDaysForCycle = billingCycle.getDaysInCycle();
-
-      // If the date is too far in the future for this billing cycle,
-      // calculate from today instead
-      if (daysAhead > maxDaysForCycle) {
-        nextDate = now;
-        // Add one billing cycle to get the next bill date
-        nextDate = _addBillingCycle(nextDate);
-      }
-      // Otherwise, the future date is valid (within one billing cycle)
+    // If start date is in the future, return it directly
+    if (nextDate.isAfter(today)) {
       return nextDate;
     }
 
-    // Keep adding billing cycles until we're in the future
-    while (nextDate.isBefore(now) || nextDate.isAtSameMomentAs(now)) {
+    // Keep adding billing cycles until we are at Today or in the Future.
+    // We allow 'Today' to be returned so that:
+    // 1. "Renews Today" notifications can fire if the time hasn't passed.
+    // 2. Users testing the app can see immediate results.
+    while (nextDate.isBefore(today)) {
       nextDate = _addBillingCycle(nextDate);
     }
 
@@ -149,8 +141,9 @@ class Subscription extends HiveObject { // For recently deleted feature
   /// Days until the next renewal
   int get daysUntilRenewal {
     final now = DateTime.now();
-    final difference = nextBillDate.difference(now);
-    return difference.inDays;
+    final today = DateTime(now.year, now.month, now.day);
+    final next = DateTime(nextBillDate.year, nextBillDate.month, nextBillDate.day);
+    return next.difference(today).inDays;
   }
 
   /// Convert price to monthly equivalent for comparison

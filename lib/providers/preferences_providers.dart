@@ -1,7 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../models/app_preferences.dart';
-import '../services/preferences_service.dart';
 import '../services/notification_service.dart';
+import '../services/preferences_service.dart';
 
 /// Provider for preferences service singleton
 final preferencesServiceProvider = Provider<PreferencesService>((ref) {

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/app_preferences.dart';
@@ -105,7 +106,9 @@ class NotificationSettingsScreen extends ConsumerWidget {
             value: preferences.notificationsEnabled,
             onChanged: (value) async {
               await ref.read(preferencesProvider.notifier).toggleNotifications(value);
-              await _rescheduleAll(ref, context);
+              if (context.mounted) {
+                await _rescheduleAll(ref, context);
+              }
             },
           ),
 
@@ -125,7 +128,9 @@ class NotificationSettingsScreen extends ConsumerWidget {
             enabled: preferences.notificationsEnabled,
             onChanged: (value) async {
               await ref.read(preferencesProvider.notifier).toggleReminder7Days(value);
-              await _rescheduleAll(ref, context);
+              if (context.mounted) {
+                await _rescheduleAll(ref, context);
+              }
             },
           ),
 
@@ -140,7 +145,9 @@ class NotificationSettingsScreen extends ConsumerWidget {
             enabled: preferences.notificationsEnabled,
             onChanged: (value) async {
               await ref.read(preferencesProvider.notifier).toggleReminder3Days(value);
-              await _rescheduleAll(ref, context);
+              if (context.mounted) {
+                await _rescheduleAll(ref, context);
+              }
             },
           ),
 
@@ -155,7 +162,9 @@ class NotificationSettingsScreen extends ConsumerWidget {
             enabled: preferences.notificationsEnabled,
             onChanged: (value) async {
               await ref.read(preferencesProvider.notifier).toggleReminder1Day(value);
-              await _rescheduleAll(ref, context);
+              if (context.mounted) {
+                await _rescheduleAll(ref, context);
+              }
             },
           ),
 
@@ -170,7 +179,9 @@ class NotificationSettingsScreen extends ConsumerWidget {
             enabled: preferences.notificationsEnabled,
             onChanged: (value) async {
               await ref.read(preferencesProvider.notifier).toggleReminderOnDay(value);
-              await _rescheduleAll(ref, context);
+              if (context.mounted) {
+                await _rescheduleAll(ref, context);
+              }
             },
           ),
 
@@ -179,6 +190,95 @@ class NotificationSettingsScreen extends ConsumerWidget {
           // Notification Time Section
           _buildSectionHeader(context, 'Notification Time'),
           _buildTimePickerCard(context, theme, preferences, ref),
+
+          // Debug Section (Only in debug mode)
+          if (kDebugMode) ...[
+            const SizedBox(height: 32),
+            _buildSectionHeader(context, 'Debug Info'),
+            Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.08),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                children: [
+                  ListTile(
+                    onTap: () async {
+                      await notificationService.showTestNotification();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Test notification sent')),
+                        );
+                      }
+                    },
+                    leading: Icon(Icons.notifications_active_outlined, color: theme.colorScheme.primary),
+                    title: const Text('Test Immediate Notification'),
+                    subtitle: const Text('Check if notifications can display'),
+                    trailing: const Icon(Icons.chevron_right),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    onTap: () async {
+                      final pending = await notificationService.getPendingNotifications();
+                      if (context.mounted) {
+                        await showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text('Pending Notifications (${pending.length})'),
+                            content: SizedBox(
+                              width: double.maxFinite,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Padding(
+                                    padding: EdgeInsets.only(bottom: 12),
+                                    child: Text(
+                                      'Note: The "Renews today" text is the message that will be shown on the future scheduled date.',
+                                      style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                                    ),
+                                  ),
+                                  Flexible(
+                                    child: pending.isEmpty
+                                        ? const Text('No pending notifications')
+                                        : ListView.builder(
+                                            shrinkWrap: true,
+                                            itemCount: pending.length,
+                                            itemBuilder: (context, index) {
+                                              final request = pending[index];
+                                              return ListTile(
+                                                title: Text(request.title ?? 'No title'),
+                                                subtitle: Text('ID: ${request.id}\n${request.body ?? ''}\nPayload: ${request.payload ?? 'None'}'),
+                                                isThreeLine: true,
+                                              );
+                                            },
+                                          ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Close'),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                    },
+                    leading: Icon(Icons.bug_report_outlined, color: theme.colorScheme.tertiary),
+                    title: const Text('View Pending Notifications'),
+                    subtitle: const Text('Check scheduled reminders'),
+                    trailing: const Icon(Icons.chevron_right),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -280,13 +380,15 @@ class NotificationSettingsScreen extends ConsumerWidget {
                   initialTime: TimeOfDay(hour: time.hour, minute: time.minute),
                 );
 
-                if (newTime != null) {
+                if (newTime != null && context.mounted) {
                   final newPreference = TimeOfDayPreference(
                     hour: newTime.hour,
                     minute: newTime.minute,
                   );
                   await ref.read(preferencesProvider.notifier).updateNotificationTime(newPreference);
-                  await _rescheduleAll(ref, context);
+                  if (context.mounted) {
+                    await _rescheduleAll(ref, context);
+                  }
                 }
               }
             : null,

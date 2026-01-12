@@ -117,8 +117,8 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
   void sortByDate() {
     final current = state.value;
     if (current != null) {
-      final sorted = List<Subscription>.from(current);
-      sorted.sort((a, b) => a.nextBillDate.compareTo(b.nextBillDate));
+      final sorted = List<Subscription>.from(current)
+        ..sort((a, b) => a.nextBillDate.compareTo(b.nextBillDate));
       state = AsyncValue.data(sorted);
     }
   }
@@ -126,8 +126,8 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
   void sortByPrice() {
     final current = state.value;
     if (current != null) {
-      final sorted = List<Subscription>.from(current);
-      sorted.sort((a, b) => b.monthlyEquivalent.compareTo(a.monthlyEquivalent));
+      final sorted = List<Subscription>.from(current)
+        ..sort((a, b) => b.monthlyEquivalent.compareTo(a.monthlyEquivalent));
       state = AsyncValue.data(sorted);
     }
   }
@@ -135,8 +135,8 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
   void sortByName() {
     final current = state.value;
     if (current != null) {
-      final sorted = List<Subscription>.from(current);
-      sorted.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      final sorted = List<Subscription>.from(current)
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       state = AsyncValue.data(sorted);
     }
   }

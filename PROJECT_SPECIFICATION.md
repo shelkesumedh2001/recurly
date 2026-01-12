@@ -6,7 +6,7 @@
 **Platform**: Android (Primary), iOS (Future)
 **Framework**: Flutter 3.19+ with Dart 3.3+
 **Monetization**: Freemium (Free: 5 subs, Pro: $39.99/year for unlimited)
-**Status**: Phase 1 - Core Features Implemented ✅
+**Status**: Phase 3 - Notifications Implemented ✅
 
 ---
 
@@ -26,15 +26,15 @@ Help users:
 
 | Component | Technology | Version | Purpose |
 |-----------|-----------|---------|---------|
-| Framework | Flutter | 3.19+ | Cross-platform UI |
-| Language | Dart | 3.3+ | Type-safe development |
+| Framework | Flutter | 3.27+ | Cross-platform UI |
+| Language | Dart | 3.6+ | Type-safe development |
 | State Management | Riverpod | 2.4+ | Reactive state |
 | Local Database | Hive | 2.2+ | Offline-first storage |
 | Backend | Firebase | Latest | Auth & sync |
 | Monetization | RevenueCat | 6.20+ | IAP management |
-| Theming | dynamic_color | 1.7+ | Material You |
+| Theming | dynamic_color | Disabled | Material You (Compatibility issues) |
 | Charts | fl_chart | 0.66+ | Analytics visualization |
-| Notifications | flutter_local_notifications | 16.3+ | Renewal reminders |
+| Notifications | flutter_local_notifications | 17.2+ | Renewal reminders |
 
 ### Architecture Pattern
 
@@ -140,6 +140,7 @@ enum RenewalUrgency { urgent, warning, normal } // <7, 7-14, >14 days
 - Extract colors from wallpaper using `dynamic_color` package
 - Automatically generates full color scheme
 - Supports light and dark themes
+- *Note: Temporarily disabled in v2.0 due to Flutter compatibility issues*
 
 **Fallback Colors** (Android <12):
 - Primary: `#6750A4` (Purple)
@@ -197,32 +198,33 @@ enum RenewalUrgency { urgent, warning, normal } // <7, 7-14, >14 days
 
 ## 🚀 Feature Roadmap
 
-### Phase 1: MVP (Current) ✅
+### Phase 1: MVP ✅
 
 - [x] Add/view subscriptions
 - [x] Calculate total monthly spend
-- [x] Material You theming
+- [x] Material You theming (Fallback)
 - [x] Offline-first storage (Hive)
 - [x] Sort by date/price/name
 - [x] Form validation
 - [x] Empty states
 
-### Phase 2: Enhanced UX
+### Phase 2: Enhanced UX ✅
 
-- [ ] Subscription details screen
-- [ ] Edit subscription
-- [ ] Delete/archive functionality
-- [ ] Search and filter
-- [ ] Undo delete (snackbar)
-- [ ] Pull to refresh
-- [ ] Skeleton loading states
+- [x] Subscription details sheet
+- [x] Edit subscription
+- [x] Delete/archive functionality
+- [x] Search by name
+- [x] Undo delete (snackbar)
+- [x] Pull to refresh
+- [x] Popular service templates (18)
 
-### Phase 3: Notifications
+### Phase 3: Notifications ✅
 
-- [ ] Local notifications for renewals
-- [ ] Notification settings (1/3/7 days before)
-- [ ] Custom notification times
-- [ ] Notification history
+- [x] Local notifications for renewals
+- [x] Notification settings (1/3/7 days before)
+- [x] Custom notification times
+- [x] Dynamic timezone support
+- [x] Exact alarm permission handling
 
 ### Phase 4: Analytics
 

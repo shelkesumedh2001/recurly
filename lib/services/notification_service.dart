@@ -1,10 +1,13 @@
 import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/timezone.dart' as tz;
-import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
-import '../models/subscription.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:timezone/timezone.dart' as tz;
+
 import '../models/app_preferences.dart';
+import '../models/subscription.dart';
 import '../utils/constants.dart';
 
 /// Service for managing local notifications
@@ -35,19 +38,28 @@ class NotificationService {
     );
 
     _initialized = true;
+    debugPrint('NotificationService: Initialized successfully');
   }
 
   /// Handle notification tap
   void _onNotificationTapped(NotificationResponse response) {
+    debugPrint('Notification tapped: ${response.payload}');
     // TODO: Navigate to subscription details when notification is tapped
-    // This will be implemented when we add navigation support
-    // final subscriptionId = response.payload;
   }
 
   /// Request notification permission (Android 13+)
   Future<bool> requestPermission() async {
     if (Platform.isAndroid) {
+      // Request POST_NOTIFICATIONS
       final status = await Permission.notification.request();
+      debugPrint('Notification permission status: $status');
+      
+      // On Android 13+, also request exact alarm permission if needed
+      if (await Permission.scheduleExactAlarm.status.isDenied) {
+        debugPrint('Requesting scheduleExactAlarm permission...');
+        await Permission.scheduleExactAlarm.request();
+      }
+      
       return status.isGranted;
     }
     return true;
@@ -57,7 +69,15 @@ class NotificationService {
   Future<bool> hasPermission() async {
     if (Platform.isAndroid) {
       final status = await Permission.notification.status;
-      return status.isGranted;
+      
+      // Also check exact alarm permission on Android 13+
+      // Permission_handler handles SDK version checks internally
+      final exactAlarmStatus = await Permission.scheduleExactAlarm.status;
+      // If the permission is restricted (default state) or granted, we consider it valid for our use
+      // On < Android 12, this usually returns granted or restricted
+      final hasExactAlarm = !exactAlarmStatus.isDenied && !exactAlarmStatus.isPermanentlyDenied;
+      
+      return status.isGranted && hasExactAlarm;
     }
     return true;
   }
@@ -72,13 +92,18 @@ class NotificationService {
     }
 
     // Don't schedule if notifications are disabled
-    if (!preferences.notificationsEnabled) return;
+    if (!preferences.notificationsEnabled) {
+      debugPrint('Notifications disabled in preferences, skipping scheduling for ${subscription.name}');
+      return;
+    }
 
     // Cancel existing notifications for this subscription first
     await cancelSubscriptionNotifications(subscription.id);
 
     final nextBillDate = subscription.nextBillDate;
     final notificationTime = preferences.notificationTime;
+
+    debugPrint('Scheduling notifications for ${subscription.name} (Next bill: ${DateFormat.yMMMd().format(nextBillDate)})');
 
     // Schedule 7-day reminder if enabled
     if (preferences.reminder7DaysEnabled) {
@@ -144,13 +169,14 @@ class NotificationService {
   /// Schedule a single notification
   Future<void> _scheduleNotification({
     required int id,
-    required DateTime scheduledDate,
+    required tz.TZDateTime scheduledDate,
     required String title,
     required String body,
     String? payload,
   }) async {
     // Don't schedule if date is in the past
-    if (scheduledDate.isBefore(DateTime.now())) {
+    if (scheduledDate.isBefore(tz.TZDateTime.now(tz.local))) {
+      debugPrint('Notification skipped: Scheduled date $scheduledDate is in the past');
       return;
     }
 
@@ -169,20 +195,42 @@ class NotificationService {
     );
 
     try {
+      debugPrint('Zoned scheduling: "$title" at $scheduledDate (ID: $id)');
       await _notifications.zonedSchedule(
         id,
         title,
         body,
-        tz.TZDateTime.from(scheduledDate, tz.local),
+        scheduledDate,
         notificationDetails,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         payload: payload,
       );
+      debugPrint('Successfully scheduled: "$title"');
     } catch (e) {
-      // Silently fail if scheduling fails (e.g., permission denied)
-      // The user will see they don't have permission in the settings screen
+      debugPrint('FAILED to schedule notification: $e');
+      
+      // If exact alarm fails, try inexact as fallback
+      if (e.toString().contains('exact_alarm')) {
+        try {
+          debugPrint('Retrying with inexact schedule mode...');
+          await _notifications.zonedSchedule(
+            id,
+            title,
+            body,
+            scheduledDate,
+            notificationDetails,
+            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+            uiLocalNotificationDateInterpretation:
+                UILocalNotificationDateInterpretation.absoluteTime,
+            payload: payload,
+          );
+          debugPrint('Successfully scheduled (inexact fallback): "$title"');
+        } catch (e2) {
+          debugPrint('Inexact fallback also FAILED: $e2');
+        }
+      }
     }
   }
 
@@ -196,8 +244,9 @@ class NotificationService {
       await _notifications.cancel(_generateNotificationId(subscriptionId, 3));
       await _notifications.cancel(_generateNotificationId(subscriptionId, 1));
       await _notifications.cancel(_generateNotificationId(subscriptionId, 0));
+      debugPrint('Cancelled all notifications for subscription $subscriptionId');
     } catch (e) {
-      // Silently fail if canceling fails
+      debugPrint('Error cancelling notifications: $e');
     }
   }
 
@@ -208,6 +257,7 @@ class NotificationService {
   ) async {
     if (!_initialized) return;
 
+    debugPrint('Rescheduling all notifications (${subscriptions.length} subscriptions)');
     // Cancel all existing notifications first
     await cancelAllNotifications();
 
@@ -223,8 +273,9 @@ class NotificationService {
 
     try {
       await _notifications.cancelAll();
+      debugPrint('All pending notifications cancelled');
     } catch (e) {
-      // Silently fail if canceling fails
+      debugPrint('Error cancelling all notifications: $e');
     }
   }
 
@@ -236,8 +287,11 @@ class NotificationService {
   }
 
   /// Combine date and time for scheduling
-  DateTime _combineDateAndTime(DateTime date, TimeOfDayPreference time) {
-    return DateTime(
+  tz.TZDateTime _combineDateAndTime(DateTime date, TimeOfDayPreference time) {
+    // Use the configured local location (from main.dart initialization)
+    final location = tz.local;
+    return tz.TZDateTime(
+      location,
       date.year,
       date.month,
       date.day,
@@ -251,9 +305,46 @@ class NotificationService {
     if (!_initialized) return [];
 
     try {
-      return await _notifications.pendingNotificationRequests();
+      final requests = await _notifications.pendingNotificationRequests();
+      debugPrint('Total pending notification requests: ${requests.length}');
+      for (final request in requests) {
+        debugPrint(' - ID: ${request.id}, Title: ${request.title}');
+      }
+      return requests;
     } catch (e) {
+      debugPrint('Error getting pending notifications: $e');
       return [];
+    }
+  }
+
+  /// Show an immediate test notification
+  Future<void> showTestNotification() async {
+    if (!_initialized) return;
+
+    const androidDetails = AndroidNotificationDetails(
+      AppConstants.notificationChannelId,
+      AppConstants.notificationChannelName,
+      channelDescription: AppConstants.notificationChannelDescription,
+      importance: Importance.max,
+      priority: Priority.high,
+      enableVibration: true,
+      playSound: true,
+    );
+
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+    );
+
+    try {
+      await _notifications.show(
+        999999, // Specific ID for test
+        'Test Notification',
+        'If you see this, notifications are working!',
+        notificationDetails,
+      );
+      debugPrint('Test notification sent');
+    } catch (e) {
+      debugPrint('Failed to send test notification: $e');
     }
   }
 }
