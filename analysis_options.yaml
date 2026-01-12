@@ -12,8 +12,6 @@ linter:
     control_flow_in_finally: true
     empty_statements: true
     invariant_booleans: true
-    iterable_contains_unrelated_type: true
-    list_remove_unrelated_type: true
     literal_only_boolean_expressions: true
     no_adjacent_strings_in_list: true
     no_duplicate_case_values: true
@@ -27,7 +25,6 @@ linter:
     # Style rules
     always_declare_return_types: true
     always_put_control_body_on_new_line: false
-    always_require_non_null_named_parameters: true
     annotate_overrides: true
     avoid_bool_literals_in_conditional_expressions: true
     avoid_catches_without_on_clauses: false
@@ -43,8 +40,6 @@ linter:
     avoid_relative_lib_imports: true
     avoid_renaming_method_parameters: true
     avoid_return_types_on_setters: true
-    avoid_returning_null: false
-    avoid_returning_null_for_future: true
     avoid_setters_without_getters: true
     avoid_shadowing_type_parameters: true
     avoid_single_cascade_in_expression_statements: true

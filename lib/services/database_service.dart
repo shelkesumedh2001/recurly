@@ -1,8 +1,8 @@
 import 'package:hive_flutter/hive_flutter.dart';
 
+import '../models/app_preferences.dart';
 import '../models/enums.dart';
 import '../models/subscription.dart';
-import '../models/app_preferences.dart';
 import '../utils/constants.dart';
 
 /// Database service for managing subscriptions with Hive
@@ -166,8 +166,8 @@ class DatabaseService {
   /// Get subscriptions sorted by next bill date (soonest first)
   List<Subscription> getSubscriptionsSortedByDate() {
     try {
-      final subscriptions = getActiveSubscriptions();
-      subscriptions.sort((a, b) => a.nextBillDate.compareTo(b.nextBillDate));
+      final subscriptions = getActiveSubscriptions()
+        ..sort((a, b) => a.nextBillDate.compareTo(b.nextBillDate));
       return subscriptions;
     } catch (e) {
       throw Exception('Failed to sort subscriptions: $e');
@@ -177,8 +177,8 @@ class DatabaseService {
   /// Get subscriptions sorted by price (highest first)
   List<Subscription> getSubscriptionsSortedByPrice() {
     try {
-      final subscriptions = getActiveSubscriptions();
-      subscriptions.sort((a, b) => b.monthlyEquivalent.compareTo(a.monthlyEquivalent));
+      final subscriptions = getActiveSubscriptions()
+        ..sort((a, b) => b.monthlyEquivalent.compareTo(a.monthlyEquivalent));
       return subscriptions;
     } catch (e) {
       throw Exception('Failed to sort subscriptions: $e');
@@ -188,8 +188,8 @@ class DatabaseService {
   /// Get subscriptions sorted by name (A-Z)
   List<Subscription> getSubscriptionsSortedByName() {
     try {
-      final subscriptions = getActiveSubscriptions();
-      subscriptions.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      final subscriptions = getActiveSubscriptions()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       return subscriptions;
     } catch (e) {
       throw Exception('Failed to sort subscriptions: $e');

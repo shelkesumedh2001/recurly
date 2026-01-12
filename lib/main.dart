@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
-import 'screens/home_screen.dart';
+
+import 'screens/main_navigation.dart';
 import 'services/database_service.dart';
-import 'services/preferences_service.dart';
 import 'services/notification_service.dart';
+import 'services/preferences_service.dart';
 import 'theme/app_theme.dart';
 import 'utils/constants.dart';
 
@@ -16,7 +18,14 @@ void main() async {
   try {
     // Initialize timezone database (required for scheduled notifications)
     tz.initializeTimeZones();
-    tz.setLocalLocation(tz.getLocation('America/New_York')); // Set default timezone
+    try {
+      final String timeZoneName = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(timeZoneName));
+      debugPrint('Timezone initialized: $timeZoneName');
+    } catch (e) {
+      debugPrint('Failed to get local timezone, falling back to UTC: $e');
+      tz.setLocalLocation(tz.getLocation('UTC'));
+    }
 
     // Initialize database (includes Hive adapters)
     await DatabaseService().initialize();
@@ -24,11 +33,11 @@ void main() async {
     // Initialize preferences service
     await PreferencesService().initialize();
 
-    // Initialize notification service
-    await NotificationService().initialize();
+    // Initialize and configure notification service
+    final notificationService = NotificationService();
+    await notificationService.initialize();
 
     // Request notification permission (Android 13+)
-    final notificationService = NotificationService();
     final hasPermission = await notificationService.hasPermission();
     if (!hasPermission) {
       await notificationService.requestPermission();
@@ -71,8 +80,8 @@ class RecurlyApp extends StatelessWidget {
           darkTheme: darkTheme,
           themeMode: ThemeMode.system,
 
-          // Home screen
-          home: const HomeScreen(),
+          // Main navigation with bottom nav bar
+          home: const MainNavigation(),
         );
       },
     );

@@ -9,7 +9,7 @@ class AppConstants {
   static const String settingsBox = 'settings';
 
   // Notification Settings (Phase 3)
-  static const String notificationChannelId = 'subscription_reminders';
+  static const String notificationChannelId = 'subscription_reminders_v2';
   static const String notificationChannelName = 'Subscription Reminders';
   static const String notificationChannelDescription =
       'Reminders for upcoming subscription renewals';
