@@ -42,6 +42,15 @@ dependencies:
   flutter_timezone: ^4.1.1
   fl_chart: ^0.71.0
 
+  # Calendar (Phase 4 - Renewal Calendar)
+  table_calendar: ^3.1.2
+
+  # Export functionality (Phase 4)
+  csv: ^6.0.0
+  share_plus: ^10.0.0
+  pdf: ^3.11.0
+  path_provider: ^2.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -41,6 +41,16 @@ Recurly is a minimal, world-class subscription tracking app for Android. Users m
 - flutter_timezone 4.1.1 (device timezone detection)
 - permission_handler 11.4.0 (runtime permission requests for Android 13+)
 
+**Analytics & Charts:**
+- fl_chart 0.71.0 (pie charts, bar charts with animations)
+- table_calendar 3.1.2 (renewal calendar heatmap view)
+
+**Export:**
+- csv 6.0.0 (CSV file generation)
+- pdf 3.11.0 (PDF report generation)
+- share_plus 10.0.0 (native share sheet integration)
+- path_provider 2.1.0 (temp file storage for exports)
+
 **Assets:**
 - cached_network_image 3.3.0 (for future network images, currently using local assets)
 - 18 subscription logos stored locally in assets/images/logos/
@@ -156,17 +166,26 @@ Recurly is a minimal, world-class subscription tracking app for Android. Users m
 
 **Implemented (Phase 4 - Analytics & Polish - Complete):**
 - ✅ Analytics screen with spending insights
-- ✅ Category pie chart with vibrant gradients (red, blue, purple, mint, amber, pink)
+- ✅ Category pie chart with vibrant gradients (red, purple, cyan, pink, orange, green)
 - ✅ Smooth 2-second fill animation with staggered segments
 - ✅ Monthly spending trend bar chart (6-month projection)
 - ✅ Accurate billing calculations for monthly/yearly/weekly cycles
 - ✅ Bottom navigation bar (Home, Analytics, Settings)
 - ✅ Fade transitions between tabs
 - ✅ Modern warm theme inspired by expense tracking apps
-- ✅ Warm color palette (peach primary, sage secondary, warm dark backgrounds)
 - ✅ Chart animations with cascading effects
 - ✅ Fixed NotificationService instantiation efficiency
 - ✅ Analytics providers with proper date-based projection logic
+
+**Implemented (Phase 4.5 - Analytics Expansion - Complete):**
+- ✅ **New dark warm brown theme** - Deep brown background (#1A1514), coral FAB (#F4A089), red expenses (#E74C3C), green income (#48A868)
+- ✅ **Category drill-down** - Tap any pie chart segment or legend to see subscriptions in that category with progress bars
+- ✅ **Renewal calendar heatmap** - Calendar view showing upcoming renewals with color intensity based on spend amount
+- ✅ **Export to CSV** - Export all subscriptions with prices, cycles, categories, and dates to spreadsheet format
+- ✅ **Export to PDF** - Generate formatted reports with summary stats, subscription table, and category breakdown
+- ✅ **Analytics tab navigation** - Overview and Calendar tabs in analytics screen
+- ✅ **Total in pie chart center** - Shows total monthly spend in donut hole
+- ✅ **Legend tap interaction** - Tap legend items to see category details
 
 ---
 
@@ -236,7 +255,18 @@ Recurly is a minimal, world-class subscription tracking app for Android. Users m
 
 # Version History
 
-**v1.3.0 (Current - Phase 4 Complete)**
+**v1.4.0 (Current - Phase 4.5 Complete)**
+- Date: January 13, 2026
+- Status: Analytics expansion with new theme and export features
+- New dark warm brown theme inspired by sleek finance apps
+- Category drill-down: tap pie segments to see subscriptions
+- Renewal calendar with heatmap visualization
+- Export to CSV and PDF with share functionality
+- Analytics tabs: Overview and Calendar views
+- Total monthly spend in donut chart center
+- Enhanced legend interactions
+
+**v1.3.0 (Phase 4 Complete)**
 - Date: January 12, 2026
 - Status: Analytics and UI polish complete with smooth animations
 - Bottom navigation with 3 main tabs (Home, Analytics, Settings)
