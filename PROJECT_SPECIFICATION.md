@@ -226,13 +226,16 @@ enum RenewalUrgency { urgent, warning, normal } // <7, 7-14, >14 days
 - [x] Dynamic timezone support
 - [x] Exact alarm permission handling
 
-### Phase 4: Analytics
+### Phase 4: Analytics ✅
 
-- [ ] Spending trends chart (fl_chart)
-- [ ] Category breakdown pie chart
-- [ ] Year-over-year comparison
-- [ ] Most expensive subscriptions
-- [ ] Savings calculator (if cancelled)
+- [x] Spending trends chart (fl_chart)
+- [x] Category breakdown pie chart
+- [x] Most expensive subscriptions insight
+- [x] Category drill-down (tap to see subscriptions)
+- [x] Renewal calendar with heatmap
+- [x] Export to CSV
+- [x] Export to PDF with detailed analytics
+- [x] Dark warm brown theme
 
 ### Phase 5: Sharing & Sync
 
@@ -250,7 +253,6 @@ enum RenewalUrgency { urgent, warning, normal } // <7, 7-14, >14 days
   - Unlimited subscriptions
   - Advanced analytics
   - Custom categories
-  - Export to CSV
   - Priority support
 
 ### Phase 7: iOS Launch
