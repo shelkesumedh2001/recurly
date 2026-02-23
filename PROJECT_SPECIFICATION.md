@@ -6,7 +6,7 @@
 **Platform**: Android (Primary), iOS (Future)
 **Framework**: Flutter 3.19+ with Dart 3.3+
 **Monetization**: Freemium (Free: 5 subs, Pro: $39.99/year for unlimited)
-**Status**: Phase 3 - Notifications Implemented ✅
+**Status**: Phase 4 Complete ✅ | Phase 4.5 Complete ✅
 
 ---
 
@@ -141,7 +141,6 @@ enum RenewalUrgency { urgent, warning, normal } // <7, 7-14, >14 days
 - Automatically generates full color scheme
 - Supports light and dark themes
 - *Note: Temporarily disabled in v2.0 due to Flutter compatibility issues*
-
 **Fallback Colors** (Android <12):
 - Primary: `#6750A4` (Purple)
 - Secondary: `#625B71` (Gray)
@@ -236,6 +235,19 @@ enum RenewalUrgency { urgent, warning, normal } // <7, 7-14, >14 days
 - [x] Export to CSV
 - [x] Export to PDF with detailed analytics
 - [x] Dark warm brown theme
+
+### Phase 4.5: Multi-Currency & Polish 🔄
+
+- [x] Multi-currency support (20 currencies)
+- [x] Exchange rate fetching & caching
+- [x] Display currency preference (persisted)
+- [x] Budget tracking system
+- [x] Custom categories
+- [x] Theme customization (presets & custom colors)
+- [x] Trial/free subscription tracking
+- [x] Export in display currency (CSV & PDF)
+- [x] PDF-safe currency symbols
+- [x] Android home screen widget (basic styling)
 
 ### Phase 5: Sharing & Sync
 
@@ -371,8 +383,10 @@ Support for:
 - German
 - Hindi
 
-**Currency Support**:
-- USD, EUR, GBP, INR, JPY, CNY, CAD, AUD
+**Currency Support** (20 currencies):
+- Americas: USD, CAD, MXN, BRL
+- Europe: EUR, GBP, CHF, SEK, NOK, DKK, PLN
+- Asia-Pacific: INR, JPY, CNY, KRW, SGD, HKD, THB, MYR, AUD
 
 ---
 
@@ -466,6 +480,12 @@ Semantic versioning: `MAJOR.MINOR.PATCH+BUILD`
 
 ---
 
-**Last Updated**: 2024-01-11
-**Version**: 2.0
-**Status**: Phase 1 Complete, Ready for Phase 2
+**Last Updated**: 2025-01-17
+**Version**: 2.3
+**Status**: Phase 4 Complete, Phase 4.5 Complete
+
+---
+
+## 📋 See Also
+
+- **DEV_STATUS.md** - Current development status, recent bug fixes, and next steps

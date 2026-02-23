@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/enums.dart';
 import '../providers/analytics_providers.dart';
+import '../providers/currency_providers.dart';
 import '../providers/subscription_providers.dart';
+import '../services/currency_service.dart';
 import '../services/export_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/analytics/category_pie_chart.dart';
@@ -36,11 +39,13 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final totalMonthlySpend = ref.watch(totalMonthlySpendProvider);
-    final yearlyProjected = ref.watch(yearlyProjectedSpendProvider);
+    final totalMonthlySpend = ref.watch(convertedTotalSpendProvider);
+    final yearlyProjected = totalMonthlySpend * 12;
     final mostExpensive = ref.watch(mostExpensiveSubscriptionProvider);
     final topCategory = ref.watch(topCategoryProvider);
     final subscriptionCount = ref.watch(activeSubscriptionCountProvider);
+    final currencyService = ref.watch(currencyServiceProvider);
+    final displayCurrency = ref.watch(displayCurrencyProvider);
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -107,6 +112,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
                   mostExpensive,
                   topCategory,
                   subscriptionCount,
+                  currencyService,
+                  displayCurrency,
                 ),
                 // Calendar tab
                 _buildCalendarTab(theme),
@@ -125,6 +132,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
     dynamic mostExpensive,
     dynamic topCategory,
     int subscriptionCount,
+    CurrencyService currencyService,
+    String displayCurrency,
   ) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -132,7 +141,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Hero Stats
-          _buildHeroStats(theme, totalMonthlySpend, yearlyProjected, subscriptionCount),
+          _buildHeroStats(theme, totalMonthlySpend, yearlyProjected, subscriptionCount, currencyService, displayCurrency),
 
           const SizedBox(height: 28),
 
@@ -203,7 +212,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
               theme,
               title: 'Top Category',
               value: topCategory.key.displayName,
-              subtitle: '\$${topCategory.value.toStringAsFixed(2)}/mo',
+              subtitle: '${currencyService.formatAmount(topCategory.value, displayCurrency)}/mo',
               icon: Icons.pie_chart_rounded,
               color: AppTheme.primaryCoral,
             ),
@@ -248,6 +257,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
     double monthly,
     double yearly,
     int count,
+    CurrencyService currencyService,
+    String displayCurrency,
   ) {
     return Column(
       children: [
@@ -280,7 +291,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
               ),
               const SizedBox(height: 8),
               Text(
-                '\$${monthly.toStringAsFixed(2)}',
+                currencyService.formatAmount(monthly, displayCurrency),
                 style: theme.textTheme.displayMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: AppTheme.expenseColor,
@@ -304,7 +315,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
               child: _buildStatCard(
                 theme,
                 label: 'Yearly',
-                value: '\$${yearly.toStringAsFixed(0)}',
+                value: currencyService.formatAmount(yearly, displayCurrency),
                 color: AppTheme.incomeColor,
               ),
             ),
@@ -313,7 +324,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
               child: _buildStatCard(
                 theme,
                 label: 'Daily Avg',
-                value: '\$${(monthly / 30).toStringAsFixed(2)}',
+                value: currencyService.formatAmount(monthly / 30, displayCurrency),
                 color: theme.colorScheme.tertiary,
               ),
             ),
@@ -526,7 +537,16 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
 
     try {
       final subscriptions = ref.read(subscriptionProvider).value ?? [];
-      await ExportService().exportToCsv(subscriptions);
+      final displayCurrency = ref.read(displayCurrencyProvider);
+      final currencyService = ref.read(currencyServiceProvider);
+      final exchangeRates = ref.read(exchangeRatesProvider).value;
+
+      await ExportService().exportToCsv(
+        subscriptions,
+        displayCurrency: displayCurrency,
+        currencyService: currencyService,
+        exchangeRates: exchangeRates,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('CSV exported successfully')),
@@ -550,13 +570,21 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
 
     try {
       final subscriptions = ref.read(subscriptionProvider).value ?? [];
-      final totalMonthly = ref.read(totalMonthlySpendProvider);
+      final totalMonthly = ref.read(convertedTotalSpendProvider);
+      final displayCurrency = ref.read(displayCurrencyProvider);
+      final currencyService = ref.read(currencyServiceProvider);
+      final exchangeRates = ref.read(exchangeRatesProvider).value;
+
+      // Get category spend (already in Map<SubscriptionCategory, double> format)
       final categorySpend = ref.read(categorySpendProvider);
 
       await ExportService().exportToPdf(
         subscriptions,
         totalMonthlySpend: totalMonthly,
         categorySpend: categorySpend,
+        displayCurrency: displayCurrency,
+        currencyService: currencyService,
+        exchangeRates: exchangeRates,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

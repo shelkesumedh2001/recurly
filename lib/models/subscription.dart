@@ -21,6 +21,9 @@ class Subscription extends HiveObject { // For recently deleted feature
     required this.createdAt,
     this.sharedWith,
     this.deletedAt,
+    this.isFreeTrial = false,
+    this.trialEndDate,
+    this.priceAfterTrial,
   });
 
   /// Create from JSON (Firebase)
@@ -35,7 +38,7 @@ class Subscription extends HiveObject { // For recently deleted feature
       ),
       firstBillDate: DateTime.parse(json['firstBillDate'] as String),
       category: SubscriptionCategory.values.firstWhere(
-        (e) => e.name == json['category'],
+        (e) => e.categoryName == json['category'],
       ),
       logoUrl: json['logoUrl'] as String?,
       color: json['color'] as String?,
@@ -45,6 +48,13 @@ class Subscription extends HiveObject { // For recently deleted feature
       sharedWith: (json['sharedWith'] as List<dynamic>?)?.cast<String>(),
       deletedAt: json['deletedAt'] != null
           ? DateTime.parse(json['deletedAt'] as String)
+          : null,
+      isFreeTrial: json['isFreeTrial'] as bool? ?? false,
+      trialEndDate: json['trialEndDate'] != null
+          ? DateTime.parse(json['trialEndDate'] as String)
+          : null,
+      priceAfterTrial: json['priceAfterTrial'] != null
+          ? (json['priceAfterTrial'] as num).toDouble()
           : null,
     );
   }
@@ -90,6 +100,16 @@ class Subscription extends HiveObject { // For recently deleted feature
   @HiveField(13)
   DateTime? deletedAt;
 
+  // Phase 5.5: Free Trial Tracker fields
+  @HiveField(14)
+  bool isFreeTrial;
+
+  @HiveField(15)
+  DateTime? trialEndDate;
+
+  @HiveField(16)
+  double? priceAfterTrial;
+
   /// Calculate the next bill date based on billing cycle
   DateTime get nextBillDate {
     final now = DateTime.now();
@@ -101,11 +121,11 @@ class Subscription extends HiveObject { // For recently deleted feature
       return nextDate;
     }
 
-    // Keep adding billing cycles until we are at Today or in the Future.
-    // We allow 'Today' to be returned so that:
-    // 1. "Renews Today" notifications can fire if the time hasn't passed.
-    // 2. Users testing the app can see immediate results.
-    while (nextDate.isBefore(today)) {
+    // Keep adding billing cycles until we're in the future.
+    // The firstBillDate represents when the subscription started (initial payment),
+    // so the NEXT renewal is always at least one billing cycle after that.
+    // If firstBillDate is today, the next renewal is one cycle from now.
+    while (!nextDate.isAfter(today)) {
       nextDate = _addBillingCycle(nextDate);
     }
 
@@ -189,7 +209,7 @@ class Subscription extends HiveObject { // For recently deleted feature
       'currency': currency,
       'billingCycle': billingCycle.name,
       'firstBillDate': firstBillDate.toIso8601String(),
-      'category': category.name,
+      'category': category.categoryName,
       'logoUrl': logoUrl,
       'color': color,
       'notes': notes,
@@ -197,6 +217,9 @@ class Subscription extends HiveObject { // For recently deleted feature
       'createdAt': createdAt.toIso8601String(),
       'sharedWith': sharedWith,
       'deletedAt': deletedAt?.toIso8601String(),
+      'isFreeTrial': isFreeTrial,
+      'trialEndDate': trialEndDate?.toIso8601String(),
+      'priceAfterTrial': priceAfterTrial,
     };
   }
 
@@ -217,6 +240,10 @@ class Subscription extends HiveObject { // For recently deleted feature
     List<String>? sharedWith,
     DateTime? deletedAt,
     bool clearDeletedAt = false,
+    bool? isFreeTrial,
+    DateTime? trialEndDate,
+    double? priceAfterTrial,
+    bool clearTrialEndDate = false,
   }) {
     return Subscription(
       id: id ?? this.id,
@@ -233,7 +260,37 @@ class Subscription extends HiveObject { // For recently deleted feature
       createdAt: createdAt ?? this.createdAt,
       sharedWith: sharedWith ?? this.sharedWith,
       deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
+      isFreeTrial: isFreeTrial ?? this.isFreeTrial,
+      trialEndDate: clearTrialEndDate ? null : (trialEndDate ?? this.trialEndDate),
+      priceAfterTrial: priceAfterTrial ?? this.priceAfterTrial,
     );
+  }
+
+  /// Days until trial ends (for free trials)
+  int get daysUntilTrialEnds {
+    if (!isFreeTrial || trialEndDate == null) return -1;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final end = DateTime(trialEndDate!.year, trialEndDate!.month, trialEndDate!.day);
+    return end.difference(today).inDays;
+  }
+
+  /// Check if trial has expired
+  bool get isTrialExpired {
+    if (!isFreeTrial || trialEndDate == null) return false;
+    return DateTime.now().isAfter(trialEndDate!);
+  }
+
+  /// Get trial status text
+  String get trialStatusText {
+    if (!isFreeTrial) return '';
+    if (trialEndDate == null) return 'Free Trial';
+
+    final days = daysUntilTrialEnds;
+    if (days < 0) return 'Trial Expired';
+    if (days == 0) return 'Trial ends today';
+    if (days == 1) return 'Trial ends tomorrow';
+    return 'Trial ends in $days days';
   }
 }
 

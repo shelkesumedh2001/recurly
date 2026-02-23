@@ -1,8 +1,12 @@
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/app_preferences.dart';
+import '../models/budget.dart';
+import '../models/custom_category.dart';
 import '../models/enums.dart';
+import '../models/exchange_rate.dart';
 import '../models/subscription.dart';
+import '../models/theme_preferences.dart';
 import '../utils/constants.dart';
 
 /// Database service for managing subscriptions with Hive
@@ -34,6 +38,22 @@ class DatabaseService {
       }
       if (!Hive.isAdapterRegistered(4)) {
         Hive.registerAdapter(TimeOfDayPreferenceAdapter());
+      }
+      // Phase 5: Theme preferences adapter
+      if (!Hive.isAdapterRegistered(5)) {
+        Hive.registerAdapter(ThemePreferencesAdapter());
+      }
+      // Phase 5: Budget settings adapter
+      if (!Hive.isAdapterRegistered(6)) {
+        Hive.registerAdapter(BudgetSettingsAdapter());
+      }
+      // Phase 5: Custom category adapter
+      if (!Hive.isAdapterRegistered(7)) {
+        Hive.registerAdapter(CustomCategoryAdapter());
+      }
+      // Phase 5: Exchange rate cache adapter
+      if (!Hive.isAdapterRegistered(8)) {
+        Hive.registerAdapter(ExchangeRateCacheAdapter());
       }
 
       // Open boxes

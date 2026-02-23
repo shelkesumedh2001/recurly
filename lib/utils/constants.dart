@@ -7,6 +7,10 @@ class AppConstants {
   // Hive Box Names
   static const String subscriptionsBox = 'subscriptions';
   static const String settingsBox = 'settings';
+  static const String themePreferencesBox = 'theme_preferences';
+  static const String budgetBox = 'budget';
+  static const String customCategoriesBox = 'custom_categories';
+  static const String exchangeRatesBox = 'exchange_rates';
 
   // Notification Settings (Phase 3)
   static const String notificationChannelId = 'subscription_reminders_v2';

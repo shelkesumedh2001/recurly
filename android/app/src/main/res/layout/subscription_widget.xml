@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#1A1514"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/tv_label_monthly"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Monthly Spend"
+        android:textColor="#99FFFFFF"
+        android:textSize="12sp" />
+
+    <TextView
+        android:id="@+id/tv_total_spend"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="$0.00"
+        android:textColor="#FFFFFF"
+        android:textSize="24sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tv_subscription_count"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="0 subscriptions"
+        android:textColor="#99FFFFFF"
+        android:textSize="11sp" />
+
+    <TextView
+        android:id="@+id/tv_label_next"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Next Renewal"
+        android:textColor="#99FFFFFF"
+        android:textSize="11sp" />
+
+    <TextView
+        android:id="@+id/tv_next_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="No subscriptions"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp" />
+
+    <TextView
+        android:id="@+id/tv_next_date"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textColor="#F4A089"
+        android:textSize="12sp" />
+
+    <TextView
+        android:id="@+id/tv_next_price"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textColor="#FFFFFF"
+        android:textSize="14sp" />
+
+</LinearLayout>

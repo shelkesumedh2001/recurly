@@ -9,7 +9,9 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 
 import '../models/enums.dart';
+import '../models/exchange_rate.dart';
 import '../models/subscription.dart';
+import 'currency_service.dart';
 
 /// Service for exporting subscription data to various formats
 class ExportService {
@@ -18,10 +20,69 @@ class ExportService {
   ExportService._internal();
   static final ExportService _instance = ExportService._internal();
 
+  /// Get ASCII-safe currency symbol for PDF (fallback for fonts without Unicode support)
+  String _getPdfSafeSymbol(String currencyCode) {
+    switch (currencyCode) {
+      case 'USD':
+      case 'CAD':
+      case 'AUD':
+      case 'SGD':
+      case 'HKD':
+      case 'MXN':
+        return '\$';
+      case 'EUR':
+        return 'EUR ';
+      case 'GBP':
+        return 'GBP ';
+      case 'INR':
+        return 'INR ';
+      case 'JPY':
+      case 'CNY':
+        return 'JPY ';
+      case 'KRW':
+        return 'KRW ';
+      case 'CHF':
+        return 'CHF ';
+      case 'BRL':
+        return 'R\$';
+      case 'SEK':
+      case 'NOK':
+      case 'DKK':
+        return 'kr ';
+      case 'PLN':
+        return 'PLN ';
+      case 'THB':
+        return 'THB ';
+      case 'MYR':
+        return 'RM ';
+      default:
+        return '$currencyCode ';
+    }
+  }
+
+  /// Format amount for PDF with safe symbols
+  String _formatPdfAmount(double amount, String currencyCode) {
+    final symbol = _getPdfSafeSymbol(currencyCode);
+    if (currencyCode == 'JPY' || currencyCode == 'KRW') {
+      return '$symbol${amount.round()}';
+    }
+    return '$symbol${amount.toStringAsFixed(2)}';
+  }
+
   /// Export subscriptions to CSV and share
-  Future<void> exportToCsv(List<Subscription> subscriptions) async {
+  Future<void> exportToCsv(
+    List<Subscription> subscriptions, {
+    required String displayCurrency,
+    required CurrencyService currencyService,
+    ExchangeRateCache? exchangeRates,
+  }) async {
     try {
-      final csvData = _generateCsvData(subscriptions);
+      final csvData = _generateCsvData(
+        subscriptions,
+        displayCurrency: displayCurrency,
+        currencyService: currencyService,
+        exchangeRates: exchangeRates,
+      );
       final csv = const ListToCsvConverter().convert(csvData);
 
       final directory = await getTemporaryDirectory();
@@ -47,6 +108,9 @@ class ExportService {
     List<Subscription> subscriptions, {
     required double totalMonthlySpend,
     required Map<SubscriptionCategory, double> categorySpend,
+    required String displayCurrency,
+    required CurrencyService currencyService,
+    ExchangeRateCache? exchangeRates,
   }) async {
     try {
       final pdf = pw.Document();
@@ -57,7 +121,7 @@ class ExportService {
 
       // Calculate additional analytics
       final upcomingRenewals = _getUpcomingRenewals(subscriptions, 30);
-      final billingBreakdown = _getBillingCycleBreakdown(subscriptions);
+      final billingBreakdown = _getBillingCycleBreakdown(subscriptions, displayCurrency, currencyService, exchangeRates);
       final avgCost = subscriptions.isEmpty
           ? 0.0
           : totalMonthlySpend / subscriptions.length;
@@ -68,29 +132,29 @@ class ExportService {
           margin: const pw.EdgeInsets.all(40),
           build: (context) => [
             // Header
-            _buildPdfHeader(totalMonthlySpend, subscriptions.length),
+            _buildPdfHeader(totalMonthlySpend, subscriptions.length, displayCurrency),
             pw.SizedBox(height: 24),
 
             // Key metrics
-            _buildPdfKeyMetrics(totalMonthlySpend, subscriptions.length, avgCost),
+            _buildPdfKeyMetrics(totalMonthlySpend, subscriptions.length, avgCost, displayCurrency),
             pw.SizedBox(height: 24),
 
             // Upcoming renewals (next 30 days)
             if (upcomingRenewals.isNotEmpty) ...[
-              _buildPdfUpcomingRenewals(upcomingRenewals),
+              _buildPdfUpcomingRenewals(upcomingRenewals, displayCurrency, currencyService, exchangeRates),
               pw.SizedBox(height: 24),
             ],
 
             // Billing cycle breakdown
-            _buildPdfBillingBreakdown(billingBreakdown),
+            _buildPdfBillingBreakdown(billingBreakdown, displayCurrency),
             pw.SizedBox(height: 24),
 
             // Category breakdown
-            _buildPdfCategoryBreakdown(categorySpend, totalMonthlySpend),
+            _buildPdfCategoryBreakdown(categorySpend, totalMonthlySpend, displayCurrency),
             pw.SizedBox(height: 24),
 
             // All subscriptions table
-            _buildPdfSubscriptionsTable(sortedSubs),
+            _buildPdfSubscriptionsTable(sortedSubs, displayCurrency, currencyService, exchangeRates),
           ],
           footer: (context) => pw.Container(
             alignment: pw.Alignment.centerRight,
@@ -144,20 +208,31 @@ class ExportService {
   /// Get breakdown by billing cycle
   Map<BillingCycle, _BillingStats> _getBillingCycleBreakdown(
     List<Subscription> subscriptions,
+    String displayCurrency,
+    CurrencyService currencyService,
+    ExchangeRateCache? exchangeRates,
   ) {
     final breakdown = <BillingCycle, _BillingStats>{};
 
     for (final sub in subscriptions) {
+      // Convert to display currency
+      final convertedMonthly = currencyService.convert(
+        amount: sub.monthlyEquivalent,
+        from: sub.currency,
+        to: displayCurrency,
+        rates: exchangeRates,
+      );
+
       final existing = breakdown[sub.billingCycle];
       if (existing != null) {
         breakdown[sub.billingCycle] = _BillingStats(
           count: existing.count + 1,
-          totalMonthly: existing.totalMonthly + sub.monthlyEquivalent,
+          totalMonthly: existing.totalMonthly + convertedMonthly,
         );
       } else {
         breakdown[sub.billingCycle] = _BillingStats(
           count: 1,
-          totalMonthly: sub.monthlyEquivalent,
+          totalMonthly: convertedMonthly,
         );
       }
     }
@@ -166,8 +241,14 @@ class ExportService {
   }
 
   /// Generate CSV data rows
-  List<List<dynamic>> _generateCsvData(List<Subscription> subscriptions) {
+  List<List<dynamic>> _generateCsvData(
+    List<Subscription> subscriptions, {
+    required String displayCurrency,
+    required CurrencyService currencyService,
+    ExchangeRateCache? exchangeRates,
+  }) {
     final List<List<dynamic>> rows = [];
+    final symbol = CurrencyInfo.getSymbol(displayCurrency);
 
     // Header row
     rows.add([
@@ -175,7 +256,7 @@ class ExportService {
       'Price',
       'Currency',
       'Billing Cycle',
-      'Monthly Equivalent',
+      'Monthly Equivalent ($displayCurrency)',
       'Category',
       'Next Renewal',
       'Days Until Renewal',
@@ -183,14 +264,24 @@ class ExportService {
       'Notes',
     ]);
 
+    double totalMonthly = 0;
+
     // Data rows
     for (final sub in subscriptions) {
+      final convertedMonthly = currencyService.convert(
+        amount: sub.monthlyEquivalent,
+        from: sub.currency,
+        to: displayCurrency,
+        rates: exchangeRates,
+      );
+      totalMonthly += convertedMonthly;
+
       rows.add([
         sub.name,
         sub.price.toStringAsFixed(2),
         sub.currency,
         sub.billingCycle.displayName,
-        sub.monthlyEquivalent.toStringAsFixed(2),
+        convertedMonthly.toStringAsFixed(2),
         sub.category.displayName,
         DateFormat('yyyy-MM-dd').format(sub.nextBillDate),
         sub.daysUntilRenewal,
@@ -208,18 +299,18 @@ class ExportService {
     ]);
     rows.add([
       'Total Monthly Spend',
-      '\$${subscriptions.fold<double>(0, (sum, sub) => sum + sub.monthlyEquivalent).toStringAsFixed(2)}',
+      '$symbol${totalMonthly.toStringAsFixed(2)}',
     ]);
     rows.add([
       'Total Yearly Spend',
-      '\$${(subscriptions.fold<double>(0, (sum, sub) => sum + sub.monthlyEquivalent) * 12).toStringAsFixed(2)}',
+      '$symbol${(totalMonthly * 12).toStringAsFixed(2)}',
     ]);
 
     return rows;
   }
 
   /// Build PDF header
-  pw.Widget _buildPdfHeader(double totalMonthlySpend, int count) {
+  pw.Widget _buildPdfHeader(double totalMonthlySpend, int count, String displayCurrency) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(20),
       decoration: pw.BoxDecoration(
@@ -254,7 +345,7 @@ class ExportService {
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: [
               pw.Text(
-                '\$${totalMonthlySpend.toStringAsFixed(2)}',
+                _formatPdfAmount(totalMonthlySpend, displayCurrency),
                 style: pw.TextStyle(
                   fontSize: 28,
                   fontWeight: pw.FontWeight.bold,
@@ -276,16 +367,16 @@ class ExportService {
   }
 
   /// Build key metrics section
-  pw.Widget _buildPdfKeyMetrics(double monthly, int count, double avgCost) {
+  pw.Widget _buildPdfKeyMetrics(double monthly, int count, double avgCost, String displayCurrency) {
     final yearly = monthly * 12;
     final daily = monthly / 30;
 
     return pw.Row(
       mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
       children: [
-        _buildMetricBox('Yearly Cost', '\$${yearly.toStringAsFixed(0)}', PdfColor.fromHex('#48A868')),
-        _buildMetricBox('Daily Cost', '\$${daily.toStringAsFixed(2)}', PdfColor.fromHex('#F4A089')),
-        _buildMetricBox('Avg per Sub', '\$${avgCost.toStringAsFixed(2)}', PdfColor.fromHex('#9B59B6')),
+        _buildMetricBox('Yearly Cost', _formatPdfAmount(yearly, displayCurrency), PdfColor.fromHex('#48A868')),
+        _buildMetricBox('Daily Cost', _formatPdfAmount(daily, displayCurrency), PdfColor.fromHex('#F4A089')),
+        _buildMetricBox('Avg per Sub', _formatPdfAmount(avgCost, displayCurrency), PdfColor.fromHex('#9B59B6')),
       ],
     );
   }
@@ -322,7 +413,12 @@ class ExportService {
   }
 
   /// Build upcoming renewals section
-  pw.Widget _buildPdfUpcomingRenewals(List<MapEntry<Subscription, int>> renewals) {
+  pw.Widget _buildPdfUpcomingRenewals(
+    List<MapEntry<Subscription, int>> renewals,
+    String displayCurrency,
+    CurrencyService currencyService,
+    ExchangeRateCache? exchangeRates,
+  ) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
@@ -365,10 +461,18 @@ class ExportService {
               final days = entry.value;
               final daysText = days == 0 ? 'Today' : days == 1 ? 'Tomorrow' : '$days days';
 
+              // Convert to display currency
+              final convertedPrice = currencyService.convert(
+                amount: sub.price,
+                from: sub.currency,
+                to: displayCurrency,
+                rates: exchangeRates,
+              );
+
               return pw.TableRow(
                 children: [
                   _buildTableCell(sub.name),
-                  _buildTableCell(sub.formattedPrice),
+                  _buildTableCell(_formatPdfAmount(convertedPrice, displayCurrency)),
                   _buildTableCell(daysText),
                 ],
               );
@@ -388,7 +492,7 @@ class ExportService {
   }
 
   /// Build billing cycle breakdown
-  pw.Widget _buildPdfBillingBreakdown(Map<BillingCycle, _BillingStats> breakdown) {
+  pw.Widget _buildPdfBillingBreakdown(Map<BillingCycle, _BillingStats> breakdown, String displayCurrency) {
     if (breakdown.isEmpty) return pw.SizedBox();
 
     final sortedEntries = breakdown.entries.toList()
@@ -439,7 +543,7 @@ class ExportService {
                     style: const pw.TextStyle(fontSize: 10),
                   ),
                   pw.Text(
-                    '\$${entry.value.totalMonthly.toStringAsFixed(0)}/mo',
+                    '${_formatPdfAmount(entry.value.totalMonthly, displayCurrency)}/mo',
                     style: pw.TextStyle(
                       fontSize: 9,
                       color: PdfColors.grey600,
@@ -458,6 +562,7 @@ class ExportService {
   pw.Widget _buildPdfCategoryBreakdown(
     Map<SubscriptionCategory, double> categorySpend,
     double total,
+    String displayCurrency,
   ) {
     if (categorySpend.isEmpty) return pw.SizedBox();
 
@@ -521,9 +626,9 @@ class ExportService {
                 ),
                 pw.SizedBox(width: 8),
                 pw.SizedBox(
-                  width: 90,
+                  width: 110,
                   child: pw.Text(
-                    '\$${entry.value.toStringAsFixed(2)} (${percentage.toStringAsFixed(0)}%)',
+                    '${_formatPdfAmount(entry.value, displayCurrency)} (${percentage.toStringAsFixed(0)}%)',
                     style: const pw.TextStyle(fontSize: 10),
                     textAlign: pw.TextAlign.right,
                   ),
@@ -537,7 +642,12 @@ class ExportService {
   }
 
   /// Build PDF subscriptions table
-  pw.Widget _buildPdfSubscriptionsTable(List<Subscription> subscriptions) {
+  pw.Widget _buildPdfSubscriptionsTable(
+    List<Subscription> subscriptions,
+    String displayCurrency,
+    CurrencyService currencyService,
+    ExchangeRateCache? exchangeRates,
+  ) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
@@ -579,15 +689,25 @@ class ExportService {
                 _buildTableCell('Next Bill', isHeader: true),
               ],
             ),
-            ...subscriptions.map((sub) => pw.TableRow(
-              children: [
-                _buildTableCell(sub.name),
-                _buildTableCell(sub.formattedPrice),
-                _buildTableCell(sub.billingCycle.displayName),
-                _buildTableCell(sub.category.displayName),
-                _buildTableCell(DateFormat.MMMd().format(sub.nextBillDate)),
-              ],
-            )),
+            ...subscriptions.map((sub) {
+              // Convert to display currency
+              final convertedPrice = currencyService.convert(
+                amount: sub.price,
+                from: sub.currency,
+                to: displayCurrency,
+                rates: exchangeRates,
+              );
+
+              return pw.TableRow(
+                children: [
+                  _buildTableCell(sub.name),
+                  _buildTableCell(_formatPdfAmount(convertedPrice, displayCurrency)),
+                  _buildTableCell(sub.billingCycle.displayName),
+                  _buildTableCell(sub.category.displayName),
+                  _buildTableCell(DateFormat.MMMd().format(sub.nextBillDate)),
+                ],
+              );
+            }),
           ],
         ),
       ],

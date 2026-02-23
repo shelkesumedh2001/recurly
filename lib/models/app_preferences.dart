@@ -12,6 +12,7 @@ class AppPreferences extends HiveObject {
     this.reminder1DayEnabled = false,
     this.reminderOnDayEnabled = false,
     this.notificationTime = const TimeOfDayPreference(hour: 9, minute: 0),
+    this.displayCurrency = 'USD',
   });
 
   /// Master switch for all notifications
@@ -38,6 +39,10 @@ class AppPreferences extends HiveObject {
   @HiveField(5)
   TimeOfDayPreference notificationTime;
 
+  /// User's preferred display currency for showing totals
+  @HiveField(6)
+  String displayCurrency;
+
   /// Create copy with updated fields
   AppPreferences copyWith({
     bool? notificationsEnabled,
@@ -46,6 +51,7 @@ class AppPreferences extends HiveObject {
     bool? reminder1DayEnabled,
     bool? reminderOnDayEnabled,
     TimeOfDayPreference? notificationTime,
+    String? displayCurrency,
   }) {
     return AppPreferences(
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
@@ -54,6 +60,7 @@ class AppPreferences extends HiveObject {
       reminder1DayEnabled: reminder1DayEnabled ?? this.reminder1DayEnabled,
       reminderOnDayEnabled: reminderOnDayEnabled ?? this.reminderOnDayEnabled,
       notificationTime: notificationTime ?? this.notificationTime,
+      displayCurrency: displayCurrency ?? this.displayCurrency,
     );
   }
 }

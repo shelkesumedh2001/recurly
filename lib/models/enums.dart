@@ -113,4 +113,22 @@ enum SubscriptionCategory {
         return '📦';
     }
   }
+
+  /// Category identifier as string
+  String get categoryName {
+    switch (this) {
+      case SubscriptionCategory.entertainment:
+        return 'entertainment';
+      case SubscriptionCategory.utilities:
+        return 'utilities';
+      case SubscriptionCategory.health:
+        return 'health';
+      case SubscriptionCategory.finance:
+        return 'finance';
+      case SubscriptionCategory.productivity:
+        return 'productivity';
+      case SubscriptionCategory.other:
+        return 'other';
+    }
+  }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/subscription.dart';
 import '../services/database_service.dart';
+import '../services/home_widget_service.dart';
 import '../services/notification_service.dart';
 import 'preferences_providers.dart';
 
@@ -30,6 +31,9 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
     try {
       final subscriptions = _databaseService.getActiveSubscriptions();
       state = AsyncValue.data(subscriptions);
+
+      // Update home screen widget
+      HomeWidgetService().updateWidgetData();
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
     }
@@ -208,7 +212,7 @@ final subscriptionsByCategoryProvider = Provider.family<List<Subscription>, Stri
 
     return subscriptionsAsync.when(
       data: (subscriptions) {
-        return subscriptions.where((sub) => sub.category.name == categoryName).toList();
+        return subscriptions.where((sub) => sub.category.categoryName == categoryName).toList();
       },
       loading: () => [],
       error: (_, __) => [],
