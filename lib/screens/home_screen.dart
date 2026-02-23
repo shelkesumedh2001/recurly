@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/currency_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../utils/constants.dart';
 import '../widgets/add_subscription_sheet.dart';
@@ -29,7 +30,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final subscriptionsAsync = ref.watch(filteredSubscriptionsProvider);
-    final totalSpend = ref.watch(totalMonthlySpendProvider);
+    final totalSpend = ref.watch(convertedTotalSpendProvider);
+    final formattedTotal = ref.watch(formatCurrencyProvider(totalSpend));
     final subscriptionCount = ref.watch(activeSubscriptionCountProvider);
 
     return Scaffold(
@@ -90,7 +92,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               slivers: [
               // Hero section
               SliverToBoxAdapter(
-                child: _buildHeroSection(context, totalSpend, subscriptionCount),
+                child: _buildHeroSection(context, formattedTotal, subscriptionCount),
               ),
 
               // Subscriptions list or empty state
@@ -140,7 +142,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   /// Minimal hero section
-  Widget _buildHeroSection(BuildContext context, double totalSpend, int count) {
+  Widget _buildHeroSection(BuildContext context, String formattedTotal, int count) {
     final theme = Theme.of(context);
 
     return Container(
@@ -167,7 +169,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            '\$${totalSpend.toStringAsFixed(2)}',
+            formattedTotal,
             style: theme.textTheme.displayLarge?.copyWith(
               fontSize: 48,
               fontWeight: FontWeight.w700,

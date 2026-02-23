@@ -5,8 +5,10 @@ import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/enums.dart';
+import '../models/exchange_rate.dart';
 import '../models/subscription.dart';
 import '../models/subscription_template.dart';
+import '../providers/currency_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../providers/template_providers.dart';
 import '../utils/constants.dart';
@@ -31,10 +33,16 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   BillingCycle _selectedBillingCycle = BillingCycle.monthly;
   SubscriptionCategory _selectedCategory = SubscriptionCategory.entertainment;
   DateTime _firstBillDate = DateTime.now();
+  String? _selectedCurrency;
   bool _isLoading = false;
   bool _showTemplates = true;
   String? _logoUrl;
   String? _templateColor;
+
+  // Free trial fields
+  bool _isFreeTrial = false;
+  DateTime? _trialEndDate;
+  final _priceAfterTrialController = TextEditingController();
 
   bool get _isEditMode => widget.subscription != null;
 
@@ -49,9 +57,16 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       _selectedBillingCycle = sub.billingCycle;
       _selectedCategory = sub.category;
       _firstBillDate = sub.firstBillDate;
+      _selectedCurrency = sub.currency;
       _logoUrl = sub.logoUrl;
       _templateColor = sub.color;
       _showTemplates = false; // Don't show templates when editing
+      // Trial fields
+      _isFreeTrial = sub.isFreeTrial;
+      _trialEndDate = sub.trialEndDate;
+      if (sub.priceAfterTrial != null) {
+        _priceAfterTrialController.text = sub.priceAfterTrial.toString();
+      }
     }
   }
 
@@ -60,6 +75,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   void dispose() {
     _nameController.dispose();
     _priceController.dispose();
+    _priceAfterTrialController.dispose();
     super.dispose();
   }
 
@@ -67,6 +83,9 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mediaQuery = MediaQuery.of(context);
+
+    // Initialize currency from display currency if not set (and not in edit mode)
+    _selectedCurrency ??= ref.read(displayCurrencyProvider);
 
     // Listen to selected template (only when adding new)
     if (!_isEditMode) {
@@ -191,35 +210,50 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                 ),
                 const SizedBox(height: AppConstants.spacing16),
 
-                // Price
-                TextFormField(
-                  controller: _priceController,
-                  decoration: const InputDecoration(
-                    labelText: 'Price',
-                    hintText: '0.00',
-                    prefixIcon: Icon(Icons.attach_money),
-                    prefixText: '\$',
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                // Price and Currency Row
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Price
+                    Expanded(
+                      flex: 3,
+                      child: TextFormField(
+                        controller: _priceController,
+                        decoration: InputDecoration(
+                          labelText: 'Price',
+                          hintText: '0.00',
+                          prefixIcon: const Icon(Icons.payments_outlined),
+                          prefixText: '${CurrencyInfo.getSymbol(_selectedCurrency!)} ',
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                        ],
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter a price';
+                          }
+                          final price = double.tryParse(value);
+                          if (price == null) {
+                            return 'Please enter a valid number';
+                          }
+                          if (price <= 0) {
+                            return 'Price must be greater than 0';
+                          }
+                          if (price > 9999.99) {
+                            return 'Price seems too high';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Currency Selector
+                    Expanded(
+                      flex: 2,
+                      child: _buildCurrencySelector(theme),
+                    ),
                   ],
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a price';
-                    }
-                    final price = double.tryParse(value);
-                    if (price == null) {
-                      return 'Please enter a valid number';
-                    }
-                    if (price <= 0) {
-                      return 'Price must be greater than 0';
-                    }
-                    if (price > 9999.99) {
-                      return 'Price seems too high';
-                    }
-                    return null;
-                  },
                 ),
                 const SizedBox(height: AppConstants.spacing16),
 
@@ -291,7 +325,11 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                     ),
                   ),
                 ),
-                const SizedBox(height: AppConstants.spacing32),
+                const SizedBox(height: AppConstants.spacing16),
+
+                // Free Trial Section
+                _buildTrialSection(context, theme),
+                const SizedBox(height: AppConstants.spacing16),
 
                 // Save Button
                 FilledButton(
@@ -350,17 +388,26 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     });
 
     try {
+      // Parse price after trial if provided
+      double? priceAfterTrial;
+      if (_isFreeTrial && _priceAfterTrialController.text.trim().isNotEmpty) {
+        priceAfterTrial = double.tryParse(_priceAfterTrialController.text.trim());
+      }
+
       final subscription = Subscription(
         id: _isEditMode ? widget.subscription!.id : const Uuid().v4(),
         name: _nameController.text.trim(),
         price: double.parse(_priceController.text.trim()),
-        currency: 'USD',
+        currency: _selectedCurrency!,
         billingCycle: _selectedBillingCycle,
         firstBillDate: _firstBillDate,
         category: _selectedCategory,
         logoUrl: _logoUrl, // Add logo from template
         color: _templateColor, // Add color from template
         createdAt: _isEditMode ? widget.subscription!.createdAt : DateTime.now(),
+        isFreeTrial: _isFreeTrial,
+        trialEndDate: _isFreeTrial ? _trialEndDate : null,
+        priceAfterTrial: priceAfterTrial,
       );
 
       if (_isEditMode) {
@@ -402,6 +449,133 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  /// Build free trial section
+  Widget _buildTrialSection(BuildContext context, ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _isFreeTrial
+              ? theme.colorScheme.primary.withValues(alpha: 0.3)
+              : theme.colorScheme.outline.withValues(alpha: 0.1),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Trial toggle
+          Row(
+            children: [
+              Icon(
+                Icons.timer_outlined,
+                color: _isFreeTrial
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Free Trial',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      'Track trial period and get reminded before it ends',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                value: _isFreeTrial,
+                onChanged: (value) {
+                  setState(() {
+                    _isFreeTrial = value;
+                    if (value && _trialEndDate == null) {
+                      // Default to 7 days from now
+                      _trialEndDate = DateTime.now().add(const Duration(days: 7));
+                    }
+                  });
+                },
+              ),
+            ],
+          ),
+
+          // Trial details (shown when trial is enabled)
+          if (_isFreeTrial) ...[
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 16),
+
+            // Trial end date
+            InkWell(
+              onTap: () => _selectTrialEndDate(context),
+              borderRadius: BorderRadius.circular(12),
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Trial End Date',
+                  prefixIcon: Icon(Icons.event),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                child: Text(
+                  _trialEndDate != null
+                      ? DateFormat('MMM dd, yyyy').format(_trialEndDate!)
+                      : 'Select date',
+                  style: theme.textTheme.bodyLarge,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Price after trial
+            TextFormField(
+              controller: _priceAfterTrialController,
+              decoration: InputDecoration(
+                labelText: 'Price After Trial (Optional)',
+                hintText: 'e.g., 9.99',
+                prefixIcon: const Icon(Icons.payments_outlined),
+                prefixText: '${CurrencyInfo.getSymbol(_selectedCurrency!)} ',
+                helperText: 'The price you\'ll pay after the trial ends',
+              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Select trial end date
+  Future<void> _selectTrialEndDate(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _trialEndDate ?? now.add(const Duration(days: 7)),
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+      helpText: 'When does the trial end?',
+    );
+
+    if (picked != null) {
+      setState(() {
+        _trialEndDate = picked;
+      });
     }
   }
 
@@ -514,6 +688,121 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           ),
         ),
       ),
+    );
+  }
+
+  /// Build currency selector dropdown
+  Widget _buildCurrencySelector(ThemeData theme) {
+    final currencyInfo = CurrencyInfo.getByCode(_selectedCurrency!);
+
+    return InkWell(
+      onTap: () => _showCurrencyPicker(theme),
+      borderRadius: BorderRadius.circular(AppConstants.radiusSmall),
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Currency',
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                currencyInfo != null
+                    ? '${currencyInfo.flag} ${currencyInfo.code}'
+                    : _selectedCurrency!,
+                style: theme.textTheme.bodyLarge,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Icon(
+              Icons.arrow_drop_down,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Show currency picker bottom sheet
+  void _showCurrencyPicker(ThemeData theme) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: theme.colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.8,
+          expand: false,
+          builder: (context, scrollController) {
+            return Column(
+              children: [
+                // Handle bar
+                Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                // Title
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Select Currency',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                // Currency list
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollController,
+                    itemCount: CurrencyInfo.all.length,
+                    itemBuilder: (context, index) {
+                      final currency = CurrencyInfo.all[index];
+                      final isSelected = currency.code == _selectedCurrency!;
+
+                      return ListTile(
+                        leading: Text(
+                          currency.flag ?? '',
+                          style: const TextStyle(fontSize: 24),
+                        ),
+                        title: Text(
+                          currency.name,
+                          style: TextStyle(
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
+                        subtitle: Text('${currency.code} • ${currency.symbol}'),
+                        trailing: isSelected
+                            ? Icon(Icons.check_circle, color: theme.colorScheme.primary)
+                            : null,
+                        onTap: () {
+                          setState(() {
+                            _selectedCurrency = currency.code;
+                          });
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

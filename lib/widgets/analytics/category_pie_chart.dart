@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/enums.dart';
 import '../../providers/analytics_providers.dart';
+import '../../providers/currency_providers.dart';
 import '../../theme/app_theme.dart';
 import 'category_detail_sheet.dart';
 
@@ -48,6 +49,8 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final categorySpend = ref.watch(categorySpendProvider);
+    final currencyService = ref.watch(currencyServiceProvider);
+    final displayCurrency = ref.watch(displayCurrencyProvider);
 
     if (categorySpend.isEmpty) {
       return Center(
@@ -127,7 +130,7 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          '\$${total.toStringAsFixed(0)}',
+                          currencyService.formatAmount(total, displayCurrency),
                           style: theme.textTheme.headlineMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),

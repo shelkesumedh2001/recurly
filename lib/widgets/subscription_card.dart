@@ -5,6 +5,7 @@ import '../models/subscription.dart';
 import '../providers/subscription_providers.dart';
 import '../theme/app_theme.dart';
 import 'add_subscription_sheet.dart';
+import 'trial/trial_badge.dart';
 
 class SubscriptionCard extends ConsumerWidget {
 
@@ -93,14 +94,24 @@ class SubscriptionCard extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          subscription.name,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: -0.2,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                subscription.name,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: -0.2,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (subscription.isFreeTrial) ...[
+                              const SizedBox(width: 8),
+                              TrialBadge(subscription: subscription, compact: true),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 6),
                         Row(
@@ -116,7 +127,9 @@ class SubscriptionCard extends ConsumerWidget {
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                _getRenewalText(),
+                                subscription.isFreeTrial
+                                    ? subscription.trialStatusText
+                                    : _getRenewalText(),
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                                   fontWeight: FontWeight.w500,
@@ -138,20 +151,34 @@ class SubscriptionCard extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        subscription.formattedPrice,
+                        subscription.isFreeTrial && subscription.price == 0
+                            ? 'FREE'
+                            : subscription.formattedPrice,
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w700,
                           letterSpacing: -0.5,
+                          color: subscription.isFreeTrial
+                              ? theme.colorScheme.primary
+                              : null,
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        subscription.billingCycle.displayName.toLowerCase(),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                          fontWeight: FontWeight.w500,
+                      if (subscription.isFreeTrial && subscription.priceAfterTrial != null)
+                        Text(
+                          '${subscription.currencySymbol}${subscription.priceAfterTrial!.toStringAsFixed(2)} after',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        )
+                      else
+                        Text(
+                          subscription.billingCycle.displayName.toLowerCase(),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ],

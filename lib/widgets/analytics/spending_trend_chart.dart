@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../providers/analytics_providers.dart';
+import '../../providers/currency_providers.dart';
 
 class SpendingTrendChart extends ConsumerStatefulWidget {
   const SpendingTrendChart({super.key});
@@ -40,6 +41,8 @@ class _SpendingTrendChartState extends ConsumerState<SpendingTrendChart>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final trendData = ref.watch(spendingTrendProvider);
+    final currencyService = ref.watch(currencyServiceProvider);
+    final displayCurrency = ref.watch(displayCurrencyProvider);
 
     if (trendData.isEmpty) {
       return Center(
@@ -81,7 +84,7 @@ class _SpendingTrendChartState extends ConsumerState<SpendingTrendChart>
                   ),
                   children: <TextSpan>[
                     TextSpan(
-                      text: '\$${rod.toY.toStringAsFixed(0)}',
+                      text: currencyService.formatAmount(rod.toY, displayCurrency),
                       style: TextStyle(
                         color: theme.colorScheme.onPrimary,
                         fontSize: 16,
@@ -129,7 +132,7 @@ class _SpendingTrendChartState extends ConsumerState<SpendingTrendChart>
           gridData: FlGridData(
             show: true,
             drawVerticalLine: false,
-            horizontalInterval: maxY / 4,
+            horizontalInterval: maxY > 0 ? maxY / 4 : 1,
             getDrawingHorizontalLine: (value) {
               return FlLine(
                 color: theme.colorScheme.outline.withValues(alpha: 0.1),

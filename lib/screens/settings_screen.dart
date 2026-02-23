@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/budget.dart';
+import '../models/exchange_rate.dart';
+import '../providers/budget_providers.dart';
+import '../providers/category_providers.dart';
+import '../providers/currency_providers.dart';
+import '../providers/theme_providers.dart';
 import '../utils/constants.dart';
+import 'budget_settings_screen.dart';
+import 'category_management_screen.dart';
 import 'notification_settings_screen.dart';
+import 'theme_settings_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -9,6 +18,7 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final currentPreset = ref.watch(currentPresetProvider);
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -34,12 +44,12 @@ class SettingsScreen extends ConsumerWidget {
             context,
             icon: Icons.palette_outlined,
             title: 'Theme',
-            subtitle: 'System default',
+            subtitle: currentPreset.name,
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Theme selection coming soon!'),
-                  behavior: SnackBarBehavior.floating,
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ThemeSettingsScreen(),
                 ),
               );
             },
@@ -58,6 +68,9 @@ class SettingsScreen extends ConsumerWidget {
               );
             },
           ),
+          _buildBudgetCard(context, ref),
+          _buildCategoriesCard(context, ref),
+          _buildCurrencyCard(context, ref),
 
           const SizedBox(height: 24),
 
@@ -239,6 +252,190 @@ class SettingsScreen extends ConsumerWidget {
           borderRadius: BorderRadius.circular(16),
         ),
       ),
+    );
+  }
+
+  Widget _buildBudgetCard(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final settings = ref.watch(budgetSettingsProvider);
+    final status = ref.watch(budgetStatusProvider);
+    final displayCurrency = ref.watch(displayCurrencyProvider);
+    final currencySymbol = CurrencyInfo.getSymbol(displayCurrency);
+
+    String subtitle;
+    Widget? trailing;
+
+    if (settings.hasBudget) {
+      subtitle = '$currencySymbol${settings.overallMonthlyBudget!.toStringAsFixed(0)}/month';
+      if (status == BudgetStatus.warning || status == BudgetStatus.exceeded) {
+        trailing = Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: status == BudgetStatus.exceeded
+                ? theme.colorScheme.error.withValues(alpha: 0.15)
+                : theme.colorScheme.tertiary.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            status.displayName,
+            style: TextStyle(
+              color: status == BudgetStatus.exceeded
+                  ? theme.colorScheme.error
+                  : theme.colorScheme.tertiary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        );
+      }
+    } else {
+      subtitle = 'Set spending limits';
+    }
+
+    return _buildSettingCard(
+      context,
+      icon: Icons.account_balance_wallet_outlined,
+      title: 'Budget',
+      subtitle: subtitle,
+      trailing: trailing,
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const BudgetSettingsScreen(),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCategoriesCard(BuildContext context, WidgetRef ref) {
+    final customCount = ref.watch(customCategoriesCountProvider);
+    final subtitle = customCount > 0
+        ? '$customCount custom ${customCount == 1 ? 'category' : 'categories'}'
+        : 'Manage subscription categories';
+
+    return _buildSettingCard(
+      context,
+      icon: Icons.category_outlined,
+      title: 'Categories',
+      subtitle: subtitle,
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const CategoryManagementScreen(),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCurrencyCard(BuildContext context, WidgetRef ref) {
+    final displayCurrency = ref.watch(displayCurrencyProvider);
+    final currencyInfo = CurrencyInfo.getByCode(displayCurrency);
+    final ratesAsync = ref.watch(exchangeRatesProvider);
+
+    String subtitle = currencyInfo != null
+        ? '${currencyInfo.flag} ${currencyInfo.name}'
+        : displayCurrency;
+
+    // Show last update status
+    ratesAsync.whenData((rates) {
+      if (rates != null && rates.isStale) {
+        subtitle += ' • Rates outdated';
+      }
+    });
+
+    return _buildSettingCard(
+      context,
+      icon: Icons.currency_exchange,
+      title: 'Display Currency',
+      subtitle: subtitle,
+      onTap: () => _showCurrencyPicker(context, ref),
+    );
+  }
+
+  void _showCurrencyPicker(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final currentCurrency = ref.read(displayCurrencyProvider);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: theme.colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.5,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) {
+            return Column(
+              children: [
+                // Handle bar
+                Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                // Title
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Select Display Currency',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                // Currency list
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollController,
+                    itemCount: CurrencyInfo.all.length,
+                    itemBuilder: (context, index) {
+                      final currency = CurrencyInfo.all[index];
+                      final isSelected = currency.code == currentCurrency;
+
+                      return ListTile(
+                        leading: Text(
+                          currency.flag ?? '',
+                          style: const TextStyle(fontSize: 24),
+                        ),
+                        title: Text(
+                          currency.name,
+                          style: TextStyle(
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
+                        subtitle: Text('${currency.code} • ${currency.symbol}'),
+                        trailing: isSelected
+                            ? Icon(Icons.check_circle, color: theme.colorScheme.primary)
+                            : null,
+                        onTap: () {
+                          ref.read(displayCurrencyProvider.notifier).setCurrency(currency.code);
+                          Navigator.pop(context);
+                          // Refresh exchange rates if needed
+                          ref.read(refreshRatesProvider)();
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
