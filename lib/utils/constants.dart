@@ -54,4 +54,9 @@ class AppConstants {
   // Renewal Urgency Thresholds (in days)
   static const int renewalUrgentThreshold = 7;
   static const int renewalWarningThreshold = 14;
+
+  // Household
+  static const int householdMaxMembers = 2;
+  static const int inviteCodeLength = 6;
+  static const int inviteCodeExpiryHours = 48;
 }

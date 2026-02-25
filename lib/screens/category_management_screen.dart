@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/custom_category.dart';
-import '../models/enums.dart';
 import '../providers/category_providers.dart';
 import '../widgets/category/icon_picker_sheet.dart';
 

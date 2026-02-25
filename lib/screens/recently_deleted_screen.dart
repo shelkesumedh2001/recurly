@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/subscription.dart';
+import '../providers/auth_providers.dart';
 import '../providers/subscription_providers.dart';
+import '../providers/sync_providers.dart';
 import '../services/database_service.dart';
+import '../services/sync_service.dart';
 
 class RecentlyDeletedScreen extends ConsumerStatefulWidget {
   const RecentlyDeletedScreen({super.key});
@@ -185,6 +188,8 @@ class _DeletedCard extends ConsumerWidget {
     final subscriptionNotifier = ref.read(subscriptionProvider.notifier);
     final subscriptionId = subscription.id;
     final subscriptionName = subscription.name;
+    final isSyncEnabled = ref.read(isSyncEnabledProvider);
+    final currentUser = ref.read(currentFirebaseUserProvider);
 
     return Dismissible(
       key: Key(subscription.id),
@@ -217,6 +222,11 @@ class _DeletedCard extends ConsumerWidget {
           // Delete permanently
           await databaseService.deleteSubscription(subscriptionId);
 
+          // Also delete from Firestore
+          if (isSyncEnabled && currentUser != null) {
+            SyncService().deleteRemoteSubscription(currentUser.uid, subscriptionId);
+          }
+
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -229,6 +239,14 @@ class _DeletedCard extends ConsumerWidget {
           // Restore
           await databaseService.restoreFromRecentlyDeleted(subscriptionId);
           await subscriptionNotifier.loadSubscriptions();
+
+          // Re-push to Firestore
+          if (isSyncEnabled && currentUser != null) {
+            final restored = databaseService.getSubscriptionById(subscriptionId);
+            if (restored != null) {
+              SyncService().pushSubscription(currentUser.uid, restored);
+            }
+          }
 
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(

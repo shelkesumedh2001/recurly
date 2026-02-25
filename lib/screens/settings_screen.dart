@@ -1,15 +1,27 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/budget.dart';
 import '../models/exchange_rate.dart';
+import '../models/sync_status.dart';
+import '../providers/auth_providers.dart';
 import '../providers/budget_providers.dart';
 import '../providers/category_providers.dart';
 import '../providers/currency_providers.dart';
+import '../providers/household_providers.dart';
+import '../providers/subscription_providers.dart';
+import '../providers/sync_providers.dart';
 import '../providers/theme_providers.dart';
+import '../services/database_service.dart';
+import '../services/notification_service.dart';
+import '../services/sync_service.dart';
 import '../utils/constants.dart';
+import 'auth_screen.dart';
 import 'budget_settings_screen.dart';
 import 'category_management_screen.dart';
+import 'household_screen.dart';
 import 'notification_settings_screen.dart';
+import 'profile_screen.dart';
 import 'theme_settings_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -76,49 +88,9 @@ class SettingsScreen extends ConsumerWidget {
 
           // Account Section
           _buildSectionHeader(context, 'Account'),
-          _buildSettingCard(
-            context,
-            icon: Icons.person_outline,
-            title: 'Pro Subscription',
-            subtitle: 'Unlock unlimited subscriptions',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Pro upgrade coming soon!'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                'Free',
-                style: TextStyle(
-                  color: theme.colorScheme.onPrimaryContainer,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-          _buildSettingCard(
-            context,
-            icon: Icons.share_outlined,
-            title: 'Share with Family',
-            subtitle: 'Coming soon',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Family sharing coming soon!'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-          ),
+          _buildAuthCard(context, ref),
+          _buildSyncCard(context, ref),
+          _buildHouseholdNavCard(context, ref),
 
           const SizedBox(height: 24),
 
@@ -143,7 +115,7 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.delete_outline,
             title: 'Clear All Data',
             subtitle: 'Delete all subscriptions',
-            onTap: () => _showClearDataDialog(context),
+            onTap: () => _showClearDataDialog(context, ref),
             isDestructive: true,
           ),
 
@@ -439,39 +411,297 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showClearDataDialog(BuildContext context) {
+  Widget _buildAuthCard(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isSignedIn = ref.watch(isSignedInProvider);
+    final profileAsync = ref.watch(currentUserProfileProvider);
+
+    if (isSignedIn) {
+      final profile = profileAsync.value;
+      return _buildSettingCard(
+        context,
+        icon: Icons.person,
+        title: profile?.displayName ?? 'Profile',
+        subtitle: profile?.email ?? 'Signed in',
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ProfileScreen()),
+          );
+        },
+        trailing: profile?.isPro == true
+            ? Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.colorScheme.primary,
+                      theme.colorScheme.tertiary,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'PRO',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              )
+            : Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Free',
+                  style: TextStyle(
+                    color: theme.colorScheme.onPrimaryContainer,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+      );
+    }
+
+    return _buildSettingCard(
+      context,
+      icon: Icons.person_outline,
+      title: 'Sign In',
+      subtitle: 'Sync data across devices',
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const AuthScreen()),
+        );
+      },
+    );
+  }
+
+  Widget _buildSyncCard(BuildContext context, WidgetRef ref) {
+    final isSignedIn = ref.watch(isSignedInProvider);
+    if (!isSignedIn) return const SizedBox.shrink();
+
+    final syncStatus = ref.watch(syncStatusProvider).value ?? SyncStatus.idle;
+
+    String subtitle;
+    switch (syncStatus) {
+      case SyncStatus.synced:
+        subtitle = 'All data synced';
+      case SyncStatus.syncing:
+        subtitle = 'Syncing...';
+      case SyncStatus.error:
+        subtitle = 'Sync error — tap to retry';
+      case SyncStatus.offline:
+        subtitle = 'Offline — will sync when connected';
+      default:
+        subtitle = 'Cloud sync';
+    }
+
+    return _buildSettingCard(
+      context,
+      icon: syncStatus == SyncStatus.synced
+          ? Icons.cloud_done_outlined
+          : syncStatus == SyncStatus.error
+              ? Icons.cloud_off_outlined
+              : Icons.cloud_sync_outlined,
+      title: 'Cloud Sync',
+      subtitle: subtitle,
+      onTap: syncStatus == SyncStatus.error
+          ? () {
+              final user = ref.read(currentFirebaseUserProvider);
+              if (user != null) {
+                ref.read(syncServiceProvider).forceSync(user.uid);
+              }
+            }
+          : null,
+    );
+  }
+
+  Widget _buildHouseholdNavCard(BuildContext context, WidgetRef ref) {
+    final isSignedIn = ref.watch(isSignedInProvider);
+    if (!isSignedIn) return const SizedBox.shrink();
+
+    final householdAsync = ref.watch(currentHouseholdProvider);
+    final household = householdAsync.value;
+
+    return _buildSettingCard(
+      context,
+      icon: Icons.people_outline,
+      title: 'Household',
+      subtitle: household != null
+          ? '${household.name} (${household.members.length} members)'
+          : 'Create or join a household',
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const HouseholdScreen()),
+        );
+      },
+    );
+  }
+
+  void _showClearDataDialog(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
-      builder: (context) {
-        final theme = Theme.of(context);
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
         return AlertDialog(
           title: const Text('Clear all data?'),
-          content: const Text(
-            'This will permanently delete all your subscriptions. This action cannot be undone.',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('This will permanently delete:'),
+              const SizedBox(height: 12),
+              _buildBullet(theme, 'All your subscriptions'),
+              _buildBullet(theme, 'Cloud synced data'),
+              _buildBullet(theme, 'Split proposals'),
+              _buildBullet(theme, 'Scheduled notifications'),
+              const SizedBox(height: 12),
+              Text(
+                'This action cannot be undone.',
+                style: TextStyle(
+                  color: theme.colorScheme.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
             ),
             FilledButton(
               onPressed: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('This feature will be implemented soon'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+                Navigator.pop(dialogContext);
+                _showFinalConfirmation(context, ref);
               },
               style: FilledButton.styleFrom(
                 backgroundColor: theme.colorScheme.error,
               ),
-              child: const Text('Clear All'),
+              child: const Text('Continue'),
             ),
           ],
         );
       },
     );
+  }
+
+  void _showFinalConfirmation(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        return AlertDialog(
+          title: const Text('Are you sure?'),
+          content: const Text(
+            'All data will be permanently erased. '
+            'You will not be able to recover it.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Go Back'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _clearAllData(context, ref);
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: theme.colorScheme.error,
+              ),
+              child: const Text('Delete Everything'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildBullet(ThemeData theme, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('  •  ', style: TextStyle(color: theme.colorScheme.error)),
+          Expanded(child: Text(text)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _clearAllData(BuildContext context, WidgetRef ref) async {
+    try {
+      final db = DatabaseService();
+      final notificationService = NotificationService();
+
+      // Cancel all notifications
+      await notificationService.cancelAllNotifications();
+
+      // Delete from Firestore if signed in
+      final user = ref.read(currentFirebaseUserProvider);
+      if (user != null) {
+        final firestore = FirebaseFirestore.instance;
+        final subsSnapshot = await firestore
+            .collection('users')
+            .doc(user.uid)
+            .collection('subscriptions')
+            .get();
+        for (final doc in subsSnapshot.docs) {
+          await doc.reference.delete();
+        }
+
+        // Also clear split proposals
+        final proposalsSnapshot = await firestore
+            .collection('users')
+            .doc(user.uid)
+            .collection('split_proposals')
+            .get();
+        for (final doc in proposalsSnapshot.docs) {
+          await doc.reference.delete();
+        }
+      }
+
+      // Clear local Hive data
+      await db.deleteAllSubscriptions();
+
+      // Dispose sync listeners so they don't re-add deleted subs
+      SyncService().dispose();
+
+      // Re-initialize sync if signed in
+      if (user != null) {
+        await SyncService().initialize(user.uid);
+      }
+
+      // Reload UI
+      ref.read(subscriptionProvider.notifier).loadSubscriptions();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('All data cleared'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to clear data: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 }
