@@ -156,17 +156,17 @@ class _SpendingTrendChartState extends ConsumerState<SpendingTrendChart>
                   gradient: LinearGradient(
                     colors: [
                       theme.colorScheme.primary,
-                      theme.colorScheme.primary.withValues(alpha: 0.7),
+                      theme.colorScheme.primary.withValues(alpha: 0.6),
                     ],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                   ),
-                  width: 18,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                  width: 20,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
                   backDrawRodData: BackgroundBarChartRodData(
                     show: true,
                     toY: maxY,
-                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.12),
                   ),
                 ),
               ],

@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../models/subscription.dart';
+import '../providers/auth_providers.dart';
+import '../providers/household_providers.dart';
 import '../providers/subscription_providers.dart';
+import '../providers/sync_providers.dart';
+import '../services/sync_service.dart';
 import '../theme/app_theme.dart';
 import 'add_subscription_sheet.dart';
+import 'split_subscription_sheet.dart';
 import 'trial/trial_badge.dart';
 
 class SubscriptionCard extends ConsumerWidget {
@@ -12,8 +17,10 @@ class SubscriptionCard extends ConsumerWidget {
   const SubscriptionCard({
     super.key,
     required this.subscription,
+    this.isPartnerSub = false,
   });
   final Subscription subscription;
+  final bool isPartnerSub;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -28,6 +35,11 @@ class SubscriptionCard extends ConsumerWidget {
     final subscriptionNotifier = ref.read(subscriptionProvider.notifier);
     final subscriptionId = subscription.id;
     final subscriptionName = subscription.name;
+
+    // Partner subs are read-only (no swipe)
+    if (isPartnerSub) {
+      return _buildCardContent(context, ref, theme, urgencyColor);
+    }
 
     return Dismissible(
       key: Key(subscription.id),
@@ -49,16 +61,31 @@ class SubscriptionCard extends ConsumerWidget {
           await databaseService.moveToRecentlyDeleted(subscriptionId);
           await subscriptionNotifier.loadSubscriptions();
 
+          // Also delete from Firestore so it doesn't come back on sync
+          final isSyncEnabled = ref.read(isSyncEnabledProvider);
+          final user = ref.read(currentFirebaseUserProvider);
+          if (isSyncEnabled && user != null) {
+            SyncService().deleteRemoteSubscription(user.uid, subscriptionId);
+          }
+
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('$subscriptionName moved to recently deleted'),
                 behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 4),
                 action: SnackBarAction(
                   label: 'Undo',
                   onPressed: () async {
                     await databaseService.restoreFromRecentlyDeleted(subscriptionId);
                     await subscriptionNotifier.loadSubscriptions();
+                    // Re-push to Firestore on undo
+                    if (isSyncEnabled && user != null) {
+                      final restored = databaseService.getSubscriptionById(subscriptionId);
+                      if (restored != null) {
+                        SyncService().pushSubscription(user.uid, restored);
+                      }
+                    }
                   },
                 ),
               ),
@@ -66,7 +93,12 @@ class SubscriptionCard extends ConsumerWidget {
           }
         }
       },
-      child: Container(
+      child: _buildCardContent(context, ref, theme, urgencyColor),
+    );
+  }
+
+  Widget _buildCardContent(BuildContext context, WidgetRef ref, ThemeData theme, Color urgencyColor) {
+    return Container(
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(20),
@@ -96,6 +128,21 @@ class SubscriptionCard extends ConsumerWidget {
                       children: [
                         Row(
                           children: [
+                            if (isPartnerSub) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.tertiary.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Icon(
+                                  Icons.people,
+                                  size: 14,
+                                  color: theme.colorScheme.tertiary,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                            ],
                             Flexible(
                               child: Text(
                                 subscription.name,
@@ -110,6 +157,14 @@ class SubscriptionCard extends ConsumerWidget {
                             if (subscription.isFreeTrial) ...[
                               const SizedBox(width: 8),
                               TrialBadge(subscription: subscription, compact: true),
+                            ],
+                            if (_hasSplit()) ...[
+                              const SizedBox(width: 6),
+                              Icon(
+                                Icons.call_split,
+                                size: 16,
+                                color: theme.colorScheme.primary.withValues(alpha: 0.6),
+                              ),
                             ],
                           ],
                         ),
@@ -186,7 +241,6 @@ class SubscriptionCard extends ConsumerWidget {
             ),
           ),
         ),
-      ),
     );
   }
 
@@ -256,6 +310,11 @@ class SubscriptionCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Check if subscription has a split
+  bool _hasSplit() {
+    return subscription.splitWith != null && subscription.splitWith!.isNotEmpty;
   }
 
   /// Get renewal text with urgency
@@ -367,69 +426,133 @@ class SubscriptionCard extends ConsumerWidget {
                   ),
                   const SizedBox(height: 24),
 
+                  // Partner badge
+                  if (isPartnerSub) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.tertiary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.people, size: 16, color: theme.colorScheme.tertiary),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Partner\'s Subscription',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: theme.colorScheme.tertiary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
                   // Details
                   _buildDetailRow(context, 'Price', subscription.formattedPrice),
                   _buildDetailRow(context, 'Billing', subscription.billingCycle.displayName),
                   _buildDetailRow(context, 'Next bill', DateFormat('MMM dd, yyyy').format(subscription.nextBillDate)),
                   _buildDetailRow(context, 'Days until renewal', '${subscription.daysUntilRenewal} days'),
-                  _buildDetailRow(context, 'Monthly cost', '\$${subscription.monthlyEquivalent.toStringAsFixed(2)}'),
+                  _buildDetailRow(context, 'Monthly cost', '${subscription.currencySymbol}${subscription.monthlyEquivalent.toStringAsFixed(2)}'),
+                  if (_hasSplit()) ...[
+                    _buildDetailRow(context, 'Split', '${(subscription.splitWith!.first['sharePercent'] as num).toInt()}% partner\'s share'),
+                    _buildDetailRow(context, 'Your share', '${subscription.currencySymbol}${(subscription.price * (1 - (subscription.splitWith!.first['sharePercent'] as num) / 100)).toStringAsFixed(2)}'),
+                  ],
+
+                  // Split button (only for own subs in a household)
+                  if (!isPartnerSub && ref.read(isInHouseholdProvider)) ...[
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => SplitSubscriptionSheet(
+                              subscription: subscription,
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.call_split, size: 18),
+                        label: Text(
+                          _hasSplit() ? 'Manage Split' : 'Split with Partner',
+                        ),
+                      ),
+                    ),
+                  ],
 
                   const SizedBox(height: 24),
 
                   // Action buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () async {
-                            Navigator.pop(context);
-                            final confirmed = await showDialog<bool>(
-                              context: context,
-                              builder: (context) {
-                                return AlertDialog(
-                                  title: const Text('Archive subscription?'),
-                                  content: Text(
-                                    'Are you sure you want to archive ${subscription.name}?',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, false),
-                                      child: const Text('Cancel'),
+                  if (isPartnerSub)
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Close'),
+                      ),
+                    )
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              Navigator.pop(context);
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (context) {
+                                  return AlertDialog(
+                                    title: const Text('Archive subscription?'),
+                                    content: Text(
+                                      'Are you sure you want to archive ${subscription.name}?',
                                     ),
-                                    FilledButton(
-                                      onPressed: () => Navigator.pop(context, true),
-                                      child: const Text('Archive'),
-                                    ),
-                                  ],
-                                );
-                              },
-                            );
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context, false),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      FilledButton(
+                                        onPressed: () => Navigator.pop(context, true),
+                                        child: const Text('Archive'),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
 
-                            if (confirmed == true && context.mounted) {
-                              await ref.read(subscriptionProvider.notifier).archiveSubscription(subscription.id);
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('${subscription.name} archived'),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
+                              if (confirmed == true && context.mounted) {
+                                await ref.read(subscriptionProvider.notifier).archiveSubscription(subscription.id);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('${subscription.name} archived'),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
                               }
-                            }
-                          },
-                          icon: const Icon(Icons.archive_outlined, size: 18),
-                          label: const Text('Archive'),
+                            },
+                            icon: const Icon(Icons.archive_outlined, size: 18),
+                            label: const Text('Archive'),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Close'),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Close'),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
                 ],
               ),
             ),

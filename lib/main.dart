@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -5,6 +6,7 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'screens/main_navigation.dart';
+import 'services/auth_service.dart';
 import 'services/budget_service.dart';
 import 'services/currency_service.dart';
 import 'services/custom_category_service.dart';
@@ -12,6 +14,7 @@ import 'services/database_service.dart';
 import 'services/home_widget_service.dart';
 import 'services/notification_service.dart';
 import 'services/preferences_service.dart';
+import 'services/sync_service.dart';
 import 'services/theme_service.dart';
 import 'providers/theme_providers.dart';
 import 'utils/constants.dart';
@@ -29,6 +32,14 @@ void main() async {
   } catch (e) {
     debugPrint('Failed to get local timezone, falling back to UTC: $e');
     tz.setLocalLocation(tz.getLocation('UTC'));
+  }
+
+  // Initialize Firebase
+  try {
+    await Firebase.initializeApp();
+    debugPrint('Firebase initialized');
+  } catch (e) {
+    debugPrint('Failed to initialize Firebase: $e');
   }
 
   // Initialize database (includes Hive adapters) - REQUIRED
@@ -94,6 +105,28 @@ void main() async {
     }
   } catch (e) {
     debugPrint('Failed to initialize notification service: $e');
+  }
+
+  // Initialize sync for signed-in users
+  try {
+    final authService = AuthService();
+    final user = authService.currentUser;
+    if (user != null) {
+      final profile = await authService.getUserProfile(user.uid);
+      if (profile != null) {
+        // Sync for all signed-in users
+        await SyncService().initialize(user.uid);
+        debugPrint('Sync service initialized for ${user.uid}');
+
+        // Household sync if in a household
+        if (profile.householdId != null) {
+          await SyncService().initializeHouseholdSync(user.uid, profile.householdId!);
+          debugPrint('Household sync initialized');
+        }
+      }
+    }
+  } catch (e) {
+    debugPrint('Failed to initialize sync service: $e');
   }
 
   // Run app with Riverpod

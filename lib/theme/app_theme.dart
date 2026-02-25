@@ -96,7 +96,7 @@ class AppTheme {
       textTheme: _getTextTheme(colorScheme),
 
       // Card theme - Warm, rounded with subtle borders
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
@@ -368,12 +368,12 @@ class AppTheme {
 
   /// Vibrant chart colors (matching the inspiration)
   static const List<Color> _chartColors = [
-    Color(0xFFE74C3C), // Red
-    Color(0xFF9B59B6), // Purple
-    Color(0xFF00BCD4), // Cyan
-    Color(0xFFE91E63), // Pink
-    Color(0xFFFF9800), // Orange
-    Color(0xFF48A868), // Green
+    Color(0xFFEF6F5C), // Warm coral red
+    Color(0xFF8E6FBF), // Rich violet
+    Color(0xFF2BBCC4), // Vibrant teal
+    Color(0xFFE0608A), // Berry pink
+    Color(0xFFF5A142), // Golden amber
+    Color(0xFF3DAE7E), // Emerald green
   ];
 
   /// Get chart colors
@@ -389,11 +389,10 @@ class AppTheme {
   /// Get gradient for category (for sleek effects)
   static List<Color> getCategoryGradient(int index) {
     final baseColor = getCategoryColor(index);
+    final hsl = HSLColor.fromColor(baseColor);
     return [
-      baseColor,
-      HSLColor.fromColor(baseColor).withLightness(
-        (HSLColor.fromColor(baseColor).lightness - 0.15).clamp(0.0, 1.0),
-      ).toColor(),
+      hsl.withLightness((hsl.lightness + 0.08).clamp(0.0, 1.0)).toColor(),
+      hsl.withLightness((hsl.lightness - 0.08).clamp(0.0, 1.0)).toColor(),
     ];
   }
 

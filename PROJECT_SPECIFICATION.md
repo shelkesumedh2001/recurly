@@ -6,7 +6,7 @@
 **Platform**: Android (Primary), iOS (Future)
 **Framework**: Flutter 3.19+ with Dart 3.3+
 **Monetization**: Freemium (Free: 5 subs, Pro: $39.99/year for unlimited)
-**Status**: Phase 4 Complete ✅ | Phase 4.5 Complete ✅
+**Status**: Phase 4 Complete ✅ | Phase 4.5 Complete ✅ | Phase 5 Complete ✅ | Phase 5.5 Complete ✅
 
 ---
 
@@ -30,7 +30,7 @@ Help users:
 | Language | Dart | 3.6+ | Type-safe development |
 | State Management | Riverpod | 2.4+ | Reactive state |
 | Local Database | Hive | 2.2+ | Offline-first storage |
-| Backend | Firebase | Latest | Auth & sync |
+| Backend | Firebase | Latest | Auth, Firestore sync & households |
 | Monetization | RevenueCat | 6.20+ | IAP management |
 | Theming | dynamic_color | Disabled | Material You (Compatibility issues) |
 | Charts | fl_chart | 0.66+ | Analytics visualization |
@@ -57,14 +57,14 @@ Data Layer (Models/Database)
 
 ```
 lib/
-├── models/           # Data entities (Subscription, Category)
-├── providers/        # State management (Riverpod)
-├── screens/          # Full-page UI components
-├── widgets/          # Reusable UI components
-├── services/         # Business logic (Database, Notifications, API)
+├── models/           # Data entities (Subscription, Category, Household, UserProfile, SplitProposal)
+├── providers/        # State management (Riverpod) - subscriptions, auth, household, sync, split
+├── screens/          # Full-page UI components (home, auth, household, profile, analytics, settings)
+├── widgets/          # Reusable UI components (cards, sheets, indicators)
+├── services/         # Business logic (Database, Notifications, Auth, Sync, Household, Split)
 ├── theme/            # Theming and styling
 ├── utils/            # Helpers, constants, extensions
-└── main.dart         # App entry point
+└── main.dart         # App entry point with Firebase initialization
 ```
 
 ---
@@ -249,13 +249,32 @@ enum RenewalUrgency { urgent, warning, normal } // <7, 7-14, >14 days
 - [x] PDF-safe currency symbols
 - [x] Android home screen widget (basic styling)
 
-### Phase 5: Sharing & Sync
+### Phase 5: Sharing & Sync ✅
 
-- [ ] Firebase Authentication
-- [ ] Cloud Firestore sync
-- [ ] Share with family members
-- [ ] Real-time updates
-- [ ] Conflict resolution
+- [x] Firebase Authentication (Google, Email/Password, Apple Sign-In)
+- [x] Cloud Firestore sync (bidirectional Hive ↔ Firestore)
+- [x] Household creation & join via 6-character invite codes
+- [x] Partner subscription visibility with spend view toggle (My Share vs Household Total)
+- [x] Per-subscription splitting with custom percentages
+- [x] Split proposals (request/accept/reject flow)
+- [x] Offline-first data migration on first sign-in
+- [x] Sync status indicator
+- [x] Conflict resolution (last-write-wins with local merge)
+- [x] Clear All Data feature in settings
+- [x] Currency auto-detection and conversion for household spend views
+
+### Phase 5.5: Advanced Analytics ✅
+
+- [x] Subscription count line chart (12-month active sub history)
+- [x] Price change tracking (priceHistory field, detection on edit, cards with % change)
+- [x] Cancel simulator (monthly/yearly/5-year savings projection)
+- [x] Monthly comparison chip (delta badge vs last month in hero stats)
+- [x] Renewal forecast timeline (30-day horizontal scrollable view)
+- [x] Budget vs actual gauge (animated arc, color-coded, self-hiding)
+- [x] Split savings card (shows savings from splitting, self-hiding)
+- [x] Who pays more bar (animated you vs partner comparison, self-hiding)
+- [x] Refined chart color palette and sleeker pie chart design
+- [x] Price history in CSV and PDF exports
 
 ### Phase 6: Monetization
 
@@ -366,11 +385,11 @@ try {
 - Clear error messages
 - Prevent submission if invalid
 
-### Network Errors (Future)
+### Network Errors
 
 - Retry with exponential backoff
-- Offline mode indicator
-- Queue changes for sync
+- Offline mode with sync indicator
+- Queue changes for sync when back online
 
 ---
 
@@ -480,9 +499,9 @@ Semantic versioning: `MAJOR.MINOR.PATCH+BUILD`
 
 ---
 
-**Last Updated**: 2025-01-17
-**Version**: 2.3
-**Status**: Phase 4 Complete, Phase 4.5 Complete
+**Last Updated**: 2026-02-25
+**Version**: 3.1
+**Status**: Phase 5.5 Complete (Advanced Analytics) — All phases 1-5.5 done, testing in progress
 
 ---
 

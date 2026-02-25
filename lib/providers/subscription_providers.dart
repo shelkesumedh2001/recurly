@@ -1,9 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/subscription.dart';
+import '../models/sync_status.dart';
 import '../services/database_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/notification_service.dart';
+import '../services/sync_service.dart';
+import 'auth_providers.dart';
 import 'preferences_providers.dart';
+import 'sync_providers.dart';
 
 /// Provider for the database service singleton
 final databaseServiceProvider = Provider<DatabaseService>((ref) {
@@ -19,6 +25,10 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
     this._ref,
   ) : super(const AsyncValue.loading()) {
     loadSubscriptions();
+    // Wire up remote data change callback so Firestore changes refresh UI
+    SyncService().onRemoteDataChanged = () {
+      loadSubscriptions();
+    };
   }
 
   final DatabaseService _databaseService;
@@ -33,17 +43,37 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
       state = AsyncValue.data(subscriptions);
 
       // Update home screen widget
-      HomeWidgetService().updateWidgetData();
+      await HomeWidgetService().updateWidgetData();
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
     }
   }
 
+  /// Push to sync if enabled (fire-and-forget to avoid blocking UI offline)
+  void _syncPush(Subscription subscription) {
+    final isSyncEnabled = _ref.read(isSyncEnabledProvider);
+    if (!isSyncEnabled) return;
+    final user = _ref.read(currentFirebaseUserProvider);
+    if (user == null) return;
+    SyncService().pushSubscription(user.uid, subscription);
+  }
+
+  /// Delete from sync if enabled (fire-and-forget)
+  void _syncDelete(String id) {
+    final isSyncEnabled = _ref.read(isSyncEnabledProvider);
+    if (!isSyncEnabled) return;
+    final user = _ref.read(currentFirebaseUserProvider);
+    if (user == null) return;
+    SyncService().deleteRemoteSubscription(user.uid, id);
+  }
+
   /// Add a new subscription
   Future<void> addSubscription(Subscription subscription) async {
     try {
+      subscription.updatedAt = DateTime.now();
       await _databaseService.addSubscription(subscription);
       await loadSubscriptions();
+      _syncPush(subscription);
 
       // Schedule notifications for new subscription
       final preferences = _ref.read(preferencesProvider);
@@ -59,8 +89,10 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
   /// Update an existing subscription
   Future<void> updateSubscription(Subscription subscription) async {
     try {
+      subscription.updatedAt = DateTime.now();
       await _databaseService.updateSubscription(subscription);
       await loadSubscriptions();
+      _syncPush(subscription);
 
       // Reschedule notifications for updated subscription
       final preferences = _ref.read(preferencesProvider);
@@ -80,6 +112,7 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
       await _notificationService.cancelSubscriptionNotifications(id);
       await _databaseService.deleteSubscription(id);
       await loadSubscriptions();
+      _syncDelete(id);
     } catch (e) {
       rethrow;
     }
@@ -249,4 +282,83 @@ final filteredSubscriptionsProvider = Provider<AsyncValue<List<Subscription>>>((
 final recentlyDeletedProvider = StateProvider<List<Subscription>>((ref) {
   final databaseService = ref.watch(databaseServiceProvider);
   return databaseService.getRecentlyDeletedSubscriptions();
+});
+
+/// Provider for spend view mode (my share vs household total)
+final spendViewModeProvider = StateProvider<SpendViewMode>((ref) {
+  return SpendViewMode.myShare;
+});
+
+/// Provider for partner subscriptions (from household sync) — reactive via stream
+final partnerSubscriptionsProvider = StreamProvider<List<Subscription>>((ref) {
+  final syncService = ref.watch(syncServiceProvider);
+  final controller = StreamController<List<Subscription>>();
+  controller.add(syncService.partnerSubscriptions.value);
+  void listener() {
+    if (!controller.isClosed) {
+      controller.add(syncService.partnerSubscriptions.value);
+    }
+  }
+  syncService.partnerSubscriptions.addListener(listener);
+  ref.onDispose(() {
+    syncService.partnerSubscriptions.removeListener(listener);
+    controller.close();
+  });
+  return controller.stream;
+});
+
+/// Provider for household subscriptions (own + partner)
+final householdSubscriptionsProvider = Provider<List<Subscription>>((ref) {
+  final ownSubs = ref.watch(subscriptionProvider).value ?? [];
+  final partnerSubs = ref.watch(partnerSubscriptionsProvider).value ?? [];
+  return [...ownSubs, ...partnerSubs];
+});
+
+/// Provider for "my share" spend — factors in split percentages
+final myShareSpendProvider = Provider<double>((ref) {
+  final subscriptionsAsync = ref.watch(subscriptionProvider);
+
+  return subscriptionsAsync.when(
+    data: (subscriptions) {
+      double total = 0;
+      for (final sub in subscriptions) {
+        if (sub.splitWith != null && sub.splitWith!.isNotEmpty) {
+          // Find accepted splits
+          double myMultiplier = 1.0;
+          for (final split in sub.splitWith!) {
+            if (split['accepted'] == true) {
+              final partnerShare = (split['sharePercent'] as num).toDouble();
+              myMultiplier -= partnerShare / 100;
+            }
+          }
+          total += sub.monthlyEquivalent * myMultiplier;
+        } else {
+          total += sub.monthlyEquivalent;
+        }
+      }
+      return total;
+    },
+    loading: () => 0.0,
+    error: (_, __) => 0.0,
+  );
+});
+
+/// Provider for household total spend (own + partner, no double-count splits)
+final householdTotalSpendProvider = Provider<double>((ref) {
+  final ownSubs = ref.watch(subscriptionProvider).value ?? [];
+  final partnerSubs = ref.watch(partnerSubscriptionsProvider).value ?? [];
+
+  double total = 0;
+  // Own subs: full price (since partner's share is included in household total)
+  for (final sub in ownSubs) {
+    total += sub.monthlyEquivalent;
+  }
+  // Partner subs: only add those that aren't split references from our own
+  final ownIds = ownSubs.map((s) => s.id).toSet();
+  for (final sub in partnerSubs) {
+    if (!ownIds.contains(sub.id)) {
+      total += sub.monthlyEquivalent;
+    }
+  }
+  return total;
 });

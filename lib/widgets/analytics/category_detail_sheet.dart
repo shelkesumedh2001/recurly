@@ -5,6 +5,7 @@ import '../../models/enums.dart';
 import '../../models/subscription.dart';
 import '../../providers/subscription_providers.dart';
 import '../../theme/app_theme.dart';
+import 'cancel_simulator_sheet.dart';
 
 /// Bottom sheet showing subscriptions in a specific category
 class CategoryDetailSheet extends ConsumerWidget {
@@ -144,10 +145,13 @@ class CategoryDetailSheet extends ConsumerWidget {
                     final sub = categorySubscriptions[index];
                     final percentage = sub.monthlyEquivalent / totalAmount * 100;
 
-                    return _SubscriptionTile(
-                      subscription: sub,
-                      percentage: percentage,
-                      color: color,
+                    return GestureDetector(
+                      onTap: () => showCancelSimulatorSheet(context, sub),
+                      child: _SubscriptionTile(
+                        subscription: sub,
+                        percentage: percentage,
+                        color: color,
+                      ),
                     );
                   },
                 );

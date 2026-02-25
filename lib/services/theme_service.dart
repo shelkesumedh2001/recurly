@@ -69,7 +69,10 @@ class ThemeService {
 
   /// Convert Color to hex string
   String colorToHex(Color color) {
-    return '#${color.value.toRadixString(16).substring(2).toUpperCase()}';
+    final r = color.r.toInt().toRadixString(16).padLeft(2, '0');
+    final g = color.g.toInt().toRadixString(16).padLeft(2, '0');
+    final b = color.b.toInt().toRadixString(16).padLeft(2, '0');
+    return '#$r$g$b'.toUpperCase();
   }
 
   /// Generate light theme from preset
@@ -123,7 +126,7 @@ class ThemeService {
       textTheme: _buildTextTheme(colorScheme, preset),
 
       // Card theme
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),

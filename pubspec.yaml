@@ -18,10 +18,13 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
 
-  # Firebase (Phase 5 - will add later)
-  # firebase_core: ^2.24.2
-  # firebase_auth: ^4.15.3
-  # firebase_firestore: ^4.14.0
+  # Firebase
+  firebase_core: ^3.8.1
+  firebase_auth: ^5.4.1
+  cloud_firestore: ^5.6.2
+  google_sign_in: ^6.2.2
+  sign_in_with_apple: ^6.1.4
+  crypto: ^3.0.6
 
   # Monetization (Phase 6 - will add later)
   # purchases_flutter: ^6.20.0

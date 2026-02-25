@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/exchange_rate.dart';
 import '../services/currency_service.dart';
+import '../services/database_service.dart';
 import '../services/preferences_service.dart';
 import 'subscription_providers.dart';
 
@@ -20,9 +22,40 @@ class DisplayCurrencyNotifier extends StateNotifier<String> {
 
   static String _loadInitialCurrency() {
     try {
-      return PreferencesService().getPreferences().displayCurrency;
+      final prefs = PreferencesService().getPreferences();
+      final saved = prefs.displayCurrency;
+      // If display currency doesn't match any subscription currency, auto-detect
+      final detected = _detectCurrencyFromSubscriptions();
+      if (detected != null && detected != saved) {
+        final subs = DatabaseService().getActiveSubscriptions();
+        final subCurrencies = subs.map((s) => s.currency).toSet();
+        if (!subCurrencies.contains(saved)) {
+          debugPrint('Auto-detected display currency: $detected');
+          return detected;
+        }
+      }
+      return saved;
     } catch (e) {
       return 'USD';
+    }
+  }
+
+  /// Detect the most common currency from user's subscriptions
+  static String? _detectCurrencyFromSubscriptions() {
+    try {
+      final subs = DatabaseService().getActiveSubscriptions();
+      if (subs.isEmpty) return null;
+      // Count currency occurrences
+      final counts = <String, int>{};
+      for (final sub in subs) {
+        counts[sub.currency] = (counts[sub.currency] ?? 0) + 1;
+      }
+      // Return the most common one
+      final sorted = counts.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      return sorted.first.key;
+    } catch (e) {
+      return null;
     }
   }
 
