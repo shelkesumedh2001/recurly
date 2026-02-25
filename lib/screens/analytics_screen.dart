@@ -8,9 +8,17 @@ import '../providers/subscription_providers.dart';
 import '../services/currency_service.dart';
 import '../services/export_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/analytics/budget_gauge.dart';
+import '../widgets/analytics/cancel_simulator_sheet.dart';
 import '../widgets/analytics/category_pie_chart.dart';
+import '../widgets/analytics/monthly_comparison_chip.dart';
+import '../widgets/analytics/price_changes_section.dart';
 import '../widgets/analytics/renewal_calendar.dart';
+import '../widgets/analytics/renewal_forecast_timeline.dart';
 import '../widgets/analytics/spending_trend_chart.dart';
+import '../widgets/analytics/split_savings_card.dart';
+import '../widgets/analytics/subscription_count_chart.dart';
+import '../widgets/analytics/who_pays_more_bar.dart';
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
@@ -143,6 +151,9 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
           // Hero Stats
           _buildHeroStats(theme, totalMonthlySpend, yearlyProjected, subscriptionCount, currencyService, displayCurrency),
 
+          // Budget Gauge (self-hides if no budget)
+          const BudgetGauge(),
+
           const SizedBox(height: 28),
 
           // Spending Trend Chart
@@ -163,6 +174,35 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
               ),
             ),
             child: const SpendingTrendChart(),
+          ),
+
+          const SizedBox(height: 28),
+
+          // Subscription Count Chart
+          Text(
+            'Subscription Growth',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Active subscriptions over the past year',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: theme.colorScheme.outline.withValues(alpha: 0.1),
+              ),
+            ),
+            child: const SubscriptionCountChart(),
           ),
 
           const SizedBox(height: 28),
@@ -189,6 +229,47 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
 
           const SizedBox(height: 28),
 
+          // Price Changes Section
+          Text(
+            'Price Changes',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Track how your subscription costs have changed',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const PriceChangesSection(),
+
+          const SizedBox(height: 28),
+
+          // Upcoming Renewals Timeline
+          Text(
+            'Upcoming Renewals',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Charges in the next 30 days',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const RenewalForecastTimeline(),
+
+          const SizedBox(height: 28),
+
+          // Who Pays More (self-hides if not in household)
+          const WhoPaysMoresBar(),
+
           // Insights Section
           Text(
             'Insights',
@@ -198,13 +279,16 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
           ),
           const SizedBox(height: 12),
           if (mostExpensive != null)
-            _buildInsightCard(
-              theme,
-              title: 'Most Expensive',
-              value: mostExpensive.name,
-              subtitle: mostExpensive.formattedPrice,
-              icon: Icons.trending_up_rounded,
-              color: AppTheme.expenseColor,
+            GestureDetector(
+              onTap: () => showCancelSimulatorSheet(context, mostExpensive),
+              child: _buildInsightCard(
+                theme,
+                title: 'Most Expensive',
+                value: mostExpensive.name,
+                subtitle: mostExpensive.formattedPrice,
+                icon: Icons.trending_up_rounded,
+                color: AppTheme.expenseColor,
+              ),
             ),
           if (topCategory != null) ...[
             const SizedBox(height: 10),
@@ -217,6 +301,9 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
               color: AppTheme.primaryCoral,
             ),
           ],
+
+          // Split Savings (self-hides if not in household or no splits)
+          const SplitSavingsCard(),
 
           // Bottom padding
           const SizedBox(height: 40),
@@ -304,6 +391,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
+              const SizedBox(height: 8),
+              const MonthlyComparisonChip(),
             ],
           ),
         ),

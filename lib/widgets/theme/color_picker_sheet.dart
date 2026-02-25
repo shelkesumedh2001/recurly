@@ -92,7 +92,7 @@ class _ColorPickerSheetState extends State<ColorPickerSheet> {
             itemCount: _presetColors.length,
             itemBuilder: (context, index) {
               final color = _presetColors[index];
-              final isSelected = _selectedColor?.value == color.value;
+              final isSelected = _selectedColor == color;
 
               return GestureDetector(
                 onTap: () {

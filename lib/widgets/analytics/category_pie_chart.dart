@@ -114,8 +114,8 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
                           },
                         ),
                         borderData: FlBorderData(show: false),
-                        sectionsSpace: 2,
-                        centerSpaceRadius: 50,
+                        sectionsSpace: 3,
+                        centerSpaceRadius: 65,
                         startDegreeOffset: -90,
                         sections: _showingSections(
                           theme,
@@ -198,22 +198,11 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Container(
-                            width: 14,
-                            height: 14,
+                            width: 12,
+                            height: 12,
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: _getCategoryGradientByIndex(index),
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: color.withValues(alpha: 0.3),
-                                  blurRadius: 4,
-                                  spreadRadius: 1,
-                                ),
-                              ],
+                              color: color,
+                              borderRadius: BorderRadius.circular(4),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -253,7 +242,7 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
   ) {
     return List.generate(sortedEntries.length, (i) {
       final isTouched = i == _touchedIndex;
-      final radius = isTouched ? 70.0 : 60.0;
+      final radius = isTouched ? 55.0 : 46.0;
       final entry = sortedEntries[i];
 
       // Staggered animation
@@ -271,10 +260,7 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderSide: BorderSide(
-          color: theme.colorScheme.surface,
-          width: isTouched ? 3 : 2,
-        ),
+        borderSide: BorderSide.none,
       );
     });
   }

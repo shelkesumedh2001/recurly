@@ -255,6 +255,9 @@ class ThemeSettingsScreen extends ConsumerWidget {
   }
 
   String _getColorHex(Color color) {
-    return '#${color.value.toRadixString(16).substring(2).toUpperCase()}';
+    final r = color.r.toInt().toRadixString(16).padLeft(2, '0');
+    final g = color.g.toInt().toRadixString(16).padLeft(2, '0');
+    final b = color.b.toInt().toRadixString(16).padLeft(2, '0');
+    return '#$r$g$b'.toUpperCase();
   }
 }

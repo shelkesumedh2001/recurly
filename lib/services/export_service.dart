@@ -149,6 +149,9 @@ class ExportService {
             _buildPdfBillingBreakdown(billingBreakdown, displayCurrency),
             pw.SizedBox(height: 24),
 
+            // Price changes section (only if any exist)
+            ..._buildPdfPriceChanges(subscriptions, displayCurrency),
+
             // Category breakdown
             _buildPdfCategoryBreakdown(categorySpend, totalMonthlySpend, displayCurrency),
             pw.SizedBox(height: 24),
@@ -262,6 +265,7 @@ class ExportService {
       'Days Until Renewal',
       'First Bill Date',
       'Notes',
+      'Price History',
     ]);
 
     double totalMonthly = 0;
@@ -276,6 +280,16 @@ class ExportService {
       );
       totalMonthly += convertedMonthly;
 
+      // Format price history as "100@2025-01-15; 150@2025-06-01"
+      String priceHistoryStr = '';
+      if (sub.priceHistory != null && sub.priceHistory!.isNotEmpty) {
+        priceHistoryStr = sub.priceHistory!.map((entry) {
+          final price = (entry['price'] as num).toStringAsFixed(2);
+          final date = DateTime.parse(entry['date'] as String);
+          return '$price@${DateFormat('yyyy-MM-dd').format(date)}';
+        }).join('; ');
+      }
+
       rows.add([
         sub.name,
         sub.price.toStringAsFixed(2),
@@ -287,6 +301,7 @@ class ExportService {
         sub.daysUntilRenewal,
         DateFormat('yyyy-MM-dd').format(sub.firstBillDate),
         sub.notes ?? '',
+        priceHistoryStr,
       ]);
     }
 
@@ -712,6 +727,87 @@ class ExportService {
         ),
       ],
     );
+  }
+
+  /// Build PDF price changes section (returns empty list if no price changes exist)
+  List<pw.Widget> _buildPdfPriceChanges(
+    List<Subscription> subscriptions,
+    String displayCurrency,
+  ) {
+    final subsWithChanges = subscriptions.where((s) => s.hasPriceHistory).toList();
+    if (subsWithChanges.isEmpty) return [];
+
+    // Sort by most recent change
+    subsWithChanges.sort((a, b) {
+      final aDate = DateTime.parse(a.lastPriceChange!['date'] as String);
+      final bDate = DateTime.parse(b.lastPriceChange!['date'] as String);
+      return bDate.compareTo(aDate);
+    });
+
+    return [
+      pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Row(
+            children: [
+              pw.Container(
+                width: 4,
+                height: 16,
+                color: PdfColor.fromHex('#E67E22'),
+              ),
+              pw.SizedBox(width: 8),
+              pw.Text(
+                'Price Changes',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 12),
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey300),
+            columnWidths: {
+              0: const pw.FlexColumnWidth(3),
+              1: const pw.FlexColumnWidth(2),
+              2: const pw.FlexColumnWidth(2),
+              3: const pw.FlexColumnWidth(1.5),
+              4: const pw.FlexColumnWidth(2),
+            },
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                children: [
+                  _buildTableCell('Subscription', isHeader: true),
+                  _buildTableCell('Old Price', isHeader: true),
+                  _buildTableCell('New Price', isHeader: true),
+                  _buildTableCell('Change', isHeader: true),
+                  _buildTableCell('Date', isHeader: true),
+                ],
+              ),
+              ...subsWithChanges.map((sub) {
+                final oldPrice = (sub.lastPriceChange!['price'] as num).toDouble();
+                final changeDate = DateTime.parse(sub.lastPriceChange!['date'] as String);
+                final changePercent = sub.lastPriceChangePercent;
+                final symbol = _getPdfSafeSymbol(sub.currency);
+
+                return pw.TableRow(
+                  children: [
+                    _buildTableCell(sub.name),
+                    _buildTableCell('$symbol${oldPrice.toStringAsFixed(2)}'),
+                    _buildTableCell('$symbol${sub.price.toStringAsFixed(2)}'),
+                    _buildTableCell('${changePercent >= 0 ? '+' : ''}${changePercent.toStringAsFixed(1)}%'),
+                    _buildTableCell(DateFormat.MMMd().format(changeDate)),
+                  ],
+                );
+              }),
+            ],
+          ),
+        ],
+      ),
+      pw.SizedBox(height: 24),
+    ];
   }
 
   pw.Widget _buildTableCell(String text, {bool isHeader = false}) {

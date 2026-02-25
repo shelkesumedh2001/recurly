@@ -24,6 +24,11 @@ class Subscription extends HiveObject { // For recently deleted feature
     this.isFreeTrial = false,
     this.trialEndDate,
     this.priceAfterTrial,
+    this.updatedAt,
+    this.ownerUid,
+    this.householdVisible = true,
+    this.splitWith,
+    this.priceHistory,
   });
 
   /// Create from JSON (Firebase)
@@ -56,6 +61,17 @@ class Subscription extends HiveObject { // For recently deleted feature
       priceAfterTrial: json['priceAfterTrial'] != null
           ? (json['priceAfterTrial'] as num).toDouble()
           : null,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'] as String)
+          : null,
+      ownerUid: json['ownerUid'] as String?,
+      householdVisible: json['householdVisible'] as bool? ?? true,
+      splitWith: (json['splitWith'] as List<dynamic>?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList(),
+      priceHistory: (json['priceHistory'] as List<dynamic>?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList(),
     );
   }
   @HiveField(0)
@@ -109,6 +125,44 @@ class Subscription extends HiveObject { // For recently deleted feature
 
   @HiveField(16)
   double? priceAfterTrial;
+
+  @HiveField(17)
+  DateTime? updatedAt;
+
+  // Phase 5: Cloud sync & household fields
+  @HiveField(18)
+  String? ownerUid;
+
+  @HiveField(19)
+  bool householdVisible;
+
+  @HiveField(20)
+  List<Map<String, dynamic>>? splitWith;
+
+  @HiveField(21)
+  List<Map<String, dynamic>>? priceHistory;
+
+  /// Whether this subscription has any recorded price changes
+  bool get hasPriceHistory => priceHistory != null && priceHistory!.isNotEmpty;
+
+  /// The most recent price change entry, or null
+  Map<String, dynamic>? get lastPriceChange =>
+      hasPriceHistory ? priceHistory!.last : null;
+
+  /// The amount of the last price change (current price minus last recorded price)
+  double get lastPriceChangeAmount {
+    if (!hasPriceHistory) return 0.0;
+    final oldPrice = (lastPriceChange!['price'] as num).toDouble();
+    return price - oldPrice;
+  }
+
+  /// The percentage of the last price change
+  double get lastPriceChangePercent {
+    if (!hasPriceHistory) return 0.0;
+    final oldPrice = (lastPriceChange!['price'] as num).toDouble();
+    if (oldPrice == 0) return 0.0;
+    return ((price - oldPrice) / oldPrice) * 100;
+  }
 
   /// Calculate the next bill date based on billing cycle
   DateTime get nextBillDate {
@@ -220,6 +274,11 @@ class Subscription extends HiveObject { // For recently deleted feature
       'isFreeTrial': isFreeTrial,
       'trialEndDate': trialEndDate?.toIso8601String(),
       'priceAfterTrial': priceAfterTrial,
+      'updatedAt': updatedAt?.toIso8601String(),
+      'ownerUid': ownerUid,
+      'householdVisible': householdVisible,
+      'splitWith': splitWith,
+      'priceHistory': priceHistory,
     };
   }
 
@@ -244,6 +303,13 @@ class Subscription extends HiveObject { // For recently deleted feature
     DateTime? trialEndDate,
     double? priceAfterTrial,
     bool clearTrialEndDate = false,
+    DateTime? updatedAt,
+    String? ownerUid,
+    bool? householdVisible,
+    List<Map<String, dynamic>>? splitWith,
+    bool clearSplitWith = false,
+    List<Map<String, dynamic>>? priceHistory,
+    bool clearPriceHistory = false,
   }) {
     return Subscription(
       id: id ?? this.id,
@@ -263,6 +329,11 @@ class Subscription extends HiveObject { // For recently deleted feature
       isFreeTrial: isFreeTrial ?? this.isFreeTrial,
       trialEndDate: clearTrialEndDate ? null : (trialEndDate ?? this.trialEndDate),
       priceAfterTrial: priceAfterTrial ?? this.priceAfterTrial,
+      updatedAt: updatedAt ?? this.updatedAt,
+      ownerUid: ownerUid ?? this.ownerUid,
+      householdVisible: householdVisible ?? this.householdVisible,
+      splitWith: clearSplitWith ? null : (splitWith ?? this.splitWith),
+      priceHistory: clearPriceHistory ? null : (priceHistory ?? this.priceHistory),
     );
   }
 

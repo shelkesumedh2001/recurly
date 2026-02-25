@@ -1,13 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/exchange_rate.dart';
+import '../models/sync_status.dart';
+import '../providers/auth_providers.dart';
 import '../providers/currency_providers.dart';
+import '../providers/household_providers.dart';
+import '../providers/split_providers.dart';
 import '../providers/subscription_providers.dart';
+import '../providers/sync_providers.dart';
+import '../services/currency_service.dart';
 import '../utils/constants.dart';
 import '../widgets/add_subscription_sheet.dart';
 import '../widgets/subscription_card.dart';
+import '../widgets/sync_indicator.dart';
 import 'archived_screen.dart';
 import 'recently_deleted_screen.dart';
+import 'split_requests_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -26,13 +35,110 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.dispose();
   }
 
+  /// Compute household total with currency conversion
+  /// Counts each original subscription at full price, skips reference subs to avoid double-counting
+  double _convertedHouseholdTotal(
+    WidgetRef ref,
+    String displayCurrency,
+    ExchangeRateCache? rates,
+    CurrencyService currencyService,
+  ) {
+    final currentUid = ref.watch(currentFirebaseUserProvider)?.uid;
+    final ownSubs = ref.watch(subscriptionProvider).value ?? [];
+    final partnerSubs = ref.watch(partnerSubscriptionsProvider).value ?? [];
+
+    double total = 0;
+    // Own subs: skip reference subs (ownerUid set to someone else)
+    for (final sub in ownSubs) {
+      if (sub.ownerUid != null && sub.ownerUid != currentUid) continue;
+      if (sub.isArchived || sub.deletedAt != null) continue;
+      total += currencyService.convert(
+        amount: sub.monthlyEquivalent,
+        from: sub.currency,
+        to: displayCurrency,
+        rates: rates,
+      );
+    }
+    // Partner subs: skip their reference subs that point back to us (already counted above)
+    for (final sub in partnerSubs) {
+      if (sub.ownerUid == currentUid) continue; // reference to our sub, already counted
+      if (sub.isArchived || sub.deletedAt != null) continue;
+      total += currencyService.convert(
+        amount: sub.monthlyEquivalent,
+        from: sub.currency,
+        to: displayCurrency,
+        rates: rates,
+      );
+    }
+    return total;
+  }
+
+  /// Compute my share with currency conversion
+  double _convertedMyShare(
+    WidgetRef ref,
+    String displayCurrency,
+    ExchangeRateCache? rates,
+    CurrencyService currencyService,
+  ) {
+    final subs = ref.watch(subscriptionProvider).value ?? [];
+    double total = 0;
+    for (final sub in subs) {
+      double amount = sub.monthlyEquivalent;
+      if (sub.splitWith != null && sub.splitWith!.isNotEmpty) {
+        double myMultiplier = 1.0;
+        for (final split in sub.splitWith!) {
+          if (split['accepted'] == true) {
+            final partnerShare = (split['sharePercent'] as num).toDouble();
+            myMultiplier -= partnerShare / 100;
+          }
+        }
+        amount *= myMultiplier;
+      }
+      total += currencyService.convert(
+        amount: amount,
+        from: sub.currency,
+        to: displayCurrency,
+        rates: rates,
+      );
+    }
+    return total;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final subscriptionsAsync = ref.watch(filteredSubscriptionsProvider);
-    final totalSpend = ref.watch(convertedTotalSpendProvider);
+    final spendViewMode = ref.watch(spendViewModeProvider);
+    final isInHousehold = ref.watch(isInHouseholdProvider);
+
+    // Keep sync active — auto-initializes when user signs in
+    ref.watch(syncInitProvider);
+    ref.watch(householdSyncProvider);
+    ref.watch(householdCleanupProvider);
+
+    // Reset spend view when no longer in household
+    if (!isInHousehold && spendViewMode != SpendViewMode.myShare) {
+      Future.microtask(() {
+        ref.read(spendViewModeProvider.notifier).state = SpendViewMode.myShare;
+      });
+    }
+
+    // Compute spend based on view mode — always currency-converted
+    final displayCurrency = ref.watch(displayCurrencyProvider);
+    final rates = ref.watch(exchangeRatesProvider).value;
+    final currencyService = ref.read(currencyServiceProvider);
+
+    final double totalSpend;
+    if (isInHousehold && spendViewMode == SpendViewMode.householdTotal) {
+      totalSpend = _convertedHouseholdTotal(ref, displayCurrency, rates, currencyService);
+    } else if (isInHousehold && spendViewMode == SpendViewMode.myShare) {
+      totalSpend = _convertedMyShare(ref, displayCurrency, rates, currencyService);
+    } else {
+      totalSpend = ref.watch(convertedTotalSpendProvider);
+    }
     final formattedTotal = ref.watch(formatCurrencyProvider(totalSpend));
     final subscriptionCount = ref.watch(activeSubscriptionCountProvider);
+    final partnerSubs = ref.watch(partnerSubscriptionsProvider).value ?? [];
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -61,6 +167,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
         actions: [
+          const SyncIndicator(),
+          // Split requests badge
+          _buildSplitBadge(context, ref),
           IconButton(
             icon: Icon(_isSearchMode ? Icons.close : Icons.search, size: 24),
             tooltip: _isSearchMode ? 'Close search' : 'Search',
@@ -96,12 +205,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
 
               // Subscriptions list or empty state
-              if (subscriptions.isEmpty)
+              if (subscriptions.isEmpty && partnerSubs.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: _buildEmptyState(context, ref.watch(searchQueryProvider)),
                 )
-              else
+              else ...[
+                // Own subscriptions
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
@@ -121,6 +231,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ),
                 ),
+                // Partner subscriptions (when in household)
+                if (isInHousehold &&
+                    spendViewMode == SpendViewMode.householdTotal &&
+                    partnerSubs.isNotEmpty) ...[
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+                      child: Text(
+                        "Partner's Subscriptions",
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: SubscriptionCard(
+                              subscription: partnerSubs[index],
+                              isPartnerSub: true,
+                            ),
+                          );
+                        },
+                        childCount: partnerSubs.length,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
 
               // Bottom spacing for FAB
               const SliverPadding(
@@ -141,9 +286,55 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  Widget _buildSplitBadge(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(pendingSplitCountProvider);
+    final isSignedIn = ref.watch(isSignedInProvider);
+    if (!isSignedIn || count == 0) return const SizedBox.shrink();
+
+    return Stack(
+      children: [
+        IconButton(
+          icon: const Icon(Icons.call_split, size: 22),
+          tooltip: 'Split requests',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const SplitRequestsScreen(),
+              ),
+            );
+          },
+        ),
+        Positioned(
+          right: 8,
+          top: 8,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.error,
+              shape: BoxShape.circle,
+            ),
+            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+            child: Text(
+              '$count',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   /// Minimal hero section
   Widget _buildHeroSection(BuildContext context, String formattedTotal, int count) {
     final theme = Theme.of(context);
+    final isInHousehold = ref.watch(isInHouseholdProvider);
+    final spendViewMode = ref.watch(spendViewModeProvider);
 
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 8, 20, 24),
@@ -159,13 +350,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Monthly Total',
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0.5,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                isInHousehold
+                    ? spendViewMode.displayName
+                    : 'Monthly Total',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              if (isInHousehold)
+                _buildSpendToggle(context, theme, spendViewMode),
+            ],
           ),
           const SizedBox(height: 12),
           Text(
@@ -185,6 +385,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSpendToggle(
+    BuildContext context,
+    ThemeData theme,
+    SpendViewMode current,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: SpendViewMode.values.map((mode) {
+          final isSelected = mode == current;
+          return GestureDetector(
+            onTap: () {
+              ref.read(spendViewModeProvider.notifier).state = mode;
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? theme.colorScheme.primary.withValues(alpha: 0.15)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                mode.displayName,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  color: isSelected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }

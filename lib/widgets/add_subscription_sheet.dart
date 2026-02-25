@@ -394,21 +394,58 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
         priceAfterTrial = double.tryParse(_priceAfterTrialController.text.trim());
       }
 
-      final subscription = Subscription(
-        id: _isEditMode ? widget.subscription!.id : const Uuid().v4(),
-        name: _nameController.text.trim(),
-        price: double.parse(_priceController.text.trim()),
-        currency: _selectedCurrency!,
-        billingCycle: _selectedBillingCycle,
-        firstBillDate: _firstBillDate,
-        category: _selectedCategory,
-        logoUrl: _logoUrl, // Add logo from template
-        color: _templateColor, // Add color from template
-        createdAt: _isEditMode ? widget.subscription!.createdAt : DateTime.now(),
-        isFreeTrial: _isFreeTrial,
-        trialEndDate: _isFreeTrial ? _trialEndDate : null,
-        priceAfterTrial: priceAfterTrial,
-      );
+      final newPrice = double.parse(_priceController.text.trim());
+
+      late final Subscription subscription;
+      if (_isEditMode) {
+        final existing = widget.subscription!;
+
+        // Detect price change and record history
+        List<Map<String, dynamic>>? updatedPriceHistory = existing.priceHistory;
+        if (existing.price != newPrice) {
+          updatedPriceHistory = [
+            ...?existing.priceHistory,
+            {
+              'price': existing.price,
+              'currency': existing.currency,
+              'date': DateTime.now().toIso8601String(),
+            },
+          ];
+        }
+
+        subscription = existing.copyWith(
+          name: _nameController.text.trim(),
+          price: newPrice,
+          currency: _selectedCurrency!,
+          billingCycle: _selectedBillingCycle,
+          firstBillDate: _firstBillDate,
+          category: _selectedCategory,
+          logoUrl: _logoUrl,
+          color: _templateColor,
+          isFreeTrial: _isFreeTrial,
+          trialEndDate: _isFreeTrial ? _trialEndDate : null,
+          clearTrialEndDate: !_isFreeTrial,
+          priceAfterTrial: priceAfterTrial,
+          updatedAt: DateTime.now(),
+          priceHistory: updatedPriceHistory,
+        );
+      } else {
+        subscription = Subscription(
+          id: const Uuid().v4(),
+          name: _nameController.text.trim(),
+          price: newPrice,
+          currency: _selectedCurrency!,
+          billingCycle: _selectedBillingCycle,
+          firstBillDate: _firstBillDate,
+          category: _selectedCategory,
+          logoUrl: _logoUrl,
+          color: _templateColor,
+          createdAt: DateTime.now(),
+          isFreeTrial: _isFreeTrial,
+          trialEndDate: _isFreeTrial ? _trialEndDate : null,
+          priceAfterTrial: priceAfterTrial,
+        );
+      }
 
       if (_isEditMode) {
         await ref.read(subscriptionProvider.notifier).updateSubscription(subscription);
