@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/budget.dart';
 import '../models/exchange_rate.dart';
 import '../models/sync_status.dart';
@@ -21,6 +22,7 @@ import 'budget_settings_screen.dart';
 import 'category_management_screen.dart';
 import 'household_screen.dart';
 import 'notification_settings_screen.dart';
+import 'privacy_policy_screen.dart';
 import 'profile_screen.dart';
 import 'theme_settings_screen.dart';
 
@@ -136,10 +138,9 @@ class SettingsScreen extends ConsumerWidget {
             title: 'Privacy Policy',
             subtitle: 'How we protect your data',
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Privacy policy coming soon!'),
-                  behavior: SnackBarBehavior.floating,
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const PrivacyPolicyScreen(),
                 ),
               );
             },
@@ -149,13 +150,24 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.bug_report_outlined,
             title: 'Report a Bug',
             subtitle: 'Help us improve',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Bug reporting coming soon!'),
-                  behavior: SnackBarBehavior.floating,
-                ),
+            onTap: () async {
+              final uri = Uri.parse(
+                'mailto:shelkesumedh2001@gmail.com'
+                '?subject=${Uri.encodeComponent('Recurly Bug Report (v${AppConstants.appVersion})')}'
+                '&body=${Uri.encodeComponent('Describe the bug:\n\n\nSteps to reproduce:\n1. \n2. \n3. \n\nExpected behavior:\n\n')}',
               );
+              try {
+                await launchUrl(uri);
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('No email app found'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
             },
           ),
         ],
