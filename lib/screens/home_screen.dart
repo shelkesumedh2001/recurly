@@ -224,6 +224,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           padding: const EdgeInsets.only(bottom: 12),
                           child: SubscriptionCard(
                             subscription: subscriptions[index],
+                            showSwipeHint: index == 0,
                           ),
                         );
                       },

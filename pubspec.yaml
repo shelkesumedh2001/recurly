@@ -57,6 +57,7 @@ dependencies:
 
   # Home Screen Widgets (Phase 5.6)
   home_widget: ^0.7.0
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

@@ -18,9 +18,11 @@ class SubscriptionCard extends ConsumerWidget {
     super.key,
     required this.subscription,
     this.isPartnerSub = false,
+    this.showSwipeHint = false,
   });
   final Subscription subscription;
   final bool isPartnerSub;
+  final bool showSwipeHint;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,12 +38,12 @@ class SubscriptionCard extends ConsumerWidget {
     final subscriptionId = subscription.id;
     final subscriptionName = subscription.name;
 
-    // Partner subs are read-only (no swipe)
+    // Partner subs are read-only (no swipe, no context menu)
     if (isPartnerSub) {
       return _buildCardContent(context, ref, theme, urgencyColor);
     }
 
-    return Dismissible(
+    final card = Dismissible(
       key: Key(subscription.id),
       background: _buildSwipeBackground(context, Alignment.centerLeft, Colors.blue, Icons.edit),
       secondaryBackground: _buildSwipeBackground(context, Alignment.centerRight, Colors.red, Icons.delete),
@@ -95,6 +97,18 @@ class SubscriptionCard extends ConsumerWidget {
       },
       child: _buildCardContent(context, ref, theme, urgencyColor),
     );
+
+    if (showSwipeHint) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          card,
+          _SwipeHintBar(),
+        ],
+      );
+    }
+
+    return card;
   }
 
   Widget _buildCardContent(BuildContext context, WidgetRef ref, ThemeData theme, Color urgencyColor) {
@@ -499,7 +513,58 @@ class SubscriptionCard extends ConsumerWidget {
                         child: const Text('Close'),
                       ),
                     )
-                  else
+                  else ...[
+                    // Edit & Delete row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _showEditDialog(context, ref);
+                            },
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            label: const Text('Edit'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              Navigator.pop(context);
+                              final confirmed = await _showDeleteDialog(context);
+                              if (confirmed && context.mounted) {
+                                final databaseService = ref.read(databaseServiceProvider);
+                                final notifier = ref.read(subscriptionProvider.notifier);
+                                await databaseService.moveToRecentlyDeleted(subscription.id);
+                                await notifier.loadSubscriptions();
+                                final isSyncEnabled = ref.read(isSyncEnabledProvider);
+                                final user = ref.read(currentFirebaseUserProvider);
+                                if (isSyncEnabled && user != null) {
+                                  SyncService().deleteRemoteSubscription(user.uid, subscription.id);
+                                }
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('${subscription.name} moved to recently deleted'),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: theme.colorScheme.error,
+                              side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.5)),
+                            ),
+                            icon: const Icon(Icons.delete_outlined, size: 18),
+                            label: const Text('Delete'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    // Archive & Close row
                     Row(
                       children: [
                         Expanded(
@@ -553,6 +618,7 @@ class SubscriptionCard extends ConsumerWidget {
                         ),
                       ],
                     ),
+                  ],
                 ],
               ),
             ),
@@ -582,6 +648,68 @@ class SubscriptionCard extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SwipeHintBar extends StatefulWidget {
+  @override
+  State<_SwipeHintBar> createState() => _SwipeHintBarState();
+}
+
+class _SwipeHintBarState extends State<_SwipeHintBar> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _opacity;
+  late final Animation<double> _height;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _opacity = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+    _height = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hintStyle = theme.textTheme.labelMedium?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+      fontWeight: FontWeight.w500,
+      letterSpacing: 0.3,
+    );
+    return SizeTransition(
+      sizeFactor: _height,
+      axisAlignment: -1.0,
+      child: FadeTransition(
+        opacity: _opacity,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 6, bottom: 2, left: 8, right: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('\u2190 swipe to edit', style: hintStyle),
+              Text('swipe to delete \u2192', style: hintStyle),
+            ],
+          ),
+        ),
       ),
     );
   }

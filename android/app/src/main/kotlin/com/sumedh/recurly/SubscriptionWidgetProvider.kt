@@ -1,4 +1,4 @@
-package com.example.recurly
+package com.sumedh.recurly
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
