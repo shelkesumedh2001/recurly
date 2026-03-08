@@ -1,7 +1,7 @@
 # Recurly - Development Status
 
-**Last Updated**: 2026-02-25
-**Current Phase**: 5.5 - Advanced Analytics (Complete)
+**Last Updated**: 2026-03-05
+**Current Phase**: Pre-Launch Polish (Play Store Prep)
 
 ---
 
@@ -17,7 +17,7 @@ Phases 1-5.5 are complete. The app now has:
 - Currency auto-detection and conversion for household spend views
 - 8 advanced analytics features (see Phase 5.5 section below)
 
-**Firestore rules need to be redeployed after changes. All code uncommitted.**
+**Preparing for Play Store launch. App is free for all users (Pro gates disabled).**
 
 ---
 
@@ -65,6 +65,69 @@ Phases 1-5.5 are complete. The app now has:
 - Budget Gauge: hidden when `budgetUsageProvider` returns null (no budget set)
 - Split Savings Card: hidden when `splitSavingsProvider` returns null (no household or no splits)
 - Who Pays More Bar: hidden when `householdSpendComparisonProvider` returns null (no household)
+
+---
+
+## Pre-Launch Polish Session (2026-03-05)
+
+### Changes Made
+
+| Change | Details |
+|--------|---------|
+| **Pro gates disabled** | `isProFromProfileProvider` returns `true` for all users. Everyone gets full features for free launch. No Firestore rules changes needed (Pro was client-side only). |
+| **Privacy Policy screen** | New in-app screen at `lib/screens/privacy_policy_screen.dart`. 4 concise trust-building sections. Linked from Settings. |
+| **Report a Bug — email** | Settings button opens email compose to `shelkesumedh2001@gmail.com` with pre-filled subject + template. Uses `url_launcher` package. |
+| **Details sheet — Edit & Delete buttons** | Tap a subscription card → bottom sheet now has Edit, Delete, Archive, Close (2 rows of 2 buttons). Delete styled in red. |
+| **Swipe hint** | Thin bar below first subscription card: `← swipe to edit | swipe to delete →`. Fades out + collapses after 3s with smooth animation. Shows every session on first card. |
+| **AGP & Gradle bump** | Android Gradle Plugin 8.7.3 → 8.9.3, Gradle 8.9 → 8.12.1 (required by `url_launcher` AndroidX dependencies). |
+| **url_launcher added** | New dependency for bug report email compose. |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `lib/providers/auth_providers.dart` | `isProFromProfileProvider` always returns `true` |
+| `lib/screens/privacy_policy_screen.dart` | **New** — in-app privacy policy |
+| `lib/screens/settings_screen.dart` | Privacy policy navigates to screen; bug report opens email; added `url_launcher` import |
+| `lib/widgets/subscription_card.dart` | Added `showSwipeHint` param, `_SwipeHintBar` widget with fade+collapse animation, Edit/Delete buttons in details sheet, removed long-press context menu |
+| `lib/screens/home_screen.dart` | Passes `showSwipeHint: index == 0` to first card |
+| `android/settings.gradle` | AGP 8.7.3 → 8.9.3 |
+| `android/gradle/wrapper/gradle-wrapper.properties` | Gradle 8.9 → 8.12.1 |
+| `android/app/build.gradle` | Package name `com.example.recurly` → `com.sumedh.recurly`, added release signing config from `key.properties` |
+| `android/app/src/main/AndroidManifest.xml` | App label `recurly` → `Recurly` |
+| `android/app/src/main/kotlin/com/sumedh/recurly/` | Moved from `com/example/recurly/`, updated package declarations |
+| `android/key.properties` | **New** — keystore config (gitignored) |
+| `android/app/upload-keystore.jks` | **New** — release signing key (gitignored) |
+| `android/app/src/main/res/values/colors.xml` | **New** — adaptive icon background color `#1A1514` |
+| `android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` | **New** — adaptive icon config |
+| `android/app/src/main/res/mipmap-*/ic_launcher.png` | Replaced with custom app logo (all densities) |
+| `android/app/src/main/res/mipmap-*/ic_launcher_foreground.png` | **New** — adaptive icon foreground (all densities) |
+| `assets/images/applogo.png` | **New** — 1024x1024 app icon (also used for Play Store listing) |
+| `assets/images/screenshot_1-7_*.jpg` | **New** — 7 Play Store screenshots |
+| `.gitignore` | Added keystore + key.properties exclusions |
+| `google-services.json` | Updated with new `com.sumedh.recurly` app from Firebase |
+
+### Release Build
+
+- **AAB location**: `build/app/outputs/bundle/release/app-release.aab` (51MB)
+- **Build command**: `flutter build appbundle --release --no-tree-shake-icons`
+- **Note**: `--no-tree-shake-icons` required because custom category icon picker uses dynamic `IconData`
+
+### Signing Key — CRITICAL
+
+- **Keystore**: `android/app/upload-keystore.jks` (gitignored)
+- **Config**: `android/key.properties` (gitignored)
+- **Alias**: `upload`
+- **Validity**: 10,000 days
+- **SHA-1**: `54:A3:F9:91:FF:83:D8:AA:66:29:2B:10:59:F9:9C:54:55:8A:C7:57`
+- **IMPORTANT**: Back up `upload-keystore.jks` and `key.properties` somewhere safe (USB drive, cloud storage). If you lose the keystore, you can NEVER push updates to the same Play Store listing.
+
+### Firebase Setup for New Package Name
+
+- Added `com.sumedh.recurly` as new Android app in Firebase Console
+- Added upload key SHA-1 to Firebase for Google Sign-In
+- `google-services.json` now contains both `com.example.recurly` (debug) and `com.sumedh.recurly` (release)
+- Old `com.example.recurly` kept in Firebase for now (debug builds still use it)
 
 ---
 
@@ -195,29 +258,52 @@ Current test setup: Pro device (Netflix 100 INR, Google 200 INR), Free device (V
 
 ---
 
-## Known Issues / Next Steps
+## Play Store Launch — TODO
 
-### Immediate
-1. **Complete end-to-end testing** — Tests 6, 7, 10 still need verification after rebuild
-2. **Verify all 8 analytics features on device** — especially household-dependent ones (F7, F8)
-3. **Deploy updated Firestore rules** — Copy `firestore.rules` into Firebase Console
-4. **Commit all code** — Phases 5 + 5.5 still uncommitted
-5. **Apple Sign-In setup**: Requires Apple Developer account (not blocking Android)
+### Done
+- [x] **Pro gates disabled** — All features free for launch
+- [x] **Privacy policy screen** — In-app (4 sections, no email shown)
+- [x] **Report a Bug** — Opens email compose via url_launcher
+- [x] **Details sheet buttons** — Edit, Delete, Archive, Close
+- [x] **Swipe hint** — Fade + collapse animation on first card
+- [x] **App icon** — Custom logo (coral refresh arrows on dark bg), all mipmap sizes + adaptive icon
+- [x] **Screenshots** — 7 screenshots taken and renamed
+- [x] **Package name** — Changed to `com.sumedh.recurly`
+- [x] **Signing key** — Upload keystore created, SHA-1 added to Firebase
+- [x] **Firebase updated** — New app added with `com.sumedh.recurly` + new google-services.json
+- [x] **Release AAB built** — 51MB at `build/app/outputs/bundle/release/app-release.aab`
+- [x] **Play Store descriptions drafted** — App name, short desc, full desc ready
+- [x] **Google Play Developer account** — $25 paid, account set up
 
-### Future Phases
-- **Phase 6**: Monetization (RevenueCat, Free/Pro tiers)
-- **Phase 7**: iOS launch
+### Still TODO (Resume Here Next Session)
+- [ ] **Back up keystore** — Copy `upload-keystore.jks` + `key.properties` to safe location
+- [ ] **Feature graphic** — Create 1024x500 banner in Canva (dark bg + icon + tagline)
+- [ ] **Privacy policy URL** — Host a page on shelke.tech (Play Store requires public URL)
+- [ ] **Upload to Play Console** — Create app, fill listing, upload AAB, screenshots, icon
+- [ ] **Content rating** — Fill out Play Console questionnaire
+- [ ] **Submit for review** — First review takes 3-7 days
+- [ ] **Commit all code changes**
+
+### Post-Launch
+- [ ] **Monitor bug reports** — via email (shelkesumedh2001@gmail.com)
+- [ ] **Gather user feedback** — reviews, ratings
+- [ ] **Rename "Partner" in household** — Allow custom name for household member
+- [ ] **Phase 6: Monetization** — RevenueCat integration, restore Pro/Free tiers when user base is established
+- [ ] **Phase 7: iOS launch** — Apple Developer account, Apple Sign-In setup
 
 ---
 
 ## Quick Commands
 
 ```bash
-# Run the app
+# Run the app (debug)
 flutter run
 
 # Clean build
 flutter clean && flutter pub get && flutter run
+
+# Build release AAB (for Play Store)
+flutter build appbundle --release --no-tree-shake-icons
 
 # Build debug APK
 flutter build apk --debug

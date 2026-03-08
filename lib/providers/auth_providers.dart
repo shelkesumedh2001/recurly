@@ -34,7 +34,7 @@ final currentUserProfileProvider = StreamProvider<UserProfile?>((ref) {
 });
 
 /// Provider for whether the current user is a Pro user
+/// TODO: Currently returns true for all users (free launch). Re-enable with RevenueCat later.
 final isProFromProfileProvider = Provider<bool>((ref) {
-  final profile = ref.watch(currentUserProfileProvider).value;
-  return profile?.isPro ?? false;
+  return true;
 });

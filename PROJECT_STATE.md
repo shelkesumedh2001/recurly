@@ -88,8 +88,8 @@ Recurly is a minimal, world-class subscription tracking app for Android. Users m
 - Widget layout XML, drawable backgrounds, widget info XML
 
 **Build/Tooling:**
-- Android Gradle Plugin 8.7.3
-- Gradle 8.9
+- Android Gradle Plugin 8.9.3
+- Gradle 8.12.1
 - Kotlin 2.0.21
 - Java 17
 - Android NDK 27.0.12077973
@@ -350,24 +350,42 @@ invites/{inviteCode}
 
 ---
 
-# Current Blockers
+# Current Status
 
-**Phase 5 bug fixes complete. Phase 5.5 (Advanced Analytics) implemented.**
+**Pre-launch polish complete. Preparing for Play Store launch.**
+
+**Strategy:** Launch free for all users (Pro gates disabled), build user base first, add monetization later via RevenueCat.
 
 **Firebase Setup (Completed 2026-02-23):**
 - ✅ Real `google-services.json` with OAuth clients and SHA-1 fingerprint
 - ✅ Auth providers enabled (Google, Email/Password)
 - ✅ Firestore database created
-- ✅ Security rules updated with household member cross-write permissions (2026-02-24)
+- ✅ Security rules — no Pro/Free conflicts (Pro was client-side only)
 - ⚠️ Apple Sign-In requires Apple Developer account setup (not blocking Android)
 - ⚠️ Firestore rules are deployed manually via Firebase Console (not CLI) — copy from `firestore.rules`
-- ⚠️ **Rules need redeployment after 2026-02-25 session changes**
 
-**Status (2026-02-25):**
-- All known bugs fixed (disband, sync, currency, household totals, split propagation)
-- Phase 5.5 Advanced Analytics implemented (8 analytics features)
-- End-to-end testing partially complete (Tests 6, 7, 10 need verification after rebuild)
-- See DEV_STATUS.md for full bug list and test checklist
+**Pre-Launch Polish (2026-03-05):**
+- ✅ Pro gates disabled — all features free for all users
+- ✅ Privacy policy screen added (in-app)
+- ✅ Report a Bug opens email compose
+- ✅ Details sheet has Edit, Delete, Archive, Close buttons
+- ✅ Swipe gesture hint on first card (fades + collapses after 3s)
+- ✅ AGP 8.9.3 + Gradle 8.12.1
+- ✅ End-to-end testing complete (all tests pass)
+
+**Remaining for Play Store:**
+- Feature graphic (1024x500 banner — make in Canva)
+- Privacy policy URL on shelke.tech
+- Upload to Play Console (listing, AAB, screenshots, content rating)
+- Back up keystore to safe location
+- See DEV_STATUS.md for full TODO checklist
+
+**Release Build Info:**
+- Package: `com.sumedh.recurly`
+- AAB: `build/app/outputs/bundle/release/app-release.aab` (51MB)
+- Build cmd: `flutter build appbundle --release --no-tree-shake-icons`
+- Signing: `android/app/upload-keystore.jks` (alias: `upload`)
+- SHA-1: `54:A3:F9:91:FF:83:D8:AA:66:29:2B:10:59:F9:9C:54:55:8A:C7:57`
 
 **Implemented (Phase 5.5 - Advanced Analytics - Complete):**
 - Subscription count line chart — 12-month history of active sub count
@@ -473,7 +491,17 @@ Partner device: householdCleanupProvider detects household gone → self-cleans
 
 # Version History
 
-**v2.1.0 (Current - Phase 5.5 Advanced Analytics)**
+**v2.2.0 (Current - Pre-Launch Polish)**
+- Date: March 5, 2026
+- Status: Ready for Play Store submission
+- Pro gates disabled (free for all users)
+- Privacy policy screen (in-app)
+- Report a Bug email integration (url_launcher)
+- Subscription details sheet: Edit, Delete, Archive, Close buttons
+- Swipe gesture hint bar with fade+collapse animation
+- AGP 8.9.3, Gradle 8.12.1
+
+**v2.1.0 (Phase 5.5 Advanced Analytics)**
 - Date: February 25, 2026
 - Status: 8 analytics features added to analytics screen
 - Subscription count line chart (12-month history)
