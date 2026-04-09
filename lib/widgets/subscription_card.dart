@@ -71,11 +71,12 @@ class SubscriptionCard extends ConsumerWidget {
           }
 
           if (context.mounted) {
+            ScaffoldMessenger.of(context).clearSnackBars();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('$subscriptionName moved to recently deleted'),
                 behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 4),
+                duration: const Duration(seconds: 3),
                 action: SnackBarAction(
                   label: 'Undo',
                   onPressed: () async {
@@ -393,6 +394,7 @@ class SubscriptionCard extends ConsumerWidget {
       context,
       subscription.daysUntilRenewal,
     );
+    final scaffoldContext = context;
 
     showModalBottomSheet(
       context: context,
@@ -531,9 +533,9 @@ class SubscriptionCard extends ConsumerWidget {
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: () async {
-                              Navigator.pop(context);
                               final confirmed = await _showDeleteDialog(context);
                               if (confirmed && context.mounted) {
+                                Navigator.pop(context);
                                 final databaseService = ref.read(databaseServiceProvider);
                                 final notifier = ref.read(subscriptionProvider.notifier);
                                 await databaseService.moveToRecentlyDeleted(subscription.id);
@@ -543,11 +545,13 @@ class SubscriptionCard extends ConsumerWidget {
                                 if (isSyncEnabled && user != null) {
                                   SyncService().deleteRemoteSubscription(user.uid, subscription.id);
                                 }
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                if (scaffoldContext.mounted) {
+                                  ScaffoldMessenger.of(scaffoldContext).clearSnackBars();
+                                  ScaffoldMessenger.of(scaffoldContext).showSnackBar(
                                     SnackBar(
                                       content: Text('${subscription.name} moved to recently deleted'),
                                       behavior: SnackBarBehavior.floating,
+                                      duration: const Duration(seconds: 3),
                                     ),
                                   );
                                 }
