@@ -50,16 +50,8 @@ class NotificationService {
   /// Request notification permission (Android 13+)
   Future<bool> requestPermission() async {
     if (Platform.isAndroid) {
-      // Request POST_NOTIFICATIONS
       final status = await Permission.notification.request();
       debugPrint('Notification permission status: $status');
-      
-      // On Android 13+, also request exact alarm permission if needed
-      if (await Permission.scheduleExactAlarm.status.isDenied) {
-        debugPrint('Requesting scheduleExactAlarm permission...');
-        await Permission.scheduleExactAlarm.request();
-      }
-      
       return status.isGranted;
     }
     return true;
@@ -69,15 +61,7 @@ class NotificationService {
   Future<bool> hasPermission() async {
     if (Platform.isAndroid) {
       final status = await Permission.notification.status;
-      
-      // Also check exact alarm permission on Android 13+
-      // Permission_handler handles SDK version checks internally
-      final exactAlarmStatus = await Permission.scheduleExactAlarm.status;
-      // If the permission is restricted (default state) or granted, we consider it valid for our use
-      // On < Android 12, this usually returns granted or restricted
-      final hasExactAlarm = !exactAlarmStatus.isDenied && !exactAlarmStatus.isPermanentlyDenied;
-      
-      return status.isGranted && hasExactAlarm;
+      return status.isGranted;
     }
     return true;
   }
@@ -202,7 +186,7 @@ class NotificationService {
         body,
         scheduledDate,
         notificationDetails,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         payload: payload,
@@ -210,27 +194,6 @@ class NotificationService {
       debugPrint('Successfully scheduled: "$title"');
     } catch (e) {
       debugPrint('FAILED to schedule notification: $e');
-      
-      // If exact alarm fails, try inexact as fallback
-      if (e.toString().contains('exact_alarm')) {
-        try {
-          debugPrint('Retrying with inexact schedule mode...');
-          await _notifications.zonedSchedule(
-            id,
-            title,
-            body,
-            scheduledDate,
-            notificationDetails,
-            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-            uiLocalNotificationDateInterpretation:
-                UILocalNotificationDateInterpretation.absoluteTime,
-            payload: payload,
-          );
-          debugPrint('Successfully scheduled (inexact fallback): "$title"');
-        } catch (e2) {
-          debugPrint('Inexact fallback also FAILED: $e2');
-        }
-      }
     }
   }
 
