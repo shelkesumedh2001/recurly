@@ -3,19 +3,28 @@
 A beautiful subscription tracking app with Material You design for Android.
 
 ## Features
-- Track recurring subscriptions (Netflix, Spotify, etc.)
-- Material You dynamic theming
-- Share subscriptions with partner/family
-- Analytics and insights
-- Freemium model: Free (5 subs) → Pro ($39.99/year)
+- Track recurring subscriptions (Netflix, Spotify, etc.) with logos
+- Material You dynamic theming + custom themes
+- Multi-currency support with live exchange rates
+- Analytics & insights — spending trends, price history, renewal forecast, cancel simulator
+- Budget tracking with gauge
+- Custom categories with icon picker
+- Free trial tracking with countdown
+- Local notifications — renewal reminders (1, 3, 7 days before)
+- Home screen widget
+- Household sharing — sync subscriptions with a partner
+- Split subscriptions with configurable share percentages
+- Archive & Recently Deleted (30-day recovery)
+- Export to CSV/PDF
+- Offline-first with optional Firebase cloud sync
+- Google Sign-In
 
 ## Tech Stack
-- Flutter 3.19+ with Dart 3.3+
+- Flutter 3.41 / Dart 3.11
 - Riverpod for state management
-- Hive for local database
-- Firebase for authentication & sync
+- Hive for local database (offline-first)
+- Firebase Auth + Firestore for cloud sync
 - Material 3 with dynamic colors
-- RevenueCat for monetization
 
 ## Setup Instructions
 
@@ -24,7 +33,7 @@ A beautiful subscription tracking app with Material You design for Android.
 flutter pub get
 ```
 
-### 2. Generate Code (Hive adapters & Riverpod)
+### 2. Generate Code (Hive adapters)
 ```bash
 dart run build_runner build --delete-conflicting-outputs
 ```
@@ -50,12 +59,11 @@ lib/
 ## Development Notes
 - Follow Material Design 3 guidelines
 - Use 8dp grid system for spacing
-- Implement offline-first approach
+- Offline-first: all features work without an account
 - Test on Android 12+ for full Material You experience
+- Firebase rules: collection listeners require `.where()` clauses matching security rules
 
-## Future Enhancements
+## Planned
 - iOS support
+- Monetization (RevenueCat)
 - Custom recurring intervals
-- Budget alerts
-- Export to CSV
-- Family sharing groups
