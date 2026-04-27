@@ -352,6 +352,19 @@ invites/{inviteCode}
 
 # Current Status
 
+**Pre-launch bug-fix sprint closed 2026-04-20. Beta in Google review; 12 opted-in testers + 14-day timer still blocking production.**
+
+**Sprint outcome:** 11/12 audit tasks complete + 1 hotfix; Task 12 (R8/ProGuard) deferred until post-beta. 7 new test files, 55/55 passing. Key architectural deltas landed:
+
+- **Lifecycle watches → `initState` + `ref.listenManual`** (`home_screen.dart`): three household/sync/cleanup subscriptions previously re-triggered on every build are now kept-alive once per widget instance.
+- **SyncService single-callback → listener list** (`sync_service.dart`): `remoteDataChangeTicker` is a `ValueNotifier<int>` with a real listener list, so `SubscriptionNotifier` instances can coexist across hot reload without silently overwriting each other's refresh callback.
+- **Auth tear-down ordering** (`auth_service.dart`): both `signOut()` and `deleteAccount()` call `SyncService().dispose()` *before* invalidating the Firebase user, eliminating the `permission-denied` log noise from listeners outliving credentials.
+- **Schema-migration scaffolding** (`lib/utils/schema.dart`, dedicated `schemaBox`): baseline at `kCurrentSchemaVersion = 1`; refuses downgrade; future `@HiveField` changes can be migrated in-place without app-start crashes.
+- **Single-source billing-cycle math** (`lib/utils/billing_cycle.dart`): `addOneCycle` — calendar-month clamping, DST-stable weekly (`DateTime(y, m, d+7, …)` not `Duration(days: 7)`). Duplicates in `subscription.dart` and `analytics_providers.dart` removed.
+- **Firestore rules Option A**: open reads on `/households` and `/invites`, disjoint-branch writes for create / join / leave / creator-refresh / delete. Deployed manually; verified live.
+
+See `DEV_STATUS.md` → "Pre-Launch Bug-Fix Sprint" for task-by-task breakdown and `bugFixing.md` for the full Execution Log.
+
 **Pre-launch polish complete. Preparing for Play Store launch.**
 
 **Strategy:** Launch free for all users (Pro gates disabled), build user base first, add monetization later via RevenueCat.

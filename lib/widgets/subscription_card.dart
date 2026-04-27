@@ -552,6 +552,19 @@ class SubscriptionCard extends ConsumerWidget {
                                       content: Text('${subscription.name} moved to recently deleted'),
                                       behavior: SnackBarBehavior.floating,
                                       duration: const Duration(seconds: 3),
+                                      action: SnackBarAction(
+                                        label: 'Undo',
+                                        onPressed: () async {
+                                          await databaseService.restoreFromRecentlyDeleted(subscription.id);
+                                          await notifier.loadSubscriptions();
+                                          if (isSyncEnabled && user != null) {
+                                            final restored = databaseService.getSubscriptionById(subscription.id);
+                                            if (restored != null) {
+                                              SyncService().pushSubscription(user.uid, restored);
+                                            }
+                                          }
+                                        },
+                                      ),
                                     ),
                                   );
                                 }

@@ -7,6 +7,7 @@ import '../services/database_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/notification_service.dart';
 import '../services/sync_service.dart';
+import '../utils/constants.dart';
 import 'auth_providers.dart';
 import 'preferences_providers.dart';
 import 'sync_providers.dart';
@@ -25,15 +26,26 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
     this._ref,
   ) : super(const AsyncValue.loading()) {
     loadSubscriptions();
-    // Wire up remote data change callback so Firestore changes refresh UI
-    SyncService().onRemoteDataChanged = () {
-      loadSubscriptions();
-    };
+    // Subscribe to remote-data-change ticker so Firestore changes refresh UI.
+    // Using a listener on a ValueNotifier<int> (instead of assigning a single
+    // callback field) lets multiple notifier instances coexist — e.g. across
+    // hot reload — without silently overwriting each other.
+    SyncService().remoteDataChangeTicker.addListener(_onRemoteTick);
   }
 
   final DatabaseService _databaseService;
   final NotificationService _notificationService;
   final Ref _ref;
+
+  void _onRemoteTick() {
+    loadSubscriptions();
+  }
+
+  @override
+  void dispose() {
+    SyncService().remoteDataChangeTicker.removeListener(_onRemoteTick);
+    super.dispose();
+  }
 
   /// Load all active subscriptions
   Future<void> loadSubscriptions() async {
@@ -219,7 +231,7 @@ final activeSubscriptionCountProvider = Provider<int>((ref) {
 /// Provider for checking if free limit is reached
 final hasReachedFreeLimitProvider = Provider<bool>((ref) {
   final count = ref.watch(activeSubscriptionCountProvider);
-  return count >= 5; // Free limit
+  return count >= AppConstants.freeSubscriptionLimit;
 });
 
 /// Provider for pro status (placeholder - will integrate with RevenueCat)

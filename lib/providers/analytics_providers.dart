@@ -1,6 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/enums.dart';
+import '../models/exchange_rate.dart';
 import '../models/subscription.dart';
+import '../services/currency_service.dart';
+import '../utils/billing_cycle.dart';
 import 'auth_providers.dart';
 import 'currency_providers.dart';
 import 'household_providers.dart';
@@ -136,18 +139,46 @@ final subscriptionsWithPriceChangesProvider = Provider<List<Subscription>>((ref)
   );
 });
 
-/// Provider for total monthly impact from all price changes
-final totalPriceChangeImpactProvider = Provider<double>((ref) {
-  final subs = ref.watch(subscriptionsWithPriceChangesProvider);
-
+/// Pure helper: monthly-equivalent price-change impact converted to
+/// [displayCurrency]. Returns `null` if any sub's rate is unresolvable,
+/// so callers can render "—" instead of a silently-wrong number.
+double? computeTotalPriceChangeImpact({
+  required List<Subscription> subs,
+  required CurrencyService currencyService,
+  required String displayCurrency,
+  required ExchangeRateCache? rates,
+}) {
   double totalImpact = 0;
   for (final sub in subs) {
-    // Impact = difference in monthly equivalent between current and last recorded price
     final oldPrice = (sub.lastPriceChange!['price'] as num).toDouble();
     final diff = sub.price - oldPrice;
-    totalImpact += diff * sub.billingCycle.getMonthlyMultiplier();
+    final monthlyDiff = diff * sub.billingCycle.getMonthlyMultiplier();
+    final converted = currencyService.convertOrNull(
+      amount: monthlyDiff,
+      from: sub.currency,
+      to: displayCurrency,
+      rates: rates,
+    );
+    if (converted == null) return null;
+    totalImpact += converted;
   }
   return totalImpact;
+}
+
+/// Provider for total monthly impact from all price changes (in display
+/// currency). Null when rates are unavailable for any sub.
+final totalPriceChangeImpactProvider = Provider<double?>((ref) {
+  final subs = ref.watch(subscriptionsWithPriceChangesProvider);
+  final currencyService = ref.watch(currencyServiceProvider);
+  final displayCurrency = ref.watch(displayCurrencyProvider);
+  final rates = ref.watch(exchangeRatesProvider).value;
+
+  return computeTotalPriceChangeImpact(
+    subs: subs,
+    currencyService: currencyService,
+    displayCurrency: displayCurrency,
+    rates: rates,
+  );
 });
 
 /// Provider for projected monthly spending for the next 12 months
@@ -397,20 +428,6 @@ class UpcomingRenewal {
   final double convertedAmount;
 }
 
-/// Add one billing cycle to a date (mirrors Subscription._addBillingCycle)
-DateTime _addOneCycle(BillingCycle cycle, DateTime date) {
-  switch (cycle) {
-    case BillingCycle.monthly:
-      return DateTime(date.year, date.month + 1, date.day);
-    case BillingCycle.yearly:
-      return DateTime(date.year + 1, date.month, date.day);
-    case BillingCycle.weekly:
-      return date.add(const Duration(days: 7));
-    case BillingCycle.custom:
-      return DateTime(date.year, date.month + 1, date.day);
-  }
-}
-
 final upcomingRenewalsProvider = Provider<List<UpcomingRenewal>>((ref) {
   final subscriptionsAsync = ref.watch(subscriptionProvider);
   final currencyService = ref.watch(currencyServiceProvider);
@@ -432,7 +449,7 @@ final upcomingRenewalsProvider = Provider<List<UpcomingRenewal>>((ref) {
 
         // Fast forward to around now
         while (billDate.isBefore(today)) {
-          billDate = _addOneCycle(sub.billingCycle, billDate);
+          billDate = addOneCycle(sub.billingCycle, billDate);
         }
 
         // Collect dates within the 30-day window
@@ -448,7 +465,7 @@ final upcomingRenewalsProvider = Provider<List<UpcomingRenewal>>((ref) {
             date: billDate,
             convertedAmount: converted,
           ));
-          billDate = _addOneCycle(sub.billingCycle, billDate);
+          billDate = addOneCycle(sub.billingCycle, billDate);
         }
       }
 

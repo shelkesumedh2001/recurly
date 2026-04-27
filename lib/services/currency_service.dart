@@ -113,6 +113,33 @@ class CurrencyService {
     return amount;
   }
 
+  /// Like [convert], but returns `null` when the cache is missing or the
+  /// rate pair is unresolvable — instead of silently passing the input
+  /// through (which stamps a wrong value with the display-currency symbol).
+  /// Callers that need to surface "rates not available" should use this.
+  double? convertOrNull({
+    required double amount,
+    required String from,
+    required String to,
+    ExchangeRateCache? rates,
+  }) {
+    if (from == to) return amount;
+
+    final cache = rates ?? getCachedRates();
+    if (cache == null) return null;
+
+    if (cache.baseCurrency == from) {
+      final rate = cache.getRate(to);
+      return rate == null ? null : amount * rate;
+    }
+
+    final fromRate = cache.getRate(from);
+    final toRate = cache.getRate(to);
+    if (fromRate == null || toRate == null) return null;
+
+    return amount / fromRate * toRate;
+  }
+
   /// Format amount with currency symbol
   String formatAmount(double amount, String currencyCode) {
     final info = CurrencyInfo.getByCode(currencyCode);

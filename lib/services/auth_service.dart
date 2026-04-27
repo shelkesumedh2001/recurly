@@ -8,6 +8,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../models/user_profile.dart';
+import 'sync_service.dart';
 
 /// Authentication service wrapping Firebase Auth
 class AuthService {
@@ -110,6 +111,12 @@ class AuthService {
 
   /// Sign out
   Future<void> signOut() async {
+    // Tear down Firestore listeners BEFORE invalidating auth. Cancelling
+    // snapshot subscriptions while the token is still valid prevents the
+    // `permission-denied` noise that would otherwise fire the moment the
+    // user is signed out and the listener attempts one more read under a
+    // null/other auth context.
+    SyncService().dispose();
     await _googleSignIn.signOut();
     await _auth.signOut();
   }
@@ -168,6 +175,11 @@ class AuthService {
 
     // Delete user profile document
     await _firestore.collection('users').doc(uid).delete();
+
+    // Tear down Firestore listeners BEFORE invalidating auth — same reason
+    // as signOut(): `user.delete()` revokes the token, and any listener
+    // still alive at that moment fires a permission-denied error.
+    SyncService().dispose();
 
     // Delete Firebase Auth account
     await user.delete();

@@ -1,7 +1,7 @@
 # Recurly - Development Status
 
-**Last Updated**: 2026-03-05
-**Current Phase**: Pre-Launch Polish (Play Store Prep)
+**Last Updated**: 2026-04-20
+**Current Phase**: Pre-Launch Polish (Play Store Prep) — Beta in Google review
 
 ---
 
@@ -18,6 +18,46 @@ Phases 1-5.5 are complete. The app now has:
 - 8 advanced analytics features (see Phase 5.5 section below)
 
 **Preparing for Play Store launch. App is free for all users (Pro gates disabled).**
+
+---
+
+## Pre-Launch Bug-Fix Sprint (2026-04-19 → 2026-04-20)
+
+Closed a 12-task audit-driven verification pass tracked in `bugFixing.md`. See that file's Execution Log and "Sprint summary" section for per-task detail.
+
+**Outcome:** 11/12 in-plan tasks complete + 1 out-of-plan hotfix. Task 12 (R8/ProGuard) deferred until after beta exits. 7 new test files, 55 cases, 55/55 passing.
+
+### Tasks landed
+| # | Area | Fix |
+|---|------|-----|
+| 0 | Hive | Schema-migration scaffolding (`lib/utils/schema.dart`, dedicated `schemaBox`) |
+| 1 | Billing | Single-source `addOneCycle` (monthly clamping, DST-stable weekly) |
+| 2 | Trial | Midnight-normalized `isTrialExpiredAt(now)` — UI and state agree |
+| 3 | Currency | `CurrencyService.convertOrNull` returns null instead of silent passthrough |
+| 4 | Analytics | `totalPriceChangeImpactProvider` honors cross-currency; rates-unavailable UI |
+| 5 | Firestore | Rules rewritten (Option A); disjoint-branch writes; verified live |
+| 6 | Android | `android:allowBackup="false"` — Hive DB no longer auto-backed-up |
+| 7 | Lifecycle | Three home-screen watches moved from `build` to `initState` via `ref.listenManual` |
+| 8 | Sync | `SyncService.remoteDataChangeTicker` (ValueNotifier listener list) replaces single-callback overwrite |
+| 9 | Auth | `SyncService().dispose()` called before `signOut()` AND `deleteAccount()` |
+| 10 | Config | `hasReachedFreeLimitProvider` uses `AppConstants.freeSubscriptionLimit` |
+| 11 | Validation | Structural email regex via `isValidEmail()` helper |
+| — | Hotfix | Undo `SnackBarAction` on details-sheet delete path (matched swipe-delete behavior) |
+
+### Deferred
+- **Task 12 — R8/ProGuard minification + obfuscation**. Beta testers are on the current unshrunken release; keep-rule iteration risks shipping a release-only crash. **Revisit after beta exits and before first production-track promotion.**
+
+### Post-sprint backlog
+- **Task A1** — Manual JSON export/import of subscription data via `share_plus`. Fills the user-facing recovery gap opened by Task 6 (`allowBackup=false`). Post-launch minor.
+
+### Files touched
+- **New source:** `lib/utils/schema.dart`, `lib/utils/billing_cycle.dart`, `lib/utils/email_validator.dart`
+- **Modified source:** `lib/utils/constants.dart`, `lib/services/database_service.dart`, `lib/models/subscription.dart`, `lib/providers/analytics_providers.dart`, `lib/services/currency_service.dart`, `lib/widgets/analytics/price_changes_section.dart`, `lib/widgets/subscription_card.dart`, `lib/screens/home_screen.dart`, `lib/services/sync_service.dart`, `lib/providers/subscription_providers.dart`, `lib/services/auth_service.dart`, `lib/screens/auth_screen.dart`
+- **Non-source:** `firestore.rules`, `android/app/src/main/AndroidManifest.xml`
+- **Tests (all new):** `test/schema_migration_test.dart` (3), `test/billing_cycle_test.dart` (12), `test/trial_expiry_test.dart` (6), `test/currency_service_test.dart` (7), `test/price_change_impact_test.dart` (7), `test/sync_service_listener_test.dart` (3), `test/email_validator_test.dart` (17)
+
+### Sidebar (diagnosed during Task 5 device testing)
+Google Sign-In broke on a fresh `flutter run` of `com.sumedh.recurly`. Root cause: debug keystore SHA-1 `74:E7:E3:FE:A7:53:31:5A:3D:B6:2E:BC:0C:3E:96:2D:7D:33:AA:67` had only been registered under the defunct `com.example.recurly` Firebase app. Added to `com.sumedh.recurly` and re-downloaded `google-services.json` — now both debug and upload SHA-1s are on the live app.
 
 ---
 
