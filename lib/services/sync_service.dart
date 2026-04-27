@@ -186,8 +186,10 @@ class SyncService {
               break;
           }
         }
-        // Notify that data has changed
-        _onRemoteDataChanged?.call();
+        // Notify all listeners that data has changed. Using a ValueNotifier<int>
+        // instead of a single VoidCallback so multiple subscribers can coexist
+        // without the last one overwriting earlier ones.
+        remoteDataChangeTicker.value++;
       },
       onError: (e) {
         debugPrint('Sync listener error: $e');
@@ -196,11 +198,11 @@ class SyncService {
     );
   }
 
-  /// Callback for when remote data changes (set by subscription providers)
-  VoidCallback? _onRemoteDataChanged;
-  set onRemoteDataChanged(VoidCallback? callback) {
-    _onRemoteDataChanged = callback;
-  }
+  /// Ticker that increments whenever the remote listener processes a change.
+  /// Subscribe via `addListener` to react to remote-driven updates. Supports
+  /// any number of concurrent subscribers (replaces the prior single-callback
+  /// field that silently overwrote earlier listeners on re-assignment).
+  final ValueNotifier<int> remoteDataChangeTicker = ValueNotifier(0);
 
   /// Push a single subscription to Firestore
   Future<void> pushSubscription(String uid, Subscription sub) async {
@@ -341,7 +343,8 @@ class SyncService {
     }
   }
 
-  /// Dispose listeners on sign-out
+  /// Dispose listeners on sign-out. Safe to call repeatedly — all operations
+  /// are idempotent.
   void dispose() {
     _syncListener?.cancel();
     _householdListener?.cancel();
@@ -351,5 +354,8 @@ class SyncService {
     _currentUid = null;
     syncStatus.value = SyncStatus.idle;
     partnerSubscriptions.value = [];
+    // Per-session state — clear so a later sign-in under a different uid
+    // doesn't see IDs that were deleted by the previous user.
+    _locallyDeletedIds.clear();
   }
 }

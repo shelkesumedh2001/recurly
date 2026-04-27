@@ -1,4 +1,6 @@
 import 'package:hive/hive.dart';
+
+import '../utils/billing_cycle.dart';
 import 'enums.dart';
 
 part 'subscription.g.dart';
@@ -180,36 +182,10 @@ class Subscription extends HiveObject { // For recently deleted feature
     // so the NEXT renewal is always at least one billing cycle after that.
     // If firstBillDate is today, the next renewal is one cycle from now.
     while (!nextDate.isAfter(today)) {
-      nextDate = _addBillingCycle(nextDate);
+      nextDate = addOneCycle(billingCycle, nextDate);
     }
 
     return nextDate;
-  }
-
-  /// Helper method to add one billing cycle to a date
-  DateTime _addBillingCycle(DateTime date) {
-    switch (billingCycle) {
-      case BillingCycle.monthly:
-        return DateTime(
-          date.year,
-          date.month + 1,
-          date.day,
-        );
-      case BillingCycle.yearly:
-        return DateTime(
-          date.year + 1,
-          date.month,
-          date.day,
-        );
-      case BillingCycle.weekly:
-        return date.add(const Duration(days: 7));
-      case BillingCycle.custom:
-        return DateTime(
-          date.year,
-          date.month + 1,
-          date.day,
-        );
-    }
   }
 
   /// Days until the next renewal
@@ -346,10 +322,16 @@ class Subscription extends HiveObject { // For recently deleted feature
     return end.difference(today).inDays;
   }
 
-  /// Check if trial has expired
-  bool get isTrialExpired {
+  /// Check if trial has expired (date-only comparison — a trial ending today
+  /// is not expired until tomorrow, matching `trialStatusText`'s "Trial ends today").
+  bool get isTrialExpired => isTrialExpiredAt(DateTime.now());
+
+  /// Date-only expiry check with injectable `now` (for tests).
+  bool isTrialExpiredAt(DateTime now) {
     if (!isFreeTrial || trialEndDate == null) return false;
-    return DateTime.now().isAfter(trialEndDate!);
+    final today = DateTime(now.year, now.month, now.day);
+    final end = DateTime(trialEndDate!.year, trialEndDate!.month, trialEndDate!.day);
+    return today.isAfter(end);
   }
 
   /// Get trial status text

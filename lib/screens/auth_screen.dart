@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/auth_service.dart';
+import '../utils/email_validator.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -141,7 +142,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         if (value == null || value.trim().isEmpty) {
                           return 'Please enter your email';
                         }
-                        if (!value.contains('@')) {
+                        if (!isValidEmail(value)) {
                           return 'Please enter a valid email';
                         }
                         return null;
@@ -366,7 +367,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   Future<void> _handleResetPassword() async {
     final email = _emailController.text.trim();
-    if (email.isEmpty || !email.contains('@')) {
+    if (!isValidEmail(email)) {
       _showError('Please enter your email address first');
       return;
     }

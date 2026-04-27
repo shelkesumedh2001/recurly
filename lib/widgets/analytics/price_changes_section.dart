@@ -41,17 +41,17 @@ class _PriceChangesSectionState extends ConsumerState<PriceChangesSection>
     final totalImpact = ref.watch(totalPriceChangeImpactProvider);
     final currencyService = ref.watch(currencyServiceProvider);
     final displayCurrency = ref.watch(displayCurrencyProvider);
-    final exchangeRates = ref.watch(exchangeRatesProvider).value;
 
     if (subsWithChanges.isEmpty) return const SizedBox.shrink();
 
-    final isIncrease = totalImpact > 0;
-    final impactConverted = currencyService.convert(
-      amount: totalImpact.abs(),
-      from: displayCurrency, // impact is already approximated in original currencies
-      to: displayCurrency,
-      rates: exchangeRates,
-    );
+    final ratesUnavailable = totalImpact == null;
+    final isIncrease = !ratesUnavailable && totalImpact > 0;
+    final bannerColor = ratesUnavailable
+        ? theme.colorScheme.outline
+        : (isIncrease ? AppTheme.expenseColor : AppTheme.incomeColor);
+    final impactLabel = ratesUnavailable
+        ? '—/mo impact (rates unavailable)'
+        : '${isIncrease ? '+' : '-'}${currencyService.formatAmount(totalImpact.abs(), displayCurrency)}/mo impact';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -61,19 +61,21 @@ class _PriceChangesSectionState extends ConsumerState<PriceChangesSection>
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: (isIncrease ? AppTheme.expenseColor : AppTheme.incomeColor)
-                .withValues(alpha: 0.08),
+            color: bannerColor.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: (isIncrease ? AppTheme.expenseColor : AppTheme.incomeColor)
-                  .withValues(alpha: 0.2),
+              color: bannerColor.withValues(alpha: 0.2),
             ),
           ),
           child: Row(
             children: [
               Icon(
-                isIncrease ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-                color: isIncrease ? AppTheme.expenseColor : AppTheme.incomeColor,
+                ratesUnavailable
+                    ? Icons.sync_problem_rounded
+                    : (isIncrease
+                        ? Icons.trending_up_rounded
+                        : Icons.trending_down_rounded),
+                color: bannerColor,
                 size: 28,
               ),
               const SizedBox(width: 12),
@@ -89,9 +91,9 @@ class _PriceChangesSectionState extends ConsumerState<PriceChangesSection>
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${isIncrease ? '+' : '-'}${currencyService.formatAmount(impactConverted, displayCurrency)}/mo impact',
+                      impactLabel,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: isIncrease ? AppTheme.expenseColor : AppTheme.incomeColor,
+                        color: bannerColor,
                         fontWeight: FontWeight.w600,
                       ),
                     ),

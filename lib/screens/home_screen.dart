@@ -30,6 +30,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // Subscribe to lifecycle providers for their side effects (sync init,
+    // household sync init, stale-household cleanup). Empty listener is
+    // intentional — these are Provider<void>; we hold the subscription so
+    // they stay alive for the screen's lifetime and re-run when their own
+    // dependencies (auth user, profile, household stream) change.
+    ref
+      ..listenManual(syncInitProvider, (_, __) {})
+      ..listenManual(householdSyncProvider, (_, __) {})
+      ..listenManual(householdCleanupProvider, (_, __) {});
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -110,11 +124,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final subscriptionsAsync = ref.watch(filteredSubscriptionsProvider);
     final spendViewMode = ref.watch(spendViewModeProvider);
     final isInHousehold = ref.watch(isInHouseholdProvider);
-
-    // Keep sync active — auto-initializes when user signs in
-    ref.watch(syncInitProvider);
-    ref.watch(householdSyncProvider);
-    ref.watch(householdCleanupProvider);
 
     // Reset spend view when no longer in household
     if (!isInHousehold && spendViewMode != SpendViewMode.myShare) {
