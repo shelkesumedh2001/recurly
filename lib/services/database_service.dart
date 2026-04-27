@@ -8,6 +8,7 @@ import '../models/exchange_rate.dart';
 import '../models/subscription.dart';
 import '../models/theme_preferences.dart';
 import '../utils/constants.dart';
+import '../utils/schema.dart';
 
 /// Database service for managing subscriptions with Hive
 class DatabaseService {
@@ -55,6 +56,12 @@ class DatabaseService {
       if (!Hive.isAdapterRegistered(8)) {
         Hive.registerAdapter(ExchangeRateCacheAdapter());
       }
+
+      // Open the dedicated schema box and run migrations before touching any
+      // typed box. Kept separate from AppConstants.settingsBox (which
+      // PreferencesService opens as Box<AppPreferences>) to avoid a type clash.
+      final schemaBox = await Hive.openBox<dynamic>(AppConstants.schemaBox);
+      await migrateSchema(schemaBox);
 
       // Open boxes
       _subscriptionsBox = await Hive.openBox<Subscription>(
