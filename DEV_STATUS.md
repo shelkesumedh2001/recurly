@@ -1,7 +1,76 @@
 # Recurly - Development Status
 
-**Last Updated**: 2026-04-20
-**Current Phase**: Pre-Launch Polish (Play Store Prep) — Beta in Google review
+**Last Updated**: 2026-04-27
+**Current Phase**: Tester-Reported Bug-Fix Session — Beta active in Google review
+
+---
+
+## Tester Bug-Fix Session (2026-04-27)
+
+Round of bug fixes from the first wave of beta testers. 8 reported issues + 2 follow-up rounds for a single stubborn snackbar bug.
+
+### Fixed
+| # | Area | Fix |
+|---|------|-----|
+| 1 | Trial UX | Trial price field now optional; "Price After Trial" required when trial is on; main price defaults to 0 → displays as "FREE" |
+| 1b | Trial UX | New duration row (number + Days/Months/Years dropdown) drives `trialEndDate`; existing date picker kept as override |
+| 2 | Notifications | New trial-end reminders (1d/3d/7d before, default 1d on). New `AppPreferences` HiveFields 7/8/9. UI section added to notification settings |
+| 3 | Recently Deleted | Tap-to-open pill (mirrors home-screen pattern) in addition to swipe gestures |
+| 4 | Archive | Two-part fix: (a) details-sheet button popped sheet *before* dialog, killing `context.mounted` so archive call never fired; (b) notifier didn't bump `updatedAt` or push, so signed-in users saw archives reverted on next remote tick. New `unarchiveSubscription` method on the notifier. |
+| 5 | Trial billing | `nextBillDate` getter now anchors on `trialEndDate` for trial subs (was using `firstBillDate` regardless). Cascades correctly through PDF/CSV/upcoming-renewals/notifications. |
+| 6 | Analytics | `upcomingRenewalsProvider` now uses `sub.nextBillDate` instead of duplicate firstBillDate-walking logic — automatically excludes today-added subs and respects trials |
+| 7 | Custom cycle | New `Subscription.customDays` (HiveField 22). `addOneCycle` accepts `{int? customDays}`. UI input visible only when "Custom" picked. `monthlyEquivalent` computes `30.44 / customDays`. Updated `_calculateMonthlyAmount` and `totalTrialCostProvider`. |
+| 8 | Google Sign-In | Diagnosed: `code 10` = DEVELOPER_ERROR. Play distributes the AAB resigned with Google's app-signing key, whose SHA-1 isn't in Firebase. Action: copy SHA-1 from Play Console → Setup → App integrity → "App signing key certificate", paste in Firebase Console for `com.sumedh.recurly`, re-download `google-services.json`. **Deferred to user's next Play Console session.** |
+
+### Snackbar persistence — finally fixed (3 rounds)
+
+The "moved to recently deleted — Undo" pill never auto-dismissed. Took three escalating attempts before nailing it:
+
+1. **Round 1 (wrong)**: Capture `ScaffoldMessenger` before `await`. No effect.
+2. **Round 2 (partial)**: Removed `state = AsyncValue.loading()` from `loadSubscriptions` (was flashing spinner over list on every refresh). Added `rootScaffoldMessengerKey` to MaterialApp. Reduced rebuilds, but snackbar still hung.
+3. **Round 3 (partial)**: Found `SyncService._startRemoteListener` ticking the `remoteDataChangeTicker` after every snapshot — even when changes were skipped via `_locallyDeletedIds`. Firestore fires multiple snapshots per logical change → 4–5 spurious `loadSubscriptions` per delete. Added `didWriteHive` flag so ticker only fires on real changes. Logs went from 4–5 "Widget data updated" prints per delete to 1. **But snackbar still hung.**
+4. **Round 4 (real fix)**: Replaced SnackBar entirely for delete/restore flows with a custom `OverlayEntry`-based toast (`lib/widgets/app_toast.dart`). Owns its own `AnimationController` + `Timer` — fully independent of `ScaffoldMessenger`, nested Scaffolds, FAB animations, or any rebuild thrash. Other snackbars in the app (auth errors, etc.) still use `ScaffoldMessenger`.
+
+### Sub-bug: `ref` after dispose
+
+Device logs revealed:
+```
+Bad state: Cannot use "ref" after the widget was disposed.
+#2  SubscriptionCard._showDetailsSheet…  (subscription_card.dart:544:59)
+#2  _DeletedCard._showActionsSheet…     (recently_deleted_screen.dart:401:55)
+```
+
+Both delete handlers called `ref.read(...)` *after* `await loadSubscriptions()` rebuilt the parent list out of existence. Fixed by capturing all ref-derived values upfront in both paths.
+
+### Files added / modified
+
+**New**: `lib/widgets/app_toast.dart`
+
+**Modified**:
+- `lib/models/subscription.dart` (HiveField 22, trial-aware `nextBillDate`, `monthlyEquivalent` for custom)
+- `lib/models/app_preferences.dart` (HiveFields 7/8/9 for trial reminders)
+- `lib/utils/billing_cycle.dart` (`addOneCycle` accepts `customDays`)
+- `lib/services/notification_service.dart` (`_scheduleTrialReminders`, separate ID space)
+- `lib/services/sync_service.dart` (`didWriteHive` flag in remote listener)
+- `lib/providers/subscription_providers.dart` (`unarchiveSubscription`, archive sync, no loading flash)
+- `lib/providers/analytics_providers.dart` (use `sub.nextBillDate`, custom-aware impact, `customDays` passed to `addOneCycle`)
+- `lib/providers/trial_providers.dart` (custom-aware `monthlyEquivalent`)
+- `lib/providers/preferences_providers.dart` (3 new toggle methods)
+- `lib/screens/notification_settings_screen.dart` (Free-Trial Reminders section)
+- `lib/screens/recently_deleted_screen.dart` (tap-pill + custom toast)
+- `lib/screens/archived_screen.dart` (notifier-routed unarchive)
+- `lib/widgets/add_subscription_sheet.dart` (custom-days input, trial duration row, optional trial price)
+- `lib/widgets/subscription_card.dart` (archive ordering, custom toast, ref-capture)
+- `lib/main.dart` (`rootScaffoldMessengerKey`, `rootNavigatorKey`)
+- `test/billing_cycle_test.dart` (custom-days tests)
+
+### Auto-regenerated
+- `lib/models/subscription.g.dart`
+- `lib/models/app_preferences.g.dart`
+
+### Verification
+- `flutter analyze`: 0 errors, info-level only
+- `flutter test`: 58/58 passing (3 new custom-days tests added)
 
 ---
 

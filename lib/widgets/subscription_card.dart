@@ -9,6 +9,7 @@ import '../providers/sync_providers.dart';
 import '../services/sync_service.dart';
 import '../theme/app_theme.dart';
 import 'add_subscription_sheet.dart';
+import 'app_toast.dart';
 import 'split_subscription_sheet.dart';
 import 'trial/trial_badge.dart';
 
@@ -58,42 +59,35 @@ class SubscriptionCard extends ConsumerWidget {
         }
       },
       onDismissed: (direction) async {
+        final isSyncEnabled = ref.read(isSyncEnabledProvider);
+        final user = ref.read(currentFirebaseUserProvider);
+
         if (direction == DismissDirection.endToStart) {
-          // Move to recently deleted instead of permanent delete
           await databaseService.moveToRecentlyDeleted(subscriptionId);
           await subscriptionNotifier.loadSubscriptions();
 
-          // Also delete from Firestore so it doesn't come back on sync
-          final isSyncEnabled = ref.read(isSyncEnabledProvider);
-          final user = ref.read(currentFirebaseUserProvider);
           if (isSyncEnabled && user != null) {
             SyncService().deleteRemoteSubscription(user.uid, subscriptionId);
           }
 
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).clearSnackBars();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('$subscriptionName moved to recently deleted'),
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 3),
-                action: SnackBarAction(
-                  label: 'Undo',
-                  onPressed: () async {
-                    await databaseService.restoreFromRecentlyDeleted(subscriptionId);
-                    await subscriptionNotifier.loadSubscriptions();
-                    // Re-push to Firestore on undo
-                    if (isSyncEnabled && user != null) {
-                      final restored = databaseService.getSubscriptionById(subscriptionId);
-                      if (restored != null) {
-                        SyncService().pushSubscription(user.uid, restored);
-                      }
-                    }
-                  },
-                ),
-              ),
-            );
-          }
+          // Use a custom Overlay-based toast — the previous SnackBar
+          // approach didn't auto-dismiss in this app's nested-Scaffold
+          // + FAB layout (animation status never reached `completed`,
+          // so the messenger's internal timer never armed).
+          showAppToast(
+            '$subscriptionName moved to recently deleted',
+            actionLabel: 'Undo',
+            onAction: () async {
+              await databaseService.restoreFromRecentlyDeleted(subscriptionId);
+              await subscriptionNotifier.loadSubscriptions();
+              if (isSyncEnabled && user != null) {
+                final restored = databaseService.getSubscriptionById(subscriptionId);
+                if (restored != null) {
+                  SyncService().pushSubscription(user.uid, restored);
+                }
+              }
+            },
+          );
         }
       },
       child: _buildCardContent(context, ref, theme, urgencyColor),
@@ -533,42 +527,42 @@ class SubscriptionCard extends ConsumerWidget {
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: () async {
+                              // Capture EVERYTHING ref-derived BEFORE any
+                              // await. After Navigator.pop + the load
+                              // refresh, this card is no longer in the
+                              // widget tree, so calling `ref.read(...)` at
+                              // that point throws "Cannot use ref after
+                              // the widget was disposed" and the snackbar
+                              // call below it never runs.
+                              final databaseService = ref.read(databaseServiceProvider);
+                              final notifier = ref.read(subscriptionProvider.notifier);
+                              final isSyncEnabled = ref.read(isSyncEnabledProvider);
+                              final user = ref.read(currentFirebaseUserProvider);
+
                               final confirmed = await _showDeleteDialog(context);
-                              if (confirmed && context.mounted) {
+                              if (!confirmed) return;
+                              if (context.mounted) {
                                 Navigator.pop(context);
-                                final databaseService = ref.read(databaseServiceProvider);
-                                final notifier = ref.read(subscriptionProvider.notifier);
-                                await databaseService.moveToRecentlyDeleted(subscription.id);
-                                await notifier.loadSubscriptions();
-                                final isSyncEnabled = ref.read(isSyncEnabledProvider);
-                                final user = ref.read(currentFirebaseUserProvider);
-                                if (isSyncEnabled && user != null) {
-                                  SyncService().deleteRemoteSubscription(user.uid, subscription.id);
-                                }
-                                if (scaffoldContext.mounted) {
-                                  ScaffoldMessenger.of(scaffoldContext).clearSnackBars();
-                                  ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                                    SnackBar(
-                                      content: Text('${subscription.name} moved to recently deleted'),
-                                      behavior: SnackBarBehavior.floating,
-                                      duration: const Duration(seconds: 3),
-                                      action: SnackBarAction(
-                                        label: 'Undo',
-                                        onPressed: () async {
-                                          await databaseService.restoreFromRecentlyDeleted(subscription.id);
-                                          await notifier.loadSubscriptions();
-                                          if (isSyncEnabled && user != null) {
-                                            final restored = databaseService.getSubscriptionById(subscription.id);
-                                            if (restored != null) {
-                                              SyncService().pushSubscription(user.uid, restored);
-                                            }
-                                          }
-                                        },
-                                      ),
-                                    ),
-                                  );
-                                }
                               }
+                              await databaseService.moveToRecentlyDeleted(subscription.id);
+                              await notifier.loadSubscriptions();
+                              if (isSyncEnabled && user != null) {
+                                SyncService().deleteRemoteSubscription(user.uid, subscription.id);
+                              }
+                              showAppToast(
+                                '${subscription.name} moved to recently deleted',
+                                actionLabel: 'Undo',
+                                onAction: () async {
+                                  await databaseService.restoreFromRecentlyDeleted(subscription.id);
+                                  await notifier.loadSubscriptions();
+                                  if (isSyncEnabled && user != null) {
+                                    final restored = databaseService.getSubscriptionById(subscription.id);
+                                    if (restored != null) {
+                                      SyncService().pushSubscription(user.uid, restored);
+                                    }
+                                  }
+                                },
+                              );
                             },
                             style: OutlinedButton.styleFrom(
                               foregroundColor: theme.colorScheme.error,
@@ -587,10 +581,9 @@ class SubscriptionCard extends ConsumerWidget {
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: () async {
-                              Navigator.pop(context);
                               final confirmed = await showDialog<bool>(
                                 context: context,
-                                builder: (context) {
+                                builder: (dialogContext) {
                                   return AlertDialog(
                                     title: const Text('Archive subscription?'),
                                     content: Text(
@@ -598,11 +591,11 @@ class SubscriptionCard extends ConsumerWidget {
                                     ),
                                     actions: [
                                       TextButton(
-                                        onPressed: () => Navigator.pop(context, false),
+                                        onPressed: () => Navigator.pop(dialogContext, false),
                                         child: const Text('Cancel'),
                                       ),
                                       FilledButton(
-                                        onPressed: () => Navigator.pop(context, true),
+                                        onPressed: () => Navigator.pop(dialogContext, true),
                                         child: const Text('Archive'),
                                       ),
                                     ],
@@ -611,9 +604,10 @@ class SubscriptionCard extends ConsumerWidget {
                               );
 
                               if (confirmed == true && context.mounted) {
+                                Navigator.pop(context);
                                 await ref.read(subscriptionProvider.notifier).archiveSubscription(subscription.id);
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                if (scaffoldContext.mounted) {
+                                  ScaffoldMessenger.of(scaffoldContext).showSnackBar(
                                     SnackBar(
                                       content: Text('${subscription.name} archived'),
                                       behavior: SnackBarBehavior.floating,

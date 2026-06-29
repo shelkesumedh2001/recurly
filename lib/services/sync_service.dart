@@ -147,7 +147,15 @@ class SyncService {
     }
   }
 
-  /// Listen for remote Firestore changes
+  /// Listen for remote Firestore changes.
+  ///
+  /// Critical: only tick the [remoteDataChangeTicker] when an actual
+  /// local-Hive write happened. Firestore fires multiple snapshot events
+  /// for one logical change (cache → server confirm → metadata), and
+  /// without filtering, the user's own delete bounces back as 4–5 ticks,
+  /// each one cascading into a `loadSubscriptions()` and a home_screen
+  /// rebuild. That rebuild storm thrashes any visible snackbar's
+  /// animation controller and stalls its auto-dismiss timer.
   void _startRemoteListener(String uid) {
     _syncListener?.cancel();
     _syncListener = _firestore
@@ -157,6 +165,7 @@ class SyncService {
         .snapshots()
         .listen(
       (snapshot) {
+        var didWriteHive = false;
         for (final change in snapshot.docChanges) {
           switch (change.type) {
             case DocumentChangeType.added:
@@ -174,22 +183,24 @@ class SyncService {
                     localUpdated == null ||
                     remoteUpdated.isAfter(localUpdated)) {
                   _db.addSubscription(remoteSub);
+                  didWriteHive = true;
                 }
               }
               break;
             case DocumentChangeType.removed:
-              // Skip if we initiated this delete locally (already in recently deleted or hard-deleted)
+              // Skip if we initiated this delete locally (already in
+              // recently deleted or hard-deleted) — no Hive write needed.
               if (_locallyDeletedIds.remove(change.doc.id)) {
                 break;
               }
               _db.deleteSubscription(change.doc.id);
+              didWriteHive = true;
               break;
           }
         }
-        // Notify all listeners that data has changed. Using a ValueNotifier<int>
-        // instead of a single VoidCallback so multiple subscribers can coexist
-        // without the last one overwriting earlier ones.
-        remoteDataChangeTicker.value++;
+        if (didWriteHive) {
+          remoteDataChangeTicker.value++;
+        }
       },
       onError: (e) {
         debugPrint('Sync listener error: $e');

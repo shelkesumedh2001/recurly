@@ -347,12 +347,15 @@ invites/{inviteCode}
 | 19 | householdVisible | bool (default true) | 5 |
 | 20 | splitWith | List<Map<String, dynamic>>? | 5 |
 | 21 | priceHistory | List<Map<String, dynamic>>? | 5.5 |
+| 22 | customDays | int? | Tester sprint 2026-04-27 |
 
 ---
 
 # Current Status
 
-**Pre-launch bug-fix sprint closed 2026-04-20. Beta in Google review; 12 opted-in testers + 14-day timer still blocking production.**
+**Tester bug-fix session closed 2026-04-27. 8 reported bugs fixed + 1 stubborn snackbar bug solved by replacing SnackBar with a custom OverlayEntry toast for delete/restore flows. New `Subscription.customDays` (HiveField 22), `AppPreferences` HiveFields 7/8/9 for trial-end reminders. Schema additions are additive — no migration bump needed.**
+
+**Pre-launch bug-fix sprint closed 2026-04-20. Beta in Google review; 12 opted-in testers active.**
 
 **Sprint outcome:** 11/12 audit tasks complete + 1 hotfix; Task 12 (R8/ProGuard) deferred until post-beta. 7 new test files, 55/55 passing. Key architectural deltas landed:
 

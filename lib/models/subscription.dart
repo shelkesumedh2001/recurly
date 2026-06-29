@@ -31,6 +31,7 @@ class Subscription extends HiveObject { // For recently deleted feature
     this.householdVisible = true,
     this.splitWith,
     this.priceHistory,
+    this.customDays,
   });
 
   /// Create from JSON (Firebase)
@@ -74,6 +75,7 @@ class Subscription extends HiveObject { // For recently deleted feature
       priceHistory: (json['priceHistory'] as List<dynamic>?)
           ?.map((e) => Map<String, dynamic>.from(e as Map))
           .toList(),
+      customDays: json['customDays'] as int?,
     );
   }
   @HiveField(0)
@@ -144,6 +146,11 @@ class Subscription extends HiveObject { // For recently deleted feature
   @HiveField(21)
   List<Map<String, dynamic>>? priceHistory;
 
+  /// Days between bills when [billingCycle] == [BillingCycle.custom]. Null
+  /// for non-custom cycles. Range expected 1..365 (UI enforces).
+  @HiveField(22)
+  int? customDays;
+
   /// Whether this subscription has any recorded price changes
   bool get hasPriceHistory => priceHistory != null && priceHistory!.isNotEmpty;
 
@@ -166,10 +173,34 @@ class Subscription extends HiveObject { // For recently deleted feature
     return ((price - oldPrice) / oldPrice) * 100;
   }
 
-  /// Calculate the next bill date based on billing cycle
+  /// Calculate the next bill date based on billing cycle.
+  ///
+  /// For trial subscriptions, billing doesn't start at `firstBillDate` — it
+  /// starts when the trial ends. The trial-end day IS the first paid bill,
+  /// so a sub with `trialEndDate = May 1` bills on May 1, then by cycle.
   DateTime get nextBillDate {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
+
+    // Trial path: billing chain anchors on trialEndDate, not firstBillDate.
+    if (isFreeTrial && trialEndDate != null) {
+      final trialEnd = DateTime(
+        trialEndDate!.year,
+        trialEndDate!.month,
+        trialEndDate!.day,
+      );
+      if (!trialEnd.isBefore(today)) {
+        // Trial is still active (or ends today) — first bill is on trial-end.
+        return trialEnd;
+      }
+      // Trial already ended; advance from trial-end by one or more cycles.
+      var nextDate = trialEnd;
+      while (!nextDate.isAfter(today)) {
+        nextDate = addOneCycle(billingCycle, nextDate, customDays: customDays);
+      }
+      return nextDate;
+    }
+
     var nextDate = DateTime(firstBillDate.year, firstBillDate.month, firstBillDate.day);
 
     // If start date is in the future, return it directly
@@ -182,7 +213,7 @@ class Subscription extends HiveObject { // For recently deleted feature
     // so the NEXT renewal is always at least one billing cycle after that.
     // If firstBillDate is today, the next renewal is one cycle from now.
     while (!nextDate.isAfter(today)) {
-      nextDate = addOneCycle(billingCycle, nextDate);
+      nextDate = addOneCycle(billingCycle, nextDate, customDays: customDays);
     }
 
     return nextDate;
@@ -196,8 +227,16 @@ class Subscription extends HiveObject { // For recently deleted feature
     return next.difference(today).inDays;
   }
 
-  /// Convert price to monthly equivalent for comparison
+  /// Convert price to monthly equivalent for comparison.
+  ///
+  /// For custom cycles, computes from [customDays] using avg month length
+  /// (30.44 days). E.g. customDays=14 → ~2.17 bills per month.
   double get monthlyEquivalent {
+    if (billingCycle == BillingCycle.custom &&
+        customDays != null &&
+        customDays! > 0) {
+      return price * (30.44 / customDays!);
+    }
     return price * billingCycle.getMonthlyMultiplier();
   }
 
@@ -255,6 +294,7 @@ class Subscription extends HiveObject { // For recently deleted feature
       'householdVisible': householdVisible,
       'splitWith': splitWith,
       'priceHistory': priceHistory,
+      'customDays': customDays,
     };
   }
 
@@ -286,6 +326,8 @@ class Subscription extends HiveObject { // For recently deleted feature
     bool clearSplitWith = false,
     List<Map<String, dynamic>>? priceHistory,
     bool clearPriceHistory = false,
+    int? customDays,
+    bool clearCustomDays = false,
   }) {
     return Subscription(
       id: id ?? this.id,
@@ -310,6 +352,7 @@ class Subscription extends HiveObject { // For recently deleted feature
       householdVisible: householdVisible ?? this.householdVisible,
       splitWith: clearSplitWith ? null : (splitWith ?? this.splitWith),
       priceHistory: clearPriceHistory ? null : (priceHistory ?? this.priceHistory),
+      customDays: clearCustomDays ? null : (customDays ?? this.customDays),
     );
   }
 
