@@ -187,6 +187,65 @@ class NotificationSettingsScreen extends ConsumerWidget {
 
           const SizedBox(height: 24),
 
+          // Free-Trial Reminders Section
+          _buildSectionHeader(context, 'Free-Trial Reminders'),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 12, right: 4),
+            child: Text(
+              'Reminders to cancel before a trial converts to a paid subscription.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+          _buildSwitchCard(
+            context,
+            theme,
+            icon: Icons.alarm,
+            title: '1 day before trial ends',
+            subtitle: 'Last-minute heads up',
+            value: preferences.trialReminder1DayEnabled,
+            enabled: preferences.notificationsEnabled,
+            onChanged: (value) async {
+              await ref.read(preferencesProvider.notifier).toggleTrialReminder1Day(value);
+              if (context.mounted) {
+                await _rescheduleAll(ref, context);
+              }
+            },
+          ),
+          _buildSwitchCard(
+            context,
+            theme,
+            icon: Icons.event_outlined,
+            title: '3 days before trial ends',
+            subtitle: 'Mid-range reminder',
+            value: preferences.trialReminder3DaysEnabled,
+            enabled: preferences.notificationsEnabled,
+            onChanged: (value) async {
+              await ref.read(preferencesProvider.notifier).toggleTrialReminder3Days(value);
+              if (context.mounted) {
+                await _rescheduleAll(ref, context);
+              }
+            },
+          ),
+          _buildSwitchCard(
+            context,
+            theme,
+            icon: Icons.today_outlined,
+            title: '7 days before trial ends',
+            subtitle: 'Early warning',
+            value: preferences.trialReminder7DaysEnabled,
+            enabled: preferences.notificationsEnabled,
+            onChanged: (value) async {
+              await ref.read(preferencesProvider.notifier).toggleTrialReminder7Days(value);
+              if (context.mounted) {
+                await _rescheduleAll(ref, context);
+              }
+            },
+          ),
+
+          const SizedBox(height: 24),
+
           // Notification Time Section
           _buildSectionHeader(context, 'Notification Time'),
           _buildTimePickerCard(context, theme, preferences, ref),

@@ -75,10 +75,36 @@ void main() {
   });
 
   group('addOneCycle — custom', () {
-    test('custom behaves as monthly (no customDays field exists)', () {
-      final monthly = addOneCycle(BillingCycle.monthly, DateTime(2025, 1, 31));
-      final custom = addOneCycle(BillingCycle.custom, DateTime(2025, 1, 31));
-      expect(custom, monthly);
+    test('falls back to 30-day add when customDays is null (legacy)', () {
+      final result = addOneCycle(BillingCycle.custom, DateTime(2025, 1, 1));
+      expect(result, DateTime(2025, 1, 31));
+    });
+
+    test('14-day cycle: Jan 1 → Jan 15', () {
+      final result = addOneCycle(
+        BillingCycle.custom,
+        DateTime(2025, 1, 1),
+        customDays: 14,
+      );
+      expect(result, DateTime(2025, 1, 15));
+    });
+
+    test('60-day cycle: Jan 1 → Mar 2 (calendar add, month rollover)', () {
+      final result = addOneCycle(
+        BillingCycle.custom,
+        DateTime(2025, 1, 1),
+        customDays: 60,
+      );
+      expect(result, DateTime(2025, 3, 2));
+    });
+
+    test('preserves hour/minute on calendar-day add', () {
+      final result = addOneCycle(
+        BillingCycle.custom,
+        DateTime(2025, 6, 15, 9, 30),
+        customDays: 21,
+      );
+      expect(result, DateTime(2025, 7, 6, 9, 30));
     });
   });
 }

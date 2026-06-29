@@ -148,6 +148,46 @@ class NotificationService {
         payload: subscription.id,
       );
     }
+
+    // Trial-end reminders (independent of renewal reminders)
+    await _scheduleTrialReminders(subscription, preferences);
+  }
+
+  /// Schedule "your free trial ends in N days — cancel before being
+  /// charged" reminders. No-op when the sub isn't a trial.
+  Future<void> _scheduleTrialReminders(
+    Subscription subscription,
+    AppPreferences preferences,
+  ) async {
+    if (!subscription.isFreeTrial || subscription.trialEndDate == null) return;
+
+    final notificationTime = preferences.notificationTime;
+    final trialEnd = subscription.trialEndDate!;
+    final priceAfter = subscription.priceAfterTrial;
+    final amountText = priceAfter != null
+        ? '${subscription.currencySymbol}${priceAfter.toStringAsFixed(2)}'
+        : 'the recurring price';
+
+    final reminders = <int>[
+      if (preferences.trialReminder7DaysEnabled) 7,
+      if (preferences.trialReminder3DaysEnabled) 3,
+      if (preferences.trialReminder1DayEnabled) 1,
+    ];
+
+    for (final daysBefore in reminders) {
+      final fireDate = trialEnd.subtract(Duration(days: daysBefore));
+      final whenText = daysBefore == 1
+          ? 'tomorrow'
+          : 'in $daysBefore days';
+      await _scheduleNotification(
+        id: _generateTrialNotificationId(subscription.id, daysBefore),
+        scheduledDate: _combineDateAndTime(fireDate, notificationTime),
+        title: '${subscription.name} trial ends $whenText',
+        body:
+            'Cancel before ${DateFormat.yMMMd().format(trialEnd)} to avoid being charged $amountText.',
+        payload: subscription.id,
+      );
+    }
   }
 
   /// Schedule a single notification
@@ -197,16 +237,20 @@ class NotificationService {
     }
   }
 
-  /// Cancel all notifications for a specific subscription
+  /// Cancel all notifications for a specific subscription (renewal + trial)
   Future<void> cancelSubscriptionNotifications(String subscriptionId) async {
     if (!_initialized) return;
 
     try {
-      // Cancel all possible notification IDs for this subscription
+      // Renewal reminders
       await _notifications.cancel(_generateNotificationId(subscriptionId, 7));
       await _notifications.cancel(_generateNotificationId(subscriptionId, 3));
       await _notifications.cancel(_generateNotificationId(subscriptionId, 1));
       await _notifications.cancel(_generateNotificationId(subscriptionId, 0));
+      // Trial reminders
+      await _notifications.cancel(_generateTrialNotificationId(subscriptionId, 7));
+      await _notifications.cancel(_generateTrialNotificationId(subscriptionId, 3));
+      await _notifications.cancel(_generateTrialNotificationId(subscriptionId, 1));
       debugPrint('Cancelled all notifications for subscription $subscriptionId');
     } catch (e) {
       debugPrint('Error cancelling notifications: $e');
@@ -247,6 +291,13 @@ class NotificationService {
     // Create a unique ID by combining subscription ID with days offset
     // Using hashCode ensures consistent IDs for the same subscription/offset
     return (subscriptionId + daysOffset.toString()).hashCode;
+  }
+
+  /// Generate notification ID for trial-end reminders. Prefixed with
+  /// "trial:" so it never collides with renewal reminders for the same
+  /// subscription/offset pair.
+  int _generateTrialNotificationId(String subscriptionId, int daysOffset) {
+    return ('trial:$subscriptionId$daysOffset').hashCode;
   }
 
   /// Combine date and time for scheduling

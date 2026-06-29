@@ -7,6 +7,7 @@ import '../providers/subscription_providers.dart';
 import '../providers/sync_providers.dart';
 import '../services/database_service.dart';
 import '../services/sync_service.dart';
+import '../widgets/app_toast.dart';
 
 class RecentlyDeletedScreen extends ConsumerStatefulWidget {
   const RecentlyDeletedScreen({super.key});
@@ -222,25 +223,16 @@ class _DeletedCard extends ConsumerWidget {
           // Delete permanently
           await databaseService.deleteSubscription(subscriptionId);
 
-          // Also delete from Firestore
           if (isSyncEnabled && currentUser != null) {
             SyncService().deleteRemoteSubscription(currentUser.uid, subscriptionId);
           }
 
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('$subscriptionName deleted permanently'),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
+          showAppToast('$subscriptionName deleted permanently');
         } else {
           // Restore
           await databaseService.restoreFromRecentlyDeleted(subscriptionId);
           await subscriptionNotifier.loadSubscriptions();
 
-          // Re-push to Firestore
           if (isSyncEnabled && currentUser != null) {
             final restored = databaseService.getSubscriptionById(subscriptionId);
             if (restored != null) {
@@ -248,14 +240,7 @@ class _DeletedCard extends ConsumerWidget {
             }
           }
 
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('$subscriptionName restored'),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
+          showAppToast('$subscriptionName restored');
         }
       },
       child: Container(
@@ -267,71 +252,193 @@ class _DeletedCard extends ConsumerWidget {
             width: 1,
           ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              // Logo
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                ),
-                child: Center(
-                  child: Opacity(
-                    opacity: 0.5,
-                    child: Text(
-                      subscription.category.icon,
-                      style: const TextStyle(fontSize: 24),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _showActionsSheet(context, ref),
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  // Logo
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                    ),
+                    child: Center(
+                      child: Opacity(
+                        opacity: 0.5,
+                        child: Text(
+                          subscription.category.icon,
+                          style: const TextStyle(fontSize: 24),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
 
-              const SizedBox(width: 16),
+                  const SizedBox(width: 16),
 
-              // Name and info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      subscription.name,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.2,
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                        decoration: TextDecoration.lineThrough,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  // Name and info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          subscription.name,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2,
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Deletes in $daysRemaining ${daysRemaining == 1 ? 'day' : 'days'}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.error.withValues(alpha: 0.7),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Deletes in $daysRemaining ${daysRemaining == 1 ? 'day' : 'days'}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error.withValues(alpha: 0.7),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
 
-              // Price
-              Text(
-                subscription.formattedPrice,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
-                ),
+                  // Price
+                  Text(
+                    subscription.formattedPrice,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  /// Tap-to-open actions sheet — alternative to swipe gestures.
+  void _showActionsSheet(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    // Capture all ref-derived values UP FRONT — by the time the user
+    // taps Restore/Delete, the sheet's button onPressed runs, then
+    // loadSubscriptions rebuilds the parent list, and this _DeletedCard
+    // ConsumerWidget is removed from the tree. `ref.read(...)` after
+    // that point throws "Cannot use ref after the widget was disposed".
+    final notifier = ref.read(subscriptionProvider.notifier);
+    final isSyncEnabled = ref.read(isSyncEnabledProvider);
+    final user = ref.read(currentFirebaseUserProvider);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return Container(
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    subscription.name,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Auto-deletes in ${databaseService.getDaysUntilPermanentDeletion(subscription)} days',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () async {
+                            Navigator.pop(sheetContext);
+                            onItemRemoved(subscription.id);
+                            await databaseService.restoreFromRecentlyDeleted(subscription.id);
+                            await notifier.loadSubscriptions();
+                            if (isSyncEnabled && user != null) {
+                              final restored = databaseService.getSubscriptionById(subscription.id);
+                              if (restored != null) {
+                                SyncService().pushSubscription(user.uid, restored);
+                              }
+                            }
+                            showAppToast('${subscription.name} restored');
+                          },
+                          icon: const Icon(Icons.restore, size: 18),
+                          label: const Text('Restore'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final confirmed = await _showDeleteDialog(sheetContext);
+                            if (!confirmed) return;
+                            if (sheetContext.mounted) Navigator.pop(sheetContext);
+                            onItemRemoved(subscription.id);
+                            await databaseService.deleteSubscription(subscription.id);
+                            if (isSyncEnabled && user != null) {
+                              SyncService().deleteRemoteSubscription(user.uid, subscription.id);
+                            }
+                            showAppToast('${subscription.name} deleted permanently');
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: theme.colorScheme.error,
+                            side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.5)),
+                          ),
+                          icon: const Icon(Icons.delete_forever, size: 18),
+                          label: const Text('Delete Forever'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

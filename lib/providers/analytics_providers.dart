@@ -152,7 +152,9 @@ double? computeTotalPriceChangeImpact({
   for (final sub in subs) {
     final oldPrice = (sub.lastPriceChange!['price'] as num).toDouble();
     final diff = sub.price - oldPrice;
-    final monthlyDiff = diff * sub.billingCycle.getMonthlyMultiplier();
+    // Build a temporary sub with the diff as price so monthlyEquivalent
+    // applies the right multiplier (including customDays for custom cycles).
+    final monthlyDiff = sub.copyWith(price: diff).monthlyEquivalent;
     final converted = currencyService.convertOrNull(
       amount: monthlyDiff,
       from: sub.currency,
@@ -253,8 +255,10 @@ double _calculateMonthlyAmount(Subscription sub, DateTime targetMonth) {
       return sub.price * billingCount;
 
     case BillingCycle.custom:
-      // Custom is treated as monthly
-      return sub.price;
+      // Use monthlyEquivalent which already factors in customDays
+      // (30.44 / customDays per-month rate). Approximation: doesn't
+      // simulate per-month spikes, but accurate on average.
+      return sub.monthlyEquivalent;
   }
 }
 
@@ -444,13 +448,9 @@ final upcomingRenewalsProvider = Provider<List<UpcomingRenewal>>((ref) {
       for (final sub in subscriptions) {
         if (sub.isArchived || sub.deletedAt != null) continue;
 
-        // Find all billing dates within the next 30 days
-        var billDate = sub.firstBillDate;
-
-        // Fast forward to around now
-        while (billDate.isBefore(today)) {
-          billDate = addOneCycle(sub.billingCycle, billDate);
-        }
+        // Anchor on nextBillDate so we honor trial periods AND skip
+        // subs added today (their next bill is one cycle out, not today).
+        var billDate = sub.nextBillDate;
 
         // Collect dates within the 30-day window
         while (!billDate.isAfter(cutoff)) {
@@ -465,7 +465,11 @@ final upcomingRenewalsProvider = Provider<List<UpcomingRenewal>>((ref) {
             date: billDate,
             convertedAmount: converted,
           ));
-          billDate = addOneCycle(sub.billingCycle, billDate);
+          billDate = addOneCycle(
+            sub.billingCycle,
+            billDate,
+            customDays: sub.customDays,
+          );
         }
       }
 

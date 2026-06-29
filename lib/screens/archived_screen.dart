@@ -141,9 +141,10 @@ class _ArchivedCard extends ConsumerWidget {
             );
           }
         } else {
-          // Unarchive
-          await ref.read(databaseServiceProvider).unarchiveSubscription(subscription.id);
-          await ref.read(subscriptionProvider.notifier).loadSubscriptions();
+          // Unarchive — go through the notifier so updatedAt bumps and
+          // the change syncs to Firestore (otherwise the next remote tick
+          // would re-archive it on signed-in devices).
+          await ref.read(subscriptionProvider.notifier).unarchiveSubscription(subscription.id);
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(

@@ -62,6 +62,24 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     final updated = state.copyWith(notificationTime: time);
     await updatePreferences(updated);
   }
+
+  /// Toggle 1-day trial-end reminder
+  Future<void> toggleTrialReminder1Day(bool enabled) async {
+    final updated = state.copyWith(trialReminder1DayEnabled: enabled);
+    await updatePreferences(updated);
+  }
+
+  /// Toggle 3-day trial-end reminder
+  Future<void> toggleTrialReminder3Days(bool enabled) async {
+    final updated = state.copyWith(trialReminder3DaysEnabled: enabled);
+    await updatePreferences(updated);
+  }
+
+  /// Toggle 7-day trial-end reminder
+  Future<void> toggleTrialReminder7Days(bool enabled) async {
+    final updated = state.copyWith(trialReminder7DaysEnabled: enabled);
+    await updatePreferences(updated);
+  }
 }
 
 /// Provider for preferences state

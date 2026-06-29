@@ -47,9 +47,15 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
     super.dispose();
   }
 
-  /// Load all active subscriptions
+  /// Load all active subscriptions.
+  ///
+  /// Does NOT reset state to loading on refresh — that would flash a
+  /// spinner over the list every time a sub is added/edited/deleted, and
+  /// (worse) the resulting body rebuild thrashes any visible snackbar's
+  /// animation, leaving "moved to recently deleted — Undo" pills stuck
+  /// indefinitely. Initial loading state is set once via the constructor's
+  /// `super(const AsyncValue.loading())`.
   Future<void> loadSubscriptions() async {
-    state = const AsyncValue.loading();
     try {
       final subscriptions = _databaseService.getActiveSubscriptions();
       state = AsyncValue.data(subscriptions);
@@ -136,6 +142,36 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
       // Cancel notifications before archiving
       await _notificationService.cancelSubscriptionNotifications(id);
       await _databaseService.archiveSubscription(id);
+      // Bump updatedAt and push to remote so the change isn't reverted by
+      // the remote listener's last-write-wins on next sync tick.
+      final updated = _databaseService.getSubscriptionById(id);
+      if (updated != null) {
+        updated.updatedAt = DateTime.now();
+        await _databaseService.updateSubscription(updated);
+        _syncPush(updated);
+      }
+      await loadSubscriptions();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Unarchive a subscription
+  Future<void> unarchiveSubscription(String id) async {
+    try {
+      await _databaseService.unarchiveSubscription(id);
+      final updated = _databaseService.getSubscriptionById(id);
+      if (updated != null) {
+        updated.updatedAt = DateTime.now();
+        await _databaseService.updateSubscription(updated);
+        _syncPush(updated);
+        // Reschedule renewal notifications now that it's active again
+        final preferences = _ref.read(preferencesProvider);
+        await _notificationService.scheduleSubscriptionNotifications(
+          updated,
+          preferences,
+        );
+      }
       await loadSubscriptions();
     } catch (e) {
       rethrow;

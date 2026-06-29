@@ -10,27 +10,34 @@ import '../models/enums.dart';
 ///   Feb 28 on non-leap years).
 /// - Weekly: add 7 calendar days via the date constructor. Using
 ///   `Duration(days: 7)` (168 hours) drifts ±1 h across DST boundaries.
-/// - Custom: treated as monthly until a `customDays` field is added to
-///   `Subscription`. Keeps current app behaviour stable.
-DateTime addOneCycle(BillingCycle cycle, DateTime date) {
+/// - Custom: add `customDays` calendar days. Falls back to a 30-day
+///   month-equivalent when `customDays` is null (legacy custom subs
+///   created before the field existed).
+DateTime addOneCycle(BillingCycle cycle, DateTime date, {int? customDays}) {
   switch (cycle) {
     case BillingCycle.monthly:
-    case BillingCycle.custom:
       return _addMonths(date, 1);
     case BillingCycle.yearly:
       return _addMonths(date, 12);
     case BillingCycle.weekly:
-      return DateTime(
-        date.year,
-        date.month,
-        date.day + 7,
-        date.hour,
-        date.minute,
-        date.second,
-        date.millisecond,
-        date.microsecond,
-      );
+      return _addDays(date, 7);
+    case BillingCycle.custom:
+      final days = customDays ?? 30;
+      return _addDays(date, days);
   }
+}
+
+DateTime _addDays(DateTime date, int days) {
+  return DateTime(
+    date.year,
+    date.month,
+    date.day + days,
+    date.hour,
+    date.minute,
+    date.second,
+    date.millisecond,
+    date.microsecond,
+  );
 }
 
 DateTime _addMonths(DateTime date, int months) {
