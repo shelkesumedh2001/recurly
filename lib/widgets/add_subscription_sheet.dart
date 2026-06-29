@@ -39,10 +39,19 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   String? _logoUrl;
   String? _templateColor;
 
+  // Custom billing cycle (only used when _selectedBillingCycle == custom)
+  final _customDaysController = TextEditingController(text: '30');
+
   // Free trial fields
   bool _isFreeTrial = false;
   DateTime? _trialEndDate;
   final _priceAfterTrialController = TextEditingController();
+  // Convenience trial-duration inputs that drive [_trialEndDate]. The
+  // date picker stays the source of truth; this just lets users say
+  // "7 days" or "1 month" without doing date math.
+  int _trialDurationValue = 7;
+  _TrialDurationUnit _trialDurationUnit = _TrialDurationUnit.days;
+  final _trialDurationController = TextEditingController(text: '7');
 
   bool get _isEditMode => widget.subscription != null;
 
@@ -67,6 +76,9 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       if (sub.priceAfterTrial != null) {
         _priceAfterTrialController.text = sub.priceAfterTrial.toString();
       }
+      if (sub.customDays != null) {
+        _customDaysController.text = sub.customDays.toString();
+      }
     }
   }
 
@@ -76,7 +88,32 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     _nameController.dispose();
     _priceController.dispose();
     _priceAfterTrialController.dispose();
+    _customDaysController.dispose();
+    _trialDurationController.dispose();
     super.dispose();
+  }
+
+  /// Compute the trial end date from the current duration value + unit
+  /// and apply it to [_trialEndDate]. Anchored on today.
+  void _applyTrialDuration() {
+    if (_trialDurationValue <= 0) return;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    DateTime end;
+    switch (_trialDurationUnit) {
+      case _TrialDurationUnit.days:
+        end = DateTime(today.year, today.month, today.day + _trialDurationValue);
+        break;
+      case _TrialDurationUnit.months:
+        end = DateTime(today.year, today.month + _trialDurationValue, today.day);
+        break;
+      case _TrialDurationUnit.years:
+        end = DateTime(today.year + _trialDurationValue, today.month, today.day);
+        break;
+    }
+    setState(() {
+      _trialEndDate = end;
+    });
   }
 
   @override
@@ -220,8 +257,8 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                       child: TextFormField(
                         controller: _priceController,
                         decoration: InputDecoration(
-                          labelText: 'Price',
-                          hintText: '0.00',
+                          labelText: _isFreeTrial ? 'Price during trial' : 'Price',
+                          hintText: _isFreeTrial ? 'Usually 0' : '0.00',
                           prefixIcon: const Icon(Icons.payments_outlined),
                           prefixText: '${CurrencyInfo.getSymbol(_selectedCurrency!)} ',
                         ),
@@ -230,14 +267,20 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                           FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
                         ],
                         validator: (value) {
+                          // During a free trial, the trial price can be 0 / blank
+                          // since the recurring amount lives in priceAfterTrial.
                           if (value == null || value.trim().isEmpty) {
+                            if (_isFreeTrial) return null;
                             return 'Please enter a price';
                           }
                           final price = double.tryParse(value);
                           if (price == null) {
                             return 'Please enter a valid number';
                           }
-                          if (price <= 0) {
+                          if (price < 0) {
+                            return 'Price cannot be negative';
+                          }
+                          if (!_isFreeTrial && price <= 0) {
                             return 'Price must be greater than 0';
                           }
                           if (price > 9999.99) {
@@ -278,6 +321,37 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                     }
                   },
                 ),
+
+                // Custom-days input — visible only when Custom is selected
+                if (_selectedBillingCycle == BillingCycle.custom) ...[
+                  const SizedBox(height: AppConstants.spacing16),
+                  TextFormField(
+                    controller: _customDaysController,
+                    decoration: const InputDecoration(
+                      labelText: 'Bill every (days)',
+                      hintText: 'e.g., 14',
+                      prefixIcon: Icon(Icons.repeat),
+                      helperText: 'How many days between bills (1–365)',
+                    ),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
+                    validator: (value) {
+                      if (_selectedBillingCycle != BillingCycle.custom) {
+                        return null;
+                      }
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Enter the cycle length in days';
+                      }
+                      final days = int.tryParse(value);
+                      if (days == null || days < 1 || days > 365) {
+                        return 'Must be between 1 and 365';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
                 const SizedBox(height: AppConstants.spacing16),
 
                 // Category
@@ -394,7 +468,15 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
         priceAfterTrial = double.tryParse(_priceAfterTrialController.text.trim());
       }
 
-      final newPrice = double.parse(_priceController.text.trim());
+      // Parse customDays only when Custom cycle is selected
+      int? customDays;
+      if (_selectedBillingCycle == BillingCycle.custom) {
+        customDays = int.tryParse(_customDaysController.text.trim());
+      }
+
+      // Trial subs may have a blank price (interpreted as $0 during trial).
+      final priceText = _priceController.text.trim();
+      final newPrice = priceText.isEmpty ? 0.0 : double.parse(priceText);
 
       late final Subscription subscription;
       if (_isEditMode) {
@@ -428,6 +510,8 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           priceAfterTrial: priceAfterTrial,
           updatedAt: DateTime.now(),
           priceHistory: updatedPriceHistory,
+          customDays: customDays,
+          clearCustomDays: _selectedBillingCycle != BillingCycle.custom,
         );
       } else {
         subscription = Subscription(
@@ -444,6 +528,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           isFreeTrial: _isFreeTrial,
           trialEndDate: _isFreeTrial ? _trialEndDate : null,
           priceAfterTrial: priceAfterTrial,
+          customDays: customDays,
         );
       }
 
@@ -557,13 +642,77 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
             const Divider(height: 1),
             const SizedBox(height: 16),
 
-            // Trial end date
+            // Trial duration — convenience input that drives the end date
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: TextFormField(
+                    controller: _trialDurationController,
+                    decoration: const InputDecoration(
+                      labelText: 'Trial Length',
+                      hintText: '7',
+                      prefixIcon: Icon(Icons.hourglass_empty),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
+                    onChanged: (value) {
+                      final parsed = int.tryParse(value);
+                      if (parsed != null && parsed > 0) {
+                        _trialDurationValue = parsed;
+                        _applyTrialDuration();
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 3,
+                  child: DropdownButtonFormField<_TrialDurationUnit>(
+                    value: _trialDurationUnit,
+                    decoration: const InputDecoration(
+                      labelText: 'Unit',
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: _TrialDurationUnit.days,
+                        child: Text('Days'),
+                      ),
+                      DropdownMenuItem(
+                        value: _TrialDurationUnit.months,
+                        child: Text('Months'),
+                      ),
+                      DropdownMenuItem(
+                        value: _TrialDurationUnit.years,
+                        child: Text('Years'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        _trialDurationUnit = value;
+                        _applyTrialDuration();
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Trial end date — manual override / display, syncs with the
+            // duration row above. User can tap to pick a custom date.
             InkWell(
               onTap: () => _selectTrialEndDate(context),
               borderRadius: BorderRadius.circular(12),
               child: InputDecorator(
                 decoration: const InputDecoration(
                   labelText: 'Trial End Date',
+                  helperText: 'Tap to pick a custom date',
                   prefixIcon: Icon(Icons.event),
                   contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
@@ -577,11 +726,13 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
             ),
             const SizedBox(height: 12),
 
-            // Price after trial
+            // Price after trial — required when free trial is on, since
+            // the trial period itself is free and this is the recurring
+            // amount that will start charging after trialEndDate.
             TextFormField(
               controller: _priceAfterTrialController,
               decoration: InputDecoration(
-                labelText: 'Price After Trial (Optional)',
+                labelText: 'Price After Trial',
                 hintText: 'e.g., 9.99',
                 prefixIcon: const Icon(Icons.payments_outlined),
                 prefixText: '${CurrencyInfo.getSymbol(_selectedCurrency!)} ',
@@ -591,6 +742,23 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
               ],
+              validator: (value) {
+                if (!_isFreeTrial) return null;
+                if (value == null || value.trim().isEmpty) {
+                  return 'Required for free trials';
+                }
+                final price = double.tryParse(value);
+                if (price == null) {
+                  return 'Please enter a valid number';
+                }
+                if (price <= 0) {
+                  return 'Must be greater than 0';
+                }
+                if (price > 9999.99) {
+                  return 'Price seems too high';
+                }
+                return null;
+              },
             ),
           ],
         ],
@@ -843,3 +1011,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     );
   }
 }
+
+/// Units for the trial-duration convenience input. Not persisted —
+/// the only persisted trial field is [Subscription.trialEndDate].
+enum _TrialDurationUnit { days, months, years }

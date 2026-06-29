@@ -13,6 +13,9 @@ class AppPreferences extends HiveObject {
     this.reminderOnDayEnabled = false,
     this.notificationTime = const TimeOfDayPreference(hour: 9, minute: 0),
     this.displayCurrency = 'USD',
+    this.trialReminder1DayEnabled = true,   // Default on: catch-the-charge reminder
+    this.trialReminder3DaysEnabled = false,
+    this.trialReminder7DaysEnabled = false,
   });
 
   /// Master switch for all notifications
@@ -43,6 +46,18 @@ class AppPreferences extends HiveObject {
   @HiveField(6)
   String displayCurrency;
 
+  /// Reminder 1 day before a free trial ends (so the user can cancel).
+  @HiveField(7)
+  bool trialReminder1DayEnabled;
+
+  /// Reminder 3 days before a free trial ends.
+  @HiveField(8)
+  bool trialReminder3DaysEnabled;
+
+  /// Reminder 7 days before a free trial ends.
+  @HiveField(9)
+  bool trialReminder7DaysEnabled;
+
   /// Create copy with updated fields
   AppPreferences copyWith({
     bool? notificationsEnabled,
@@ -52,6 +67,9 @@ class AppPreferences extends HiveObject {
     bool? reminderOnDayEnabled,
     TimeOfDayPreference? notificationTime,
     String? displayCurrency,
+    bool? trialReminder1DayEnabled,
+    bool? trialReminder3DaysEnabled,
+    bool? trialReminder7DaysEnabled,
   }) {
     return AppPreferences(
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
@@ -61,6 +79,12 @@ class AppPreferences extends HiveObject {
       reminderOnDayEnabled: reminderOnDayEnabled ?? this.reminderOnDayEnabled,
       notificationTime: notificationTime ?? this.notificationTime,
       displayCurrency: displayCurrency ?? this.displayCurrency,
+      trialReminder1DayEnabled:
+          trialReminder1DayEnabled ?? this.trialReminder1DayEnabled,
+      trialReminder3DaysEnabled:
+          trialReminder3DaysEnabled ?? this.trialReminder3DaysEnabled,
+      trialReminder7DaysEnabled:
+          trialReminder7DaysEnabled ?? this.trialReminder7DaysEnabled,
     );
   }
 }

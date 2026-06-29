@@ -137,6 +137,15 @@ void main() async {
   );
 }
 
+/// App-wide ScaffoldMessenger key (kept for non-toast snackbars elsewhere).
+final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
+
+/// App-wide Navigator key — gives `showAppToast` access to the root
+/// Overlay so the toast lifecycle is independent of any Scaffold/
+/// ScaffoldMessenger interaction quirks.
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
 class RecurlyApp extends ConsumerWidget {
   const RecurlyApp({super.key});
 
@@ -150,6 +159,8 @@ class RecurlyApp extends ConsumerWidget {
     return MaterialApp(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
+      navigatorKey: rootNavigatorKey,
 
       // Theme configuration from providers
       theme: lightTheme,
