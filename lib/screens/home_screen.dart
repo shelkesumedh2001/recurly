@@ -11,6 +11,7 @@ import '../providers/subscription_providers.dart';
 import '../providers/sync_providers.dart';
 import '../services/currency_service.dart';
 import '../utils/constants.dart';
+import '../utils/money.dart';
 import '../widgets/add_subscription_sheet.dart';
 import '../widgets/subscription_card.dart';
 import '../widgets/sync_indicator.dart';
@@ -84,7 +85,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         rates: rates,
       );
     }
-    return total;
+    return roundMoney(total);
   }
 
   /// Compute my share with currency conversion
@@ -115,7 +116,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         rates: rates,
       );
     }
-    return total;
+    return roundMoney(total);
   }
 
   @override

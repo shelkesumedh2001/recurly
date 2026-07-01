@@ -45,6 +45,17 @@ void main() async {
   // Initialize database (includes Hive adapters) - REQUIRED
   await DatabaseService().initialize();
 
+  // Purge subscriptions that have sat in Recently Deleted past the 30-day
+  // window (best-effort; failures shouldn't block startup).
+  try {
+    final purged = await DatabaseService().cleanupOldDeletedSubscriptions();
+    if (purged > 0) {
+      debugPrint('Purged $purged expired recently-deleted subscription(s)');
+    }
+  } catch (e) {
+    debugPrint('Recently-deleted cleanup failed: $e');
+  }
+
   // Initialize preferences service - REQUIRED
   await PreferencesService().initialize();
 
