@@ -4,6 +4,7 @@ import '../models/exchange_rate.dart';
 import '../services/currency_service.dart';
 import '../services/database_service.dart';
 import '../services/preferences_service.dart';
+import '../utils/money.dart';
 import 'subscription_providers.dart';
 
 /// Currency service singleton provider
@@ -122,7 +123,7 @@ final convertedTotalSpendProvider = Provider<double>((ref) {
     }
   }
 
-  return total;
+  return roundMoney(total);
 });
 
 /// Format amount in display currency

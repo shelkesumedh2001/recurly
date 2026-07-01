@@ -6,7 +6,6 @@ import '../models/enums.dart';
 import '../models/exchange_rate.dart';
 import '../providers/budget_providers.dart';
 import '../providers/currency_providers.dart';
-import '../providers/subscription_providers.dart';
 import '../widgets/budget/budget_progress_bar.dart';
 
 class BudgetSettingsScreen extends ConsumerStatefulWidget {
@@ -41,8 +40,8 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
     final budgetStatus = ref.watch(budgetStatusProvider);
     final usage = ref.watch(budgetUsageProvider);
     final remaining = ref.watch(remainingBudgetProvider);
-    final totalSpend = ref.watch(totalMonthlySpendProvider);
-    final categorySpend = ref.watch(categorySpendProvider);
+    final totalSpend = ref.watch(convertedTotalSpendProvider);
+    final categorySpend = ref.watch(categorySpendByNameProvider);
     final displayCurrency = ref.watch(displayCurrencyProvider);
     final currencySymbol = CurrencyInfo.getSymbol(displayCurrency);
 

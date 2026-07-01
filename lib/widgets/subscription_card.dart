@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../models/subscription.dart';
-import '../providers/auth_providers.dart';
 import '../providers/household_providers.dart';
 import '../providers/subscription_providers.dart';
-import '../providers/sync_providers.dart';
-import '../services/sync_service.dart';
 import '../theme/app_theme.dart';
 import 'add_subscription_sheet.dart';
 import 'app_toast.dart';
@@ -34,7 +31,6 @@ class SubscriptionCard extends ConsumerWidget {
     );
 
     // Capture providers and data before widget can be disposed
-    final databaseService = ref.read(databaseServiceProvider);
     final subscriptionNotifier = ref.read(subscriptionProvider.notifier);
     final subscriptionId = subscription.id;
     final subscriptionName = subscription.name;
@@ -59,16 +55,9 @@ class SubscriptionCard extends ConsumerWidget {
         }
       },
       onDismissed: (direction) async {
-        final isSyncEnabled = ref.read(isSyncEnabledProvider);
-        final user = ref.read(currentFirebaseUserProvider);
-
         if (direction == DismissDirection.endToStart) {
-          await databaseService.moveToRecentlyDeleted(subscriptionId);
-          await subscriptionNotifier.loadSubscriptions();
-
-          if (isSyncEnabled && user != null) {
-            SyncService().deleteRemoteSubscription(user.uid, subscriptionId);
-          }
+          // Notifier handles cancelling notifications + remote sync.
+          await subscriptionNotifier.moveToRecentlyDeleted(subscriptionId);
 
           // Use a custom Overlay-based toast — the previous SnackBar
           // approach didn't auto-dismiss in this app's nested-Scaffold
@@ -78,14 +67,8 @@ class SubscriptionCard extends ConsumerWidget {
             '$subscriptionName moved to recently deleted',
             actionLabel: 'Undo',
             onAction: () async {
-              await databaseService.restoreFromRecentlyDeleted(subscriptionId);
-              await subscriptionNotifier.loadSubscriptions();
-              if (isSyncEnabled && user != null) {
-                final restored = databaseService.getSubscriptionById(subscriptionId);
-                if (restored != null) {
-                  SyncService().pushSubscription(user.uid, restored);
-                }
-              }
+              // Notifier reschedules notifications + re-pushes to remote.
+              await subscriptionNotifier.restoreFromRecentlyDeleted(subscriptionId);
             },
           );
         }
@@ -527,40 +510,27 @@ class SubscriptionCard extends ConsumerWidget {
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: () async {
-                              // Capture EVERYTHING ref-derived BEFORE any
-                              // await. After Navigator.pop + the load
-                              // refresh, this card is no longer in the
-                              // widget tree, so calling `ref.read(...)` at
-                              // that point throws "Cannot use ref after
-                              // the widget was disposed" and the snackbar
-                              // call below it never runs.
-                              final databaseService = ref.read(databaseServiceProvider);
+                              // Capture the notifier BEFORE any await. After
+                              // Navigator.pop + the list refresh, this card is
+                              // no longer in the widget tree, so calling
+                              // `ref.read(...)` at that point throws "Cannot
+                              // use ref after the widget was disposed" and the
+                              // toast call below it never runs.
                               final notifier = ref.read(subscriptionProvider.notifier);
-                              final isSyncEnabled = ref.read(isSyncEnabledProvider);
-                              final user = ref.read(currentFirebaseUserProvider);
 
                               final confirmed = await _showDeleteDialog(context);
                               if (!confirmed) return;
                               if (context.mounted) {
                                 Navigator.pop(context);
                               }
-                              await databaseService.moveToRecentlyDeleted(subscription.id);
-                              await notifier.loadSubscriptions();
-                              if (isSyncEnabled && user != null) {
-                                SyncService().deleteRemoteSubscription(user.uid, subscription.id);
-                              }
+                              // Notifier handles cancelling notifications + remote sync.
+                              await notifier.moveToRecentlyDeleted(subscription.id);
                               showAppToast(
                                 '${subscription.name} moved to recently deleted',
                                 actionLabel: 'Undo',
                                 onAction: () async {
-                                  await databaseService.restoreFromRecentlyDeleted(subscription.id);
-                                  await notifier.loadSubscriptions();
-                                  if (isSyncEnabled && user != null) {
-                                    final restored = databaseService.getSubscriptionById(subscription.id);
-                                    if (restored != null) {
-                                      SyncService().pushSubscription(user.uid, restored);
-                                    }
-                                  }
+                                  // Notifier reschedules notifications + re-pushes.
+                                  await notifier.restoreFromRecentlyDeleted(subscription.id);
                                 },
                               );
                             },
