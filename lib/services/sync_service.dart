@@ -29,8 +29,22 @@ class SyncService {
   String? _currentUid;
   bool _initialized = false;
 
-  /// Track IDs we deleted locally so the remote listener doesn't re-delete from Hive
+  /// Track IDs we deleted locally so the remote listener doesn't re-delete
+  /// from Hive. Normally an ID is removed when its matching remote `removed`
+  /// event arrives; [_markLocallyDeleted] caps the set (evicting oldest) so a
+  /// delete that never round-trips (e.g. offline) can't grow it unbounded.
+  /// Insertion-ordered (Set literal is a LinkedHashSet), so `first` is oldest.
   final Set<String> _locallyDeletedIds = {};
+  static const int _maxLocallyDeletedIds = 500;
+
+  /// Record a locally-initiated delete, evicting the oldest tracked IDs if the
+  /// set has grown past [_maxLocallyDeletedIds].
+  void _markLocallyDeleted(String subId) {
+    _locallyDeletedIds.add(subId);
+    while (_locallyDeletedIds.length > _maxLocallyDeletedIds) {
+      _locallyDeletedIds.remove(_locallyDeletedIds.first);
+    }
+  }
 
   /// Initialize sync for a user
   Future<void> initialize(String uid) async {
@@ -258,7 +272,7 @@ class SyncService {
 
   /// Delete a subscription from Firestore
   Future<void> deleteRemoteSubscription(String uid, String subId) async {
-    _locallyDeletedIds.add(subId);
+    _markLocallyDeleted(subId);
     try {
       await _firestore
           .collection('users')

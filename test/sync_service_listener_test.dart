@@ -75,4 +75,36 @@ void main() {
       },
     );
   });
+
+  group('locally-deleted-id set eviction (bug #6)', () {
+    // SyncService can't be constructed in a unit test (Firebase), so these
+    // assert the properties the `_markLocallyDeleted` cap relies on.
+    test('Set literal is insertion-ordered so `first` is the oldest id', () {
+      final ids = <String>{};
+      for (var i = 0; i < 5; i++) {
+        ids.add('id$i');
+      }
+      expect(ids.first, 'id0');
+      ids.remove(ids.first);
+      expect(ids.first, 'id1');
+    });
+
+    test('capped FIFO eviction keeps only the newest N ids', () {
+      final ids = <String>{};
+      const cap = 3;
+      void mark(String id) {
+        ids.add(id);
+        while (ids.length > cap) {
+          ids.remove(ids.first);
+        }
+      }
+
+      for (var i = 0; i < 6; i++) {
+        mark('id$i');
+      }
+
+      expect(ids, {'id3', 'id4', 'id5'});
+      expect(ids.length, cap);
+    });
+  });
 }
