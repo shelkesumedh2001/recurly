@@ -114,9 +114,29 @@ class SyncService {
         .collection('subscriptions')
         .get();
 
+    final purgeCutoff = DateTime.now().subtract(const Duration(days: 30));
+
     for (final doc in remoteSnapshot.docs) {
       final remoteData = doc.data();
       final remoteSub = Subscription.fromJson(remoteData);
+
+      // Purge soft-deletes that have aged past the 30-day Recently Deleted
+      // window: hard-delete from remote and drop any local copy. This stops
+      // long-dead subs from resurrecting onto other devices and keeps the
+      // remote collection from accumulating tombstones forever.
+      if (remoteSub.deletedAt != null &&
+          remoteSub.deletedAt!.isBefore(purgeCutoff)) {
+        try {
+          await doc.reference.delete();
+        } catch (e) {
+          debugPrint('Expired soft-delete remote purge failed: $e');
+        }
+        if (_db.getSubscriptionById(doc.id) != null) {
+          await _db.deleteSubscription(doc.id);
+        }
+        continue;
+      }
+
       final localSub = _db.getSubscriptionById(doc.id);
 
       if (localSub == null) {
@@ -295,8 +315,11 @@ class SyncService {
           .snapshots()
           .listen(
         (snapshot) {
+          // Exclude the partner's soft-deleted subs (deletedAt set) so they
+          // don't linger in household spend views / partner lists.
           final subs = snapshot.docs
               .map((doc) => Subscription.fromJson(doc.data()))
+              .where((sub) => sub.deletedAt == null)
               .toList();
           partnerSubscriptions.value = subs;
         },

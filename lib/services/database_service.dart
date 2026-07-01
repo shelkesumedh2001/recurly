@@ -288,12 +288,16 @@ class DatabaseService {
     }
   }
 
-  /// Move subscription to recently deleted
+  /// Move subscription to recently deleted.
+  ///
+  /// Bumps `updatedAt` so the soft-delete wins last-write-wins conflict
+  /// resolution and propagates to other devices as a modification.
   Future<void> moveToRecentlyDeleted(String id) async {
     try {
       final subscription = _box.get(id);
       if (subscription != null) {
-        final updated = subscription.copyWith(deletedAt: DateTime.now());
+        final now = DateTime.now();
+        final updated = subscription.copyWith(deletedAt: now, updatedAt: now);
         await _box.put(id, updated);
       }
     } catch (e) {
@@ -301,12 +305,18 @@ class DatabaseService {
     }
   }
 
-  /// Restore subscription from recently deleted
+  /// Restore subscription from recently deleted.
+  ///
+  /// Bumps `updatedAt` so the restore wins last-write-wins against the
+  /// soft-deleted copy that may still exist on other devices / remote.
   Future<void> restoreFromRecentlyDeleted(String id) async {
     try {
       final subscription = _box.get(id);
       if (subscription != null) {
-        final updated = subscription.copyWith(clearDeletedAt: true);
+        final updated = subscription.copyWith(
+          clearDeletedAt: true,
+          updatedAt: DateTime.now(),
+        );
         await _box.put(id, updated);
       }
     } catch (e) {

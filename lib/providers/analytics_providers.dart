@@ -4,25 +4,36 @@ import '../models/exchange_rate.dart';
 import '../models/subscription.dart';
 import '../services/currency_service.dart';
 import '../utils/billing_cycle.dart';
+import '../utils/money.dart';
 import 'auth_providers.dart';
 import 'currency_providers.dart';
 import 'household_providers.dart';
 import 'subscription_providers.dart';
 
-/// Provider for spending by category
+/// Provider for spending by category (converted to display currency so
+/// mixed-currency subscriptions aggregate correctly).
 final categorySpendProvider = Provider<Map<SubscriptionCategory, double>>((ref) {
   final subscriptionsAsync = ref.watch(subscriptionProvider);
+  final displayCurrency = ref.watch(displayCurrencyProvider);
+  final rates = ref.watch(exchangeRatesProvider).value;
+  final currencyService = ref.watch(currencyServiceProvider);
 
   return subscriptionsAsync.when(
     data: (subscriptions) {
       final Map<SubscriptionCategory, double> spendByCategory = {};
 
       for (final sub in subscriptions) {
+        final converted = currencyService.convert(
+          amount: sub.monthlyEquivalent,
+          from: sub.currency,
+          to: displayCurrency,
+          rates: rates,
+        );
         final current = spendByCategory[sub.category] ?? 0.0;
-        spendByCategory[sub.category] = current + sub.monthlyEquivalent;
+        spendByCategory[sub.category] = current + converted;
       }
 
-      return spendByCategory;
+      return spendByCategory.map((k, v) => MapEntry(k, roundMoney(v)));
     },
     loading: () => {},
     error: (_, __) => {},
@@ -32,15 +43,25 @@ final categorySpendProvider = Provider<Map<SubscriptionCategory, double>>((ref) 
 /// Provider for the most expensive subscription
 final mostExpensiveSubscriptionProvider = Provider<Subscription?>((ref) {
   final subscriptionsAsync = ref.watch(subscriptionProvider);
+  final displayCurrency = ref.watch(displayCurrencyProvider);
+  final rates = ref.watch(exchangeRatesProvider).value;
+  final currencyService = ref.watch(currencyServiceProvider);
 
   return subscriptionsAsync.when(
     data: (subscriptions) {
       if (subscriptions.isEmpty) return null;
-      
-      // Sort by monthly equivalent cost
+
+      // Sort by monthly equivalent cost, converted to display currency so a
+      // high-value foreign-currency sub isn't ranked by its raw number.
+      double convertedMonthly(Subscription s) => currencyService.convert(
+            amount: s.monthlyEquivalent,
+            from: s.currency,
+            to: displayCurrency,
+            rates: rates,
+          );
       final sorted = List<Subscription>.from(subscriptions)
-        ..sort((a, b) => b.monthlyEquivalent.compareTo(a.monthlyEquivalent));
-      
+        ..sort((a, b) => convertedMonthly(b).compareTo(convertedMonthly(a)));
+
       return sorted.first;
     },
     loading: () => null,
@@ -48,10 +69,10 @@ final mostExpensiveSubscriptionProvider = Provider<Subscription?>((ref) {
   );
 });
 
-/// Provider for yearly projected spend
+/// Provider for yearly projected spend (currency-converted)
 final yearlyProjectedSpendProvider = Provider<double>((ref) {
-  final monthlySpend = ref.watch(totalMonthlySpendProvider);
-  return monthlySpend * 12;
+  final monthlySpend = ref.watch(convertedTotalSpendProvider);
+  return roundMoney(monthlySpend * 12);
 });
 
 /// Provider for category with highest spend
@@ -184,8 +205,12 @@ final totalPriceChangeImpactProvider = Provider<double?>((ref) {
 });
 
 /// Provider for projected monthly spending for the next 12 months
+/// (each subscription's amount converted to the display currency).
 final spendingTrendProvider = Provider<List<MonthlySpendingData>>((ref) {
   final subscriptionsAsync = ref.watch(subscriptionProvider);
+  final displayCurrency = ref.watch(displayCurrencyProvider);
+  final rates = ref.watch(exchangeRatesProvider).value;
+  final currencyService = ref.watch(currencyServiceProvider);
 
   return subscriptionsAsync.when(
     data: (subscriptions) {
@@ -199,9 +224,14 @@ final spendingTrendProvider = Provider<List<MonthlySpendingData>>((ref) {
 
         for (final sub in subscriptions) {
           final amount = _calculateMonthlyAmount(sub, targetDate);
-          monthlyTotal += amount;
+          monthlyTotal += currencyService.convert(
+            amount: amount,
+            from: sub.currency,
+            to: displayCurrency,
+            rates: rates,
+          );
         }
-        trendData.add(MonthlySpendingData(targetDate.month, targetDate.year, monthlyTotal));
+        trendData.add(MonthlySpendingData(targetDate.month, targetDate.year, roundMoney(monthlyTotal)));
       }
 
       return trendData;

@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/budget.dart';
 import '../services/budget_service.dart';
+import '../utils/money.dart';
+import 'currency_providers.dart';
 import 'subscription_providers.dart';
 
 /// Budget service singleton provider
@@ -65,7 +67,7 @@ final budgetSettingsProvider = StateNotifierProvider<BudgetNotifier, BudgetSetti
 /// Budget usage percentage provider (0.0 to 1.0+)
 final budgetUsageProvider = Provider<double?>((ref) {
   final settings = ref.watch(budgetSettingsProvider);
-  final totalSpend = ref.watch(totalMonthlySpendProvider);
+  final totalSpend = ref.watch(convertedTotalSpendProvider);
 
   if (!settings.hasBudget) return null;
 
@@ -76,7 +78,7 @@ final budgetUsageProvider = Provider<double?>((ref) {
 /// Budget status provider
 final budgetStatusProvider = Provider<BudgetStatus>((ref) {
   final settings = ref.watch(budgetSettingsProvider);
-  final totalSpend = ref.watch(totalMonthlySpendProvider);
+  final totalSpend = ref.watch(convertedTotalSpendProvider);
   final budgetService = ref.read(budgetServiceProvider);
 
   return budgetService.getStatus(totalSpend, settings);
@@ -85,7 +87,7 @@ final budgetStatusProvider = Provider<BudgetStatus>((ref) {
 /// Remaining budget provider
 final remainingBudgetProvider = Provider<double?>((ref) {
   final settings = ref.watch(budgetSettingsProvider);
-  final totalSpend = ref.watch(totalMonthlySpendProvider);
+  final totalSpend = ref.watch(convertedTotalSpendProvider);
   final budgetService = ref.read(budgetServiceProvider);
 
   return budgetService.calculateRemaining(totalSpend, settings.overallMonthlyBudget);
@@ -94,25 +96,36 @@ final remainingBudgetProvider = Provider<double?>((ref) {
 /// Category budget status provider (family)
 final categoryBudgetStatusProvider = Provider.family<BudgetStatus, String>((ref, categoryName) {
   final settings = ref.watch(budgetSettingsProvider);
-  final categorySpend = ref.watch(categorySpendProvider)[categoryName] ?? 0.0;
+  final categorySpend = ref.watch(categorySpendByNameProvider)[categoryName] ?? 0.0;
   final budgetService = ref.read(budgetServiceProvider);
 
   return budgetService.getCategoryStatus(categoryName, categorySpend, settings);
 });
 
-/// Category spend provider (from analytics_providers)
-final categorySpendProvider = Provider<Map<String, double>>((ref) {
+/// Category spend keyed by category **display name** (converted to display
+/// currency). Distinct from analytics' `categorySpendProvider`, which is keyed
+/// by the `SubscriptionCategory` enum.
+final categorySpendByNameProvider = Provider<Map<String, double>>((ref) {
   final subscriptions = ref.watch(subscriptionProvider).value ?? [];
+  final displayCurrency = ref.watch(displayCurrencyProvider);
+  final rates = ref.watch(exchangeRatesProvider).value;
+  final currencyService = ref.watch(currencyServiceProvider);
 
   final Map<String, double> categorySpend = {};
   for (final sub in subscriptions) {
     if (!sub.isArchived && sub.deletedAt == null) {
       final categoryName = sub.category.displayName;
-      categorySpend[categoryName] = (categorySpend[categoryName] ?? 0) + sub.monthlyEquivalent;
+      final converted = currencyService.convert(
+        amount: sub.monthlyEquivalent,
+        from: sub.currency,
+        to: displayCurrency,
+        rates: rates,
+      );
+      categorySpend[categoryName] = (categorySpend[categoryName] ?? 0) + converted;
     }
   }
 
-  return categorySpend;
+  return categorySpend.map((k, v) => MapEntry(k, roundMoney(v)));
 });
 
 /// Should show budget alert provider

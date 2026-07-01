@@ -178,13 +178,32 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
     }
   }
 
+  /// Soft-delete a subscription (move to Recently Deleted).
+  ///
+  /// Cancels its scheduled notifications so a sub sitting in Recently Deleted
+  /// no longer fires renewal/trial reminders. Pushes the soft-deleted state
+  /// (deletedAt set) to remote — NOT a hard delete — so other devices move it
+  /// to their own Recently Deleted instead of losing it entirely. The doc is
+  /// hard-deleted from remote only on permanent delete or 30-day purge.
+  Future<void> moveToRecentlyDeleted(String id) async {
+    try {
+      await _notificationService.cancelSubscriptionNotifications(id);
+      await _databaseService.moveToRecentlyDeleted(id);
+      await loadSubscriptions();
+      final softDeleted = _databaseService.getSubscriptionById(id);
+      if (softDeleted != null) _syncPush(softDeleted);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   /// Restore subscription from recently deleted
   Future<void> restoreFromRecentlyDeleted(String id) async {
     try {
       await _databaseService.restoreFromRecentlyDeleted(id);
       await loadSubscriptions();
 
-      // Reschedule notifications after restoring
+      // Reschedule notifications and re-push to remote after restoring
       final subscription = _databaseService.getSubscriptionById(id);
       if (subscription != null) {
         final preferences = _ref.read(preferencesProvider);
@@ -192,6 +211,7 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
           subscription,
           preferences,
         );
+        _syncPush(subscription);
       }
     } catch (e) {
       rethrow;
@@ -236,22 +256,6 @@ final subscriptionProvider =
     return SubscriptionNotifier(databaseService, notificationService, ref);
   },
 );
-
-/// Provider for total monthly spend
-final totalMonthlySpendProvider = Provider<double>((ref) {
-  final subscriptionsAsync = ref.watch(subscriptionProvider);
-
-  return subscriptionsAsync.when(
-    data: (subscriptions) {
-      return subscriptions.fold<double>(
-        0,
-        (sum, sub) => sum + sub.monthlyEquivalent,
-      );
-    },
-    loading: () => 0.0,
-    error: (_, __) => 0.0,
-  );
-});
 
 /// Provider for active subscription count
 final activeSubscriptionCountProvider = Provider<int>((ref) {
@@ -326,12 +330,6 @@ final filteredSubscriptionsProvider = Provider<AsyncValue<List<Subscription>>>((
   );
 });
 
-/// Provider for recently deleted subscriptions
-final recentlyDeletedProvider = StateProvider<List<Subscription>>((ref) {
-  final databaseService = ref.watch(databaseServiceProvider);
-  return databaseService.getRecentlyDeletedSubscriptions();
-});
-
 /// Provider for spend view mode (my share vs household total)
 final spendViewModeProvider = StateProvider<SpendViewMode>((ref) {
   return SpendViewMode.myShare;
@@ -360,53 +358,4 @@ final householdSubscriptionsProvider = Provider<List<Subscription>>((ref) {
   final ownSubs = ref.watch(subscriptionProvider).value ?? [];
   final partnerSubs = ref.watch(partnerSubscriptionsProvider).value ?? [];
   return [...ownSubs, ...partnerSubs];
-});
-
-/// Provider for "my share" spend — factors in split percentages
-final myShareSpendProvider = Provider<double>((ref) {
-  final subscriptionsAsync = ref.watch(subscriptionProvider);
-
-  return subscriptionsAsync.when(
-    data: (subscriptions) {
-      double total = 0;
-      for (final sub in subscriptions) {
-        if (sub.splitWith != null && sub.splitWith!.isNotEmpty) {
-          // Find accepted splits
-          double myMultiplier = 1.0;
-          for (final split in sub.splitWith!) {
-            if (split['accepted'] == true) {
-              final partnerShare = (split['sharePercent'] as num).toDouble();
-              myMultiplier -= partnerShare / 100;
-            }
-          }
-          total += sub.monthlyEquivalent * myMultiplier;
-        } else {
-          total += sub.monthlyEquivalent;
-        }
-      }
-      return total;
-    },
-    loading: () => 0.0,
-    error: (_, __) => 0.0,
-  );
-});
-
-/// Provider for household total spend (own + partner, no double-count splits)
-final householdTotalSpendProvider = Provider<double>((ref) {
-  final ownSubs = ref.watch(subscriptionProvider).value ?? [];
-  final partnerSubs = ref.watch(partnerSubscriptionsProvider).value ?? [];
-
-  double total = 0;
-  // Own subs: full price (since partner's share is included in household total)
-  for (final sub in ownSubs) {
-    total += sub.monthlyEquivalent;
-  }
-  // Partner subs: only add those that aren't split references from our own
-  final ownIds = ownSubs.map((s) => s.id).toSet();
-  for (final sub in partnerSubs) {
-    if (!ownIds.contains(sub.id)) {
-      total += sub.monthlyEquivalent;
-    }
-  }
-  return total;
 });
