@@ -4,10 +4,12 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../models/user_profile.dart';
+import 'household_service.dart';
 import 'sync_service.dart';
 
 /// Authentication service wrapping Firebase Auth
@@ -121,56 +123,63 @@ class AuthService {
     await _auth.signOut();
   }
 
-  /// Delete account and clean up Firestore data
+  /// Delete account and clean up Firestore data.
+  ///
+  /// Order matters, twice over:
+  /// 1. Re-authenticate FIRST — `user.delete()` demands a recent login,
+  ///    and discovering that after the wipe would leave a data-less
+  ///    account behind. A stale session aborts here with nothing deleted.
+  /// 2. Household teardown goes through HouseholdService: its member-first
+  ///    ordering is required by the `isHouseholdMember` Firestore rule
+  ///    (which reads the household doc — so that doc must be deleted
+  ///    LAST), and it also cleans split proposals and reference subs.
   Future<void> deleteAccount() async {
     final user = _auth.currentUser;
     if (user == null) return;
 
     final uid = user.uid;
 
-    // Delete user's subscriptions subcollection
+    await _ensureRecentLogin(user);
+
+    // Leave/disband household. Best-effort: a failed partner-profile
+    // update must not strand the deletion — the partner's device
+    // self-heals via householdCleanupProvider once the household doc
+    // disappears.
+    try {
+      final userDoc = await _firestore.collection('users').doc(uid).get();
+      final householdId = userDoc.data()?['householdId'] as String?;
+      if (householdId != null) {
+        final householdDoc =
+            await _firestore.collection('households').doc(householdId).get();
+        if (!householdDoc.exists) {
+          // Dangling reference — just clear it on our own profile.
+          await _firestore.collection('users').doc(uid).update({
+            'householdId': FieldValue.delete(),
+          });
+        } else if (householdDoc.data()?['createdBy'] == uid) {
+          await HouseholdService().disbandHousehold(uid);
+        } else {
+          await HouseholdService().leaveHousehold(uid);
+        }
+      }
+    } catch (e) {
+      debugPrint('Household teardown during account deletion failed: $e');
+    }
+
+    // Delete the subscriptions subcollection (batched; reference subs and
+    // split proposals were already removed by the household teardown).
     final subsSnapshot = await _firestore
         .collection('users')
         .doc(uid)
         .collection('subscriptions')
         .get();
-    for (final doc in subsSnapshot.docs) {
-      await doc.reference.delete();
-    }
-
-    // Remove from household if in one
-    final userDoc = await _firestore.collection('users').doc(uid).get();
-    if (userDoc.exists) {
-      final data = userDoc.data();
-      final householdId = data?['householdId'] as String?;
-      if (householdId != null) {
-        final householdDoc =
-            await _firestore.collection('households').doc(householdId).get();
-        if (householdDoc.exists) {
-          final householdData = householdDoc.data()!;
-          final members =
-              (householdData['members'] as List<dynamic>?)?.cast<String>() ??
-                  [];
-          if (householdData['createdBy'] == uid) {
-            // Creator disbanding — remove household
-            await _firestore.collection('households').doc(householdId).delete();
-            // Clear householdId for other members
-            for (final memberId in members) {
-              if (memberId != uid) {
-                await _firestore.collection('users').doc(memberId).update({
-                  'householdId': FieldValue.delete(),
-                });
-              }
-            }
-          } else {
-            // Member leaving
-            members.remove(uid);
-            await _firestore.collection('households').doc(householdId).update({
-              'members': members,
-            });
-          }
-        }
+    final docs = subsSnapshot.docs;
+    for (var i = 0; i < docs.length; i += 500) {
+      final batch = _firestore.batch();
+      for (final doc in docs.skip(i).take(500)) {
+        batch.delete(doc.reference);
       }
+      await batch.commit();
     }
 
     // Delete user profile document
@@ -183,6 +192,54 @@ class AuthService {
 
     // Delete Firebase Auth account
     await user.delete();
+
+    // Drop the cached Google session so a later "sign in" can't silently
+    // hand back credentials for the account we just deleted.
+    try {
+      await _googleSignIn.signOut();
+    } catch (e) {
+      debugPrint('Google sign-out after account deletion failed: $e');
+    }
+  }
+
+  /// Firebase rejects `user.delete()` when the last sign-in is older than
+  /// its recent-login window (~5 minutes). Verify/refresh credentials
+  /// BEFORE any data is wiped, so a stale session aborts cleanly.
+  ///
+  /// Google users are re-authenticated in place (silently when possible).
+  /// Email/Apple users get a `requires-recent-login` error the UI can
+  /// translate into "sign in again, then retry".
+  Future<void> _ensureRecentLogin(User user) async {
+    final lastSignIn = user.metadata.lastSignInTime;
+    if (lastSignIn != null &&
+        DateTime.now().difference(lastSignIn) < const Duration(minutes: 5)) {
+      return;
+    }
+
+    final providers = user.providerData.map((p) => p.providerId).toSet();
+    if (providers.contains('google.com')) {
+      var googleUser = await _googleSignIn.signInSilently();
+      googleUser ??= await _googleSignIn.signIn();
+      if (googleUser != null) {
+        final googleAuth = await googleUser.authentication;
+        // Throws user-mismatch if a different Google account was picked —
+        // which correctly aborts before anything is deleted.
+        await user.reauthenticateWithCredential(
+          GoogleAuthProvider.credential(
+            accessToken: googleAuth.accessToken,
+            idToken: googleAuth.idToken,
+          ),
+        );
+        return;
+      }
+    }
+
+    throw FirebaseAuthException(
+      code: 'requires-recent-login',
+      message:
+          'For security, sign out and sign back in, then retry deleting '
+          'your account.',
+    );
   }
 
   /// Send password reset email
@@ -253,12 +310,3 @@ class AuthService {
   }
 }
 
-/// Custom exception for auth errors
-class FirebaseAuthException implements Exception {
-  final String code;
-  final String message;
-  FirebaseAuthException({required this.code, required this.message});
-
-  @override
-  String toString() => message;
-}

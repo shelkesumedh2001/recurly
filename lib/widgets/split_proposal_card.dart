@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -136,7 +138,7 @@ class _SplitProposalCardState extends ConsumerState<SplitProposalCard> {
         proposal: widget.proposal,
       );
       // Reload subscriptions so reference sub appears immediately
-      ref.read(subscriptionProvider.notifier).loadSubscriptions();
+      unawaited(ref.read(subscriptionProvider.notifier).loadSubscriptions());
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

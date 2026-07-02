@@ -22,7 +22,7 @@ void main() {
 
     test('a budget-boundary comparison is no longer flipped by drift', () {
       const budget = 30.0;
-      final driftedSpend = 10.0 + 10.0 + 9.999999999; // ~29.999999999
+      const driftedSpend = 10.0 + 10.0 + 9.999999999; // ~29.999999999
       // Raw double would read under; that is fine here, but the symmetric
       // over-budget case (30.0000001) must not read as over once rounded.
       expect(roundMoney(driftedSpend) <= budget, isTrue);

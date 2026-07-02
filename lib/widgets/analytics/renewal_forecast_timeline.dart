@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -114,7 +115,7 @@ class _RenewalForecastTimelineState
   }
 
   bool _isToday(DateTime date) {
-    final now = DateTime.now();
+    final now = clock.now();
     return date.year == now.year &&
         date.month == now.month &&
         date.day == now.day;
@@ -129,7 +130,7 @@ class _RenewalForecastTimelineState
     String displayCurrency,
   ) {
     final dayTotal = renewals.fold<double>(
-        0, (sum, r) => sum + r.convertedAmount);
+        0, (sum, r) => sum + r.convertedAmount,);
 
     return Container(
       width: 120,
@@ -196,7 +197,7 @@ class _RenewalForecastTimelineState
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-              )),
+              ),),
           if (renewals.length > 2)
             Text(
               '+${renewals.length - 2} more',

@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -222,7 +223,7 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
                 if (memberId == household.createdBy)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
+                        horizontal: 8, vertical: 4,),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(8),
@@ -370,7 +371,7 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
       final user = ref.read(currentFirebaseUserProvider);
       if (user == null) return;
       await HouseholdService().refreshInviteCode(user.uid);
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Invite code refreshed'),
@@ -379,7 +380,7 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
         );
       }
     } catch (e) {
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed: $e')),
         );
@@ -391,7 +392,7 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
     final theme = Theme.of(context);
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Disband Household?'),
         content: const Text(
           'This will remove all members and delete the household. '
@@ -399,12 +400,12 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               setState(() => _isLoading = true);
               try {
                 final user = ref.read(currentFirebaseUserProvider);
@@ -415,8 +416,9 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
                   await _clearLocalSplitData();
                 }
               } catch (e) {
+                // Screen context, not the popped dialog's.
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(this.context).showSnackBar(
                     SnackBar(content: Text('Failed: $e')),
                   );
                 }
@@ -446,7 +448,7 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
         await db.deleteSubscription(sub.id);
       } else if (sub.splitWith != null && sub.splitWith!.isNotEmpty) {
         await db.updateSubscription(
-          sub.copyWith(clearSplitWith: true, updatedAt: DateTime.now()),
+          sub.copyWith(clearSplitWith: true, updatedAt: clock.now()),
         );
       }
     }
@@ -455,17 +457,17 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
   void _confirmLeave(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Leave Household?'),
         content: const Text('You can rejoin later with a new invite code.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               setState(() => _isLoading = true);
               try {
                 final user = ref.read(currentFirebaseUserProvider);
@@ -476,8 +478,9 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
                   await _clearLocalSplitData();
                 }
               } catch (e) {
+                // Screen context, not the popped dialog's.
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(this.context).showSnackBar(
                     SnackBar(content: Text('Failed: $e')),
                   );
                 }

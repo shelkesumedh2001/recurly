@@ -96,6 +96,7 @@ class BudgetAlertCard extends StatelessWidget {
                 ),
                 if (onDismiss != null)
                   IconButton(
+                    tooltip: 'Dismiss',
                     icon: Icon(
                       Icons.close,
                       size: 18,

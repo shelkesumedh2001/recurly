@@ -12,6 +12,12 @@ class SplitService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final DatabaseService _db = DatabaseService();
 
+  /// Every remote op is capped so a flaky connection surfaces as an error
+  /// instead of a spinner that hangs forever (same policy as SyncService).
+  static const Duration _opTimeout = Duration(seconds: 10);
+
+  Future<T> _timed<T>(Future<T> future) => future.timeout(_opTimeout);
+
   /// Propose a split to a partner
   Future<void> proposeSplit({
     required String ownerUid,
@@ -34,12 +40,12 @@ class SplitService {
     );
 
     // Store proposal under partner's split_proposals subcollection
-    await _firestore
+    await _timed(_firestore
         .collection('users')
         .doc(partnerUid)
         .collection('split_proposals')
         .doc(subId)
-        .set(proposal.toJson());
+        .set(proposal.toJson()),);
 
     // Update the subscription's splitWith field
     final splitEntry = {
@@ -55,12 +61,12 @@ class SplitService {
     await _db.updateSubscription(updatedSub);
 
     // Push to owner's Firestore
-    await _firestore
+    await _timed(_firestore
         .collection('users')
         .doc(ownerUid)
         .collection('subscriptions')
         .doc(subId)
-        .set(updatedSub.toJson(), SetOptions(merge: true));
+        .set(updatedSub.toJson(), SetOptions(merge: true)),);
   }
 
   /// Accept a split proposal
@@ -69,12 +75,12 @@ class SplitService {
     required SplitProposal proposal,
   }) async {
     // Update proposal as accepted
-    await _firestore
+    await _timed(_firestore
         .collection('users')
         .doc(partnerUid)
         .collection('split_proposals')
         .doc(proposal.subId)
-        .update({'accepted': true});
+        .update({'accepted': true}),);
 
     // Update owner's subscription splitWith to mark accepted
     final ownerSubRef = _firestore
@@ -83,7 +89,7 @@ class SplitService {
         .collection('subscriptions')
         .doc(proposal.subId);
 
-    final ownerSubDoc = await ownerSubRef.get();
+    final ownerSubDoc = await _timed(ownerSubRef.get());
     if (ownerSubDoc.exists) {
       final data = ownerSubDoc.data()!;
       final splitWith =
@@ -96,10 +102,10 @@ class SplitService {
               }).toList() ??
               [];
       // Include updatedAt so owner's remote listener picks up the change
-      await ownerSubRef.update({
+      await _timed(ownerSubRef.update({
         'splitWith': splitWith,
         'updatedAt': DateTime.now().toIso8601String(),
-      });
+      }),);
     }
 
     // Create reference subscription in partner's collection
@@ -116,12 +122,12 @@ class SplitService {
       );
 
       // Save to partner's Firestore subscriptions
-      await _firestore
+      await _timed(_firestore
           .collection('users')
           .doc(partnerUid)
           .collection('subscriptions')
           .doc(proposal.subId)
-          .set(referenceSub.toJson());
+          .set(referenceSub.toJson()),);
 
       // Also save reference sub to local Hive so it appears in partner's UI immediately
       // (partner may not have Pro sync listener running)
@@ -150,12 +156,12 @@ class SplitService {
     required SplitProposal proposal,
   }) async {
     // Delete proposal
-    await _firestore
+    await _timed(_firestore
         .collection('users')
         .doc(partnerUid)
         .collection('split_proposals')
         .doc(proposal.subId)
-        .delete();
+        .delete(),);
 
     // Remove splitWith from owner's subscription
     final ownerSubRef = _firestore
@@ -164,16 +170,16 @@ class SplitService {
         .collection('subscriptions')
         .doc(proposal.subId);
 
-    final ownerSubDoc = await ownerSubRef.get();
+    final ownerSubDoc = await _timed(ownerSubRef.get());
     if (ownerSubDoc.exists) {
       final data = ownerSubDoc.data()!;
       final splitWith = (data['splitWith'] as List<dynamic>?)
               ?.where((e) => (e as Map)['uid'] != partnerUid)
               .toList() ??
           [];
-      await ownerSubRef.update({
+      await _timed(ownerSubRef.update({
         'splitWith': splitWith.isEmpty ? FieldValue.delete() : splitWith,
-      });
+      }),);
     }
   }
 
@@ -190,33 +196,33 @@ class SplitService {
         .collection('subscriptions')
         .doc(subId);
 
-    final ownerSubDoc = await ownerSubRef.get();
+    final ownerSubDoc = await _timed(ownerSubRef.get());
     if (ownerSubDoc.exists) {
       final data = ownerSubDoc.data()!;
       final splitWith = (data['splitWith'] as List<dynamic>?)
               ?.where((e) => (e as Map)['uid'] != partnerUid)
               .toList() ??
           [];
-      await ownerSubRef.update({
+      await _timed(ownerSubRef.update({
         'splitWith': splitWith.isEmpty ? FieldValue.delete() : splitWith,
-      });
+      }),);
     }
 
     // Delete partner's reference subscription
-    await _firestore
+    await _timed(_firestore
         .collection('users')
         .doc(partnerUid)
         .collection('subscriptions')
         .doc(subId)
-        .delete();
+        .delete(),);
 
     // Delete proposal
-    await _firestore
+    await _timed(_firestore
         .collection('users')
         .doc(partnerUid)
         .collection('split_proposals')
         .doc(subId)
-        .delete();
+        .delete(),);
 
     // Update local Hive
     final localSub = _db.getSubscriptionById(subId);
@@ -244,12 +250,12 @@ class SplitService {
 
   /// Get all pending split proposals
   Future<List<SplitProposal>> getPendingProposals(String uid) async {
-    final snapshot = await _firestore
+    final snapshot = await _timed(_firestore
         .collection('users')
         .doc(uid)
         .collection('split_proposals')
         .where('accepted', isEqualTo: false)
-        .get();
+        .get(),);
 
     return snapshot.docs.map((doc) {
       return SplitProposal.fromJson(doc.data());

@@ -7,8 +7,12 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../models/app_preferences.dart';
+import '../models/credit_card.dart';
 import '../models/subscription.dart';
+import '../utils/billing_cycle.dart';
+import '../utils/card_dates.dart';
 import '../utils/constants.dart';
+import 'credit_card_service.dart';
 
 /// Service for managing local notifications
 class NotificationService {
@@ -37,14 +41,27 @@ class NotificationService {
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
+    // Cold start from a notification: surface its payload the same way a
+    // warm tap does, so MainNavigation can route once it's up.
+    final launchDetails =
+        await _notifications.getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp ?? false) {
+      tappedPayload.value = launchDetails!.notificationResponse?.payload;
+    }
+
     _initialized = true;
     debugPrint('NotificationService: Initialized successfully');
   }
 
+  /// Payload of the most recent notification tap, consumed by
+  /// MainNavigation (set to null after routing). Sub reminders carry the
+  /// subscription id; card reminders carry 'card:<cardId>'.
+  final ValueNotifier<String?> tappedPayload = ValueNotifier(null);
+
   /// Handle notification tap
   void _onNotificationTapped(NotificationResponse response) {
     debugPrint('Notification tapped: ${response.payload}');
-    // TODO: Navigate to subscription details when notification is tapped
+    tappedPayload.value = response.payload;
   }
 
   /// Request notification permission (Android 13+)
@@ -84,73 +101,79 @@ class NotificationService {
     // Cancel existing notifications for this subscription first
     await cancelSubscriptionNotifications(subscription.id);
 
-    final nextBillDate = subscription.nextBillDate;
-    final notificationTime = preferences.notificationTime;
-
-    debugPrint('Scheduling notifications for ${subscription.name} (Next bill: ${DateFormat.yMMMd().format(nextBillDate)})');
-
-    // Schedule 7-day reminder if enabled
-    if (preferences.reminder7DaysEnabled) {
-      await _scheduleNotification(
-        id: _generateNotificationId(subscription.id, 7),
-        scheduledDate: _combineDateAndTime(
-          nextBillDate.subtract(const Duration(days: 7)),
-          notificationTime,
-        ),
-        title: '${subscription.name} renews in 7 days',
-        body:
-            'Your ${subscription.formattedPrice} subscription will renew on ${DateFormat.yMMMd().format(nextBillDate)}',
-        payload: subscription.id,
+    // Look ahead several billing cycles: reminders used to cover only the
+    // NEXT bill, so a user who didn't open the app for a while silently
+    // stopped getting them (rescheduling only happens at app launch).
+    var billDate = subscription.nextBillDate;
+    for (var occurrence = 0; occurrence < lookAheadCycles; occurrence++) {
+      await _scheduleRenewalReminders(
+        subscription,
+        preferences,
+        billDate,
+        occurrence,
       );
-    }
-
-    // Schedule 3-day reminder if enabled
-    if (preferences.reminder3DaysEnabled) {
-      await _scheduleNotification(
-        id: _generateNotificationId(subscription.id, 3),
-        scheduledDate: _combineDateAndTime(
-          nextBillDate.subtract(const Duration(days: 3)),
-          notificationTime,
-        ),
-        title: '${subscription.name} renews in 3 days',
-        body:
-            'Your ${subscription.formattedPrice} subscription will renew on ${DateFormat.yMMMd().format(nextBillDate)}',
-        payload: subscription.id,
-      );
-    }
-
-    // Schedule 1-day reminder if enabled
-    if (preferences.reminder1DayEnabled) {
-      await _scheduleNotification(
-        id: _generateNotificationId(subscription.id, 1),
-        scheduledDate: _combineDateAndTime(
-          nextBillDate.subtract(const Duration(days: 1)),
-          notificationTime,
-        ),
-        title: '${subscription.name} renews tomorrow',
-        body:
-            'Your ${subscription.formattedPrice} subscription will renew on ${DateFormat.yMMMd().format(nextBillDate)}',
-        payload: subscription.id,
-      );
-    }
-
-    // Schedule renewal day reminder if enabled
-    if (preferences.reminderOnDayEnabled) {
-      await _scheduleNotification(
-        id: _generateNotificationId(subscription.id, 0),
-        scheduledDate: _combineDateAndTime(
-          nextBillDate,
-          notificationTime,
-        ),
-        title: '${subscription.name} renews today',
-        body:
-            'Your ${subscription.formattedPrice} subscription is renewing today',
-        payload: subscription.id,
+      billDate = addOneCycle(
+        subscription.billingCycle,
+        billDate,
+        customDays: subscription.customDays,
       );
     }
 
     // Trial-end reminders (independent of renewal reminders)
     await _scheduleTrialReminders(subscription, preferences);
+  }
+
+  /// How many future billing cycles get reminders scheduled up front.
+  static const int lookAheadCycles = 3;
+
+  Future<void> _scheduleRenewalReminders(
+    Subscription subscription,
+    AppPreferences preferences,
+    DateTime billDate,
+    int occurrence,
+  ) async {
+    final notificationTime = preferences.notificationTime;
+    // "· Paid with <card>" when the sub is assigned to a tracked card, so
+    // the reminder says which card is about to be charged.
+    final cardSuffix = _cardSuffix(subscription);
+    final billText = DateFormat.yMMMd().format(billDate);
+
+    debugPrint(
+        'Scheduling notifications for ${subscription.name} (bill: $billText, occurrence $occurrence)',);
+
+    final offsets = <int>[
+      if (preferences.reminder7DaysEnabled) 7,
+      if (preferences.reminder3DaysEnabled) 3,
+      if (preferences.reminder1DayEnabled) 1,
+      if (preferences.reminderOnDayEnabled) 0,
+    ];
+
+    for (final daysBefore in offsets) {
+      final (title, body) = switch (daysBefore) {
+        0 => (
+            '${subscription.name} renews today',
+            'Your ${subscription.formattedPrice} subscription is renewing today$cardSuffix',
+          ),
+        1 => (
+            '${subscription.name} renews tomorrow',
+            'Your ${subscription.formattedPrice} subscription will renew on $billText$cardSuffix',
+          ),
+        _ => (
+            '${subscription.name} renews in $daysBefore days',
+            'Your ${subscription.formattedPrice} subscription will renew on $billText$cardSuffix',
+          ),
+      };
+      await _scheduleNotification(
+        id: _generateNotificationId(subscription.id, daysBefore, occurrence),
+        scheduledDate: _combineDateAndTime(
+          billDate.subtract(Duration(days: daysBefore)),
+          notificationTime,
+        ),
+        title: title,
+        body: body,
+        payload: subscription.id,
+      );
+    }
   }
 
   /// Schedule "your free trial ends in N days — cancel before being
@@ -187,6 +210,69 @@ class NotificationService {
             'Cancel before ${DateFormat.yMMMd().format(trialEnd)} to avoid being charged $amountText.',
         payload: subscription.id,
       );
+    }
+  }
+
+  /// Schedule payment-due reminders for a credit card. Reuses the renewal
+  /// reminder toggles (3-day / 1-day / on-day) and notification time.
+  Future<void> scheduleCardDueNotifications(
+    CreditCardInfo card,
+    AppPreferences preferences,
+  ) async {
+    if (!_initialized) {
+      throw Exception('NotificationService not initialized');
+    }
+    if (!preferences.notificationsEnabled) return;
+
+    await cancelCardNotifications(card.id);
+
+    final notificationTime = preferences.notificationTime;
+    final reminders = <int>[
+      if (preferences.reminder3DaysEnabled) 3,
+      if (preferences.reminder1DayEnabled) 1,
+      if (preferences.reminderOnDayEnabled) 0,
+    ];
+
+    // Look ahead: one due date per month, same rationale as renewals.
+    var dueDate = card.nextDueDate;
+    for (var occurrence = 0; occurrence < lookAheadCycles; occurrence++) {
+      final dueText = DateFormat.yMMMd().format(dueDate);
+      for (final daysBefore in reminders) {
+        final whenText = switch (daysBefore) {
+          0 => 'today',
+          1 => 'tomorrow',
+          _ => 'in $daysBefore days',
+        };
+        await _scheduleNotification(
+          id: _generateCardNotificationId(card.id, daysBefore, occurrence),
+          scheduledDate: _combineDateAndTime(
+            dueDate.subtract(Duration(days: daysBefore)),
+            notificationTime,
+          ),
+          title: '${card.name} payment due $whenText',
+          body: 'Your ${card.name} credit card payment is due on $dueText.',
+          payload: 'card:${card.id}',
+        );
+      }
+      dueDate = nextOccurrenceOfDay(card.dueDay, dueDate);
+    }
+  }
+
+  /// Cancel the payment-due reminders for a credit card
+  Future<void> cancelCardNotifications(String cardId) async {
+    if (!_initialized) return;
+
+    try {
+      for (var occurrence = 0; occurrence < lookAheadCycles; occurrence++) {
+        for (final daysBefore in const [3, 1, 0]) {
+          await _notifications.cancel(
+            _generateCardNotificationId(cardId, daysBefore, occurrence),
+          );
+        }
+      }
+      debugPrint('Cancelled card-due notifications for card $cardId');
+    } catch (e) {
+      debugPrint('Error cancelling card notifications: $e');
     }
   }
 
@@ -242,11 +328,14 @@ class NotificationService {
     if (!_initialized) return;
 
     try {
-      // Renewal reminders
-      await _notifications.cancel(_generateNotificationId(subscriptionId, 7));
-      await _notifications.cancel(_generateNotificationId(subscriptionId, 3));
-      await _notifications.cancel(_generateNotificationId(subscriptionId, 1));
-      await _notifications.cancel(_generateNotificationId(subscriptionId, 0));
+      // Renewal reminders (every offset × every look-ahead occurrence)
+      for (var occurrence = 0; occurrence < lookAheadCycles; occurrence++) {
+        for (final daysBefore in const [7, 3, 1, 0]) {
+          await _notifications.cancel(
+            _generateNotificationId(subscriptionId, daysBefore, occurrence),
+          );
+        }
+      }
       // Trial reminders
       await _notifications.cancel(_generateTrialNotificationId(subscriptionId, 7));
       await _notifications.cancel(_generateTrialNotificationId(subscriptionId, 3));
@@ -257,20 +346,27 @@ class NotificationService {
     }
   }
 
-  /// Reschedule all subscription notifications
+  /// Reschedule all subscription notifications (and card-due reminders,
+  /// when [cards] is provided)
   Future<void> rescheduleAllNotifications(
     List<Subscription> subscriptions,
-    AppPreferences preferences,
-  ) async {
+    AppPreferences preferences, {
+    List<CreditCardInfo> cards = const [],
+  }) async {
     if (!_initialized) return;
 
-    debugPrint('Rescheduling all notifications (${subscriptions.length} subscriptions)');
+    debugPrint('Rescheduling all notifications (${subscriptions.length} subscriptions, ${cards.length} cards)');
     // Cancel all existing notifications first
     await cancelAllNotifications();
 
     // Schedule notifications for each active subscription
     for (final subscription in subscriptions) {
       await scheduleSubscriptionNotifications(subscription, preferences);
+    }
+
+    // Card payment-due reminders
+    for (final card in cards) {
+      await scheduleCardDueNotifications(card, preferences);
     }
   }
 
@@ -286,11 +382,18 @@ class NotificationService {
     }
   }
 
-  /// Generate unique notification ID from subscription ID and days offset
-  int _generateNotificationId(String subscriptionId, int daysOffset) {
-    // Create a unique ID by combining subscription ID with days offset
-    // Using hashCode ensures consistent IDs for the same subscription/offset
-    return (subscriptionId + daysOffset.toString()).hashCode;
+  /// Generate unique notification ID from subscription ID, days offset,
+  /// and look-ahead occurrence index. Occurrence 0 keeps the historical
+  /// id shape; later occurrences append a '#k' discriminator.
+  int _generateNotificationId(
+    String subscriptionId,
+    int daysOffset, [
+    int occurrence = 0,
+  ]) {
+    final key = occurrence == 0
+        ? subscriptionId + daysOffset.toString()
+        : '$subscriptionId$daysOffset#$occurrence';
+    return key.hashCode;
   }
 
   /// Generate notification ID for trial-end reminders. Prefixed with
@@ -298,6 +401,27 @@ class NotificationService {
   /// subscription/offset pair.
   int _generateTrialNotificationId(String subscriptionId, int daysOffset) {
     return ('trial:$subscriptionId$daysOffset').hashCode;
+  }
+
+  /// Generate notification ID for card payment-due reminders ("card:"
+  /// prefix keeps the id space separate from sub/trial reminders).
+  int _generateCardNotificationId(
+    String cardId,
+    int daysOffset, [
+    int occurrence = 0,
+  ]) {
+    final key = occurrence == 0
+        ? 'card:$cardId$daysOffset'
+        : 'card:$cardId$daysOffset#$occurrence';
+    return key.hashCode;
+  }
+
+  /// " · Paid with <card>" suffix for renewal reminders, empty when the
+  /// sub has no (locally known) card assigned.
+  String _cardSuffix(Subscription subscription) {
+    if (subscription.cardId == null) return '';
+    final card = CreditCardService().getCardById(subscription.cardId);
+    return card == null ? '' : ' · Paid with ${card.name}';
   }
 
   /// Combine date and time for scheduling

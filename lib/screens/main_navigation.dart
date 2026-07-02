@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/notification_service.dart';
 import 'analytics_screen.dart';
+import 'credit_cards_screen.dart';
 import 'home_screen.dart';
 import 'settings_screen.dart';
 
@@ -39,10 +41,36 @@ class _MainNavigationState extends ConsumerState<MainNavigation>
       curve: Curves.easeInOut,
     );
     _animationController.forward();
+
+    // Route notification taps: card reminders open the Cards screen, sub
+    // reminders land on Home. Post-frame pass handles a payload that
+    // arrived before this listener existed (cold start).
+    NotificationService().tappedPayload.addListener(_handleNotificationTap);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _handleNotificationTap());
+  }
+
+  void _handleNotificationTap() {
+    final payload = NotificationService().tappedPayload.value;
+    if (payload == null || !mounted) return;
+    NotificationService().tappedPayload.value = null; // consume
+
+    if (payload.startsWith('card:')) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const CreditCardsScreen()),
+      );
+    } else {
+      // Subscription reminder — Home lists subs by upcoming renewal.
+      _onItemTapped(0);
+    }
   }
 
   @override
   void dispose() {
+    NotificationService()
+        .tappedPayload
+        .removeListener(_handleNotificationTap);
     _animationController.dispose();
     super.dispose();
   }

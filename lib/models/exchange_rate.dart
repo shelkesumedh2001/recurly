@@ -37,7 +37,7 @@ class ExchangeRateCache extends HiveObject {
 
   /// Get rate for a currency
   double? getRate(String currency) {
-    if (currency == baseCurrency) return 1.0;
+    if (currency == baseCurrency) return 1;
     return rates[currency];
   }
 

@@ -119,6 +119,6 @@ final customCategoriesCountProvider = Provider<int>((ref) {
 /// Built-in categories provider (enum only)
 final builtInCategoriesProvider = Provider<List<UnifiedCategory>>((ref) {
   return SubscriptionCategory.values
-      .map((e) => UnifiedCategory.fromEnum(e))
+      .map(UnifiedCategory.fromEnum)
       .toList();
 });

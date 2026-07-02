@@ -12,6 +12,8 @@ class AppConstants {
   static const String customCategoriesBox = 'custom_categories';
   static const String exchangeRatesBox = 'exchange_rates';
   static const String schemaBox = 'schema';
+  static const String syncQueueBox = 'sync_queue';
+  static const String creditCardsBox = 'credit_cards';
 
   // Notification Settings (Phase 3)
   static const String notificationChannelId = 'subscription_reminders_v2';

@@ -79,6 +79,37 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
       ),
       body: Column(
         children: [
+          // Currency-conversion warning: every chart below converts to the
+          // display currency, so a missing-rates fallback poisons them all.
+          if (ref.watch(conversionUnavailableProvider))
+            Container(
+              margin: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color:
+                    theme.colorScheme.errorContainer.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.currency_exchange,
+                    size: 16,
+                    color: theme.colorScheme.error,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Exchange rates unavailable — totals mix currencies',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           // Tab bar
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),

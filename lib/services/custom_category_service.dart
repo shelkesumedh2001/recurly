@@ -6,9 +6,9 @@ import '../utils/constants.dart';
 
 /// Service for managing custom categories
 class CustomCategoryService {
+  factory CustomCategoryService() => _instance;
   CustomCategoryService._();
   static final CustomCategoryService _instance = CustomCategoryService._();
-  factory CustomCategoryService() => _instance;
 
   Box<CustomCategory>? _categoryBox;
   final _uuid = const Uuid();
@@ -23,8 +23,8 @@ class CustomCategoryService {
   /// Get all custom categories
   List<CustomCategory> getAllCustomCategories() {
     if (_categoryBox == null) return [];
-    final categories = _categoryBox!.values.toList();
-    categories.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    final categories = _categoryBox!.values.toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     return categories;
   }
 

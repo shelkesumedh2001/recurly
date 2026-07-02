@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../models/subscription.dart';
 import '../models/sync_status.dart';
 import 'database_service.dart';
+import 'sync_queue.dart';
 
 /// Service for syncing Hive data with Firestore
 class SyncService {
@@ -13,7 +14,14 @@ class SyncService {
   SyncService._internal();
   static final SyncService _instance = SyncService._internal();
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  /// Injectable for tests (fake_cloud_firestore); production always
+  /// resolves the default instance. A getter (not a field) so merely
+  /// constructing the singleton doesn't demand a live Firebase app.
+  @visibleForTesting
+  static FirebaseFirestore? debugFirestoreOverride;
+  FirebaseFirestore get _firestore =>
+      debugFirestoreOverride ?? FirebaseFirestore.instance;
+
   final DatabaseService _db = DatabaseService();
 
   StreamSubscription<QuerySnapshot>? _syncListener;
@@ -55,6 +63,11 @@ class SyncService {
     syncStatus.value = SyncStatus.syncing;
 
     try {
+      // Replay writes queued while offline BEFORE merging: a queued
+      // hard-delete must remove the remote doc first, or the merge below
+      // would see it as remote-only and resurrect it locally.
+      await drainPendingOps(uid);
+
       // Check if this is a first-time migration
       await _handleFirstSignIn(uid);
 
@@ -103,8 +116,9 @@ class SyncService {
           .collection('subscriptions');
 
       for (final sub in subs) {
-        sub.ownerUid = uid;
-        sub.updatedAt ??= DateTime.now();
+        sub
+          ..ownerUid = uid
+          ..updatedAt ??= DateTime.now();
         final json = sub.toJson();
         batch.set(collection.doc(sub.id), json);
         // Also update local with ownerUid
@@ -235,6 +249,13 @@ class SyncService {
         if (didWriteHive) {
           remoteDataChangeTicker.value++;
         }
+        // A server-confirmed (non-cache) snapshot means Firestore is
+        // reachable — replay any writes queued while offline. Runs after
+        // the docChanges above so last-write-wins has already reconciled
+        // local state with whatever the server just delivered.
+        if (!snapshot.metadata.isFromCache) {
+          unawaited(drainPendingOps(uid));
+        }
       },
       onError: (e) {
         debugPrint('Sync listener error: $e');
@@ -249,41 +270,106 @@ class SyncService {
   /// field that silently overwrote earlier listeners on re-assignment).
   final ValueNotifier<int> remoteDataChangeTicker = ValueNotifier(0);
 
-  /// Push a single subscription to Firestore
+  /// Push a single subscription to Firestore.
+  ///
+  /// On failure (usually offline) the push is queued in [SyncQueue] and
+  /// replayed by [drainPendingOps] once Firestore is reachable again.
   Future<void> pushSubscription(String uid, Subscription sub) async {
     try {
-      sub.ownerUid ??= uid;
-      final json = sub.toJson();
-      await _firestore
-          .collection('users')
-          .doc(uid)
-          .collection('subscriptions')
-          .doc(sub.id)
-          .set(json, SetOptions(merge: true))
-          .timeout(const Duration(seconds: 10));
+      await _pushToRemote(uid, sub);
       if (syncStatus.value == SyncStatus.offline) {
         syncStatus.value = SyncStatus.synced;
       }
+      // This write got through — flush anything still queued.
+      unawaited(drainPendingOps(uid));
     } catch (e) {
       debugPrint('Push subscription error: $e');
       _handleSyncError(e);
+      await SyncQueue().enqueuePush(uid, sub.id);
     }
   }
 
-  /// Delete a subscription from Firestore
+  Future<void> _pushToRemote(String uid, Subscription sub) async {
+    sub.ownerUid ??= uid;
+    final json = sub.toJson();
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('subscriptions')
+        .doc(sub.id)
+        .set(json, SetOptions(merge: true))
+        .timeout(const Duration(seconds: 10));
+  }
+
+  /// Delete a subscription from Firestore.
+  ///
+  /// On failure (usually offline) the delete is queued in [SyncQueue] and
+  /// replayed by [drainPendingOps] once Firestore is reachable again.
   Future<void> deleteRemoteSubscription(String uid, String subId) async {
     _markLocallyDeleted(subId);
     try {
-      await _firestore
-          .collection('users')
-          .doc(uid)
-          .collection('subscriptions')
-          .doc(subId)
-          .delete()
-          .timeout(const Duration(seconds: 10));
+      await _deleteFromRemote(uid, subId);
     } catch (e) {
       debugPrint('Delete remote subscription error: $e');
       _handleSyncError(e);
+      await SyncQueue().enqueueDelete(uid, subId);
+    }
+  }
+
+  Future<void> _deleteFromRemote(String uid, String subId) async {
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('subscriptions')
+        .doc(subId)
+        .delete()
+        .timeout(const Duration(seconds: 10));
+  }
+
+  bool _draining = false;
+
+  /// Replay queued offline writes (oldest first) for [uid].
+  ///
+  /// Push ops send the sub's *current* local state — if the local copy was
+  /// updated (or merged from remote) since the op was queued, the fresher
+  /// state is what gets pushed, so a replay can't clobber newer data with
+  /// stale data. A push op whose sub no longer exists locally is dropped
+  /// (a queued delete op has superseded it or the sub was purged).
+  ///
+  /// Stops at the first failure — the remaining ops stay queued for the
+  /// next drain trigger (startup, force sync, successful push, or the
+  /// first server-confirmed snapshot after reconnect).
+  Future<void> drainPendingOps(String uid) async {
+    final queue = SyncQueue();
+    if (_draining || queue.isEmpty) return;
+    _draining = true;
+    try {
+      await queue.purgeStale();
+      for (final op in queue.opsForUser(uid)) {
+        try {
+          if (op.op == SyncQueue.opDelete) {
+            // Re-mark: the original mark may have been evicted from the
+            // capped set while this op sat in the queue.
+            _markLocallyDeleted(op.subId);
+            await _deleteFromRemote(uid, op.subId);
+          } else {
+            final sub = _db.getSubscriptionById(op.subId);
+            if (sub != null) {
+              await _pushToRemote(uid, sub);
+            }
+          }
+          await queue.remove(op.subId);
+        } catch (e) {
+          debugPrint('Drain pending op failed (${op.op} ${op.subId}): $e');
+          _handleSyncError(e);
+          return;
+        }
+      }
+      if (syncStatus.value == SyncStatus.offline) {
+        syncStatus.value = SyncStatus.synced;
+      }
+    } finally {
+      _draining = false;
     }
   }
 
@@ -302,8 +388,8 @@ class SyncService {
 
   /// Initialize household sync — listen to partner's visible subscriptions
   Future<void> initializeHouseholdSync(
-      String uid, String householdId) async {
-    _householdListener?.cancel();
+      String uid, String householdId,) async {
+    await _householdListener?.cancel();
 
     try {
       // Get household to find partner uid
@@ -383,6 +469,7 @@ class SyncService {
   Future<void> forceSync(String uid) async {
     syncStatus.value = SyncStatus.syncing;
     try {
+      await drainPendingOps(uid);
       await _mergeRemoteData(uid);
       syncStatus.value = SyncStatus.synced;
     } catch (e) {

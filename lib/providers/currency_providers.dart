@@ -80,7 +80,7 @@ class DisplayCurrencyNotifier extends StateNotifier<String> {
 /// Exchange rates provider (async)
 final exchangeRatesProvider = FutureProvider<ExchangeRateCache?>((ref) async {
   final service = ref.read(currencyServiceProvider);
-  return await service.getRates();
+  return service.getRates();
 });
 
 /// Refresh exchange rates
@@ -102,6 +102,31 @@ final lastRatesUpdateProvider = Provider<DateTime?>((ref) {
 final ratesStaleProvider = Provider<bool>((ref) {
   final rates = ref.watch(exchangeRatesProvider);
   return rates.whenData((r) => r?.isStale ?? true).value ?? true;
+});
+
+/// True when at least one active sub's price can't actually be converted
+/// to the display currency (no cached rates yet, or the pair is missing).
+/// `convert()` silently passes the raw amount through in that case, so
+/// every "converted" total on screen is mixing currencies — surface it.
+final conversionUnavailableProvider = Provider<bool>((ref) {
+  final subscriptions = ref.watch(subscriptionProvider).value ?? [];
+  final displayCurrency = ref.watch(displayCurrencyProvider);
+  final rates = ref.watch(exchangeRatesProvider).value;
+  final service = ref.read(currencyServiceProvider);
+
+  return subscriptions.any(
+    (sub) =>
+        !sub.isArchived &&
+        sub.deletedAt == null &&
+        sub.currency != displayCurrency &&
+        service.convertOrNull(
+              amount: 1,
+              from: sub.currency,
+              to: displayCurrency,
+              rates: rates,
+            ) ==
+            null,
+  );
 });
 
 /// Convert total monthly spend to display currency

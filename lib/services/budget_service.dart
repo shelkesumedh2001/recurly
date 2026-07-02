@@ -4,9 +4,9 @@ import '../utils/constants.dart';
 
 /// Service for managing budget settings and calculations
 class BudgetService {
+  factory BudgetService() => _instance;
   BudgetService._();
   static final BudgetService _instance = BudgetService._();
-  factory BudgetService() => _instance;
 
   Box<BudgetSettings>? _budgetBox;
   static const String _settingsKey = 'budget_settings';

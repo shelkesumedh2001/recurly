@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -204,9 +205,15 @@ class ProfileScreen extends ConsumerWidget {
         }
       } catch (e) {
         if (context.mounted) {
+          final message =
+              e is FirebaseAuthException && e.code == 'requires-recent-login'
+                  ? (e.message ??
+                      'For security, sign in again and retry deleting your '
+                          'account.')
+                  : 'Failed to delete account: $e';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to delete account: $e'),
+              content: Text(message),
               behavior: SnackBarBehavior.floating,
             ),
           );

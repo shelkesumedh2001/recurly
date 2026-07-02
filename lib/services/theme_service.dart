@@ -6,9 +6,9 @@ import '../utils/constants.dart';
 
 /// Service for managing theme preferences and generating themes
 class ThemeService {
+  factory ThemeService() => _instance;
   ThemeService._();
   static final ThemeService _instance = ThemeService._();
-  factory ThemeService() => _instance;
 
   Box<ThemePreferences>? _themeBox;
   static const String _preferencesKey = 'theme_preferences';
