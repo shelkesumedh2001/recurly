@@ -2,6 +2,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/custom_category.dart';
 import '../models/enums.dart';
 import '../services/custom_category_service.dart';
+import 'subscription_providers.dart';
+
+/// Built-in categories sorted by how often the user actually uses them
+/// (most-used first, enum order as tiebreak). Derived from live subscription
+/// data — no stored counters needed.
+final categoriesByUsageProvider = Provider<List<SubscriptionCategory>>((ref) {
+  final subs = ref.watch(subscriptionProvider).value ?? [];
+  final counts = <SubscriptionCategory, int>{};
+  for (final sub in subs) {
+    counts[sub.category] = (counts[sub.category] ?? 0) + 1;
+  }
+  final sorted = List<SubscriptionCategory>.from(SubscriptionCategory.values)
+    ..sort((a, b) {
+      final byCount = (counts[b] ?? 0).compareTo(counts[a] ?? 0);
+      if (byCount != 0) return byCount;
+      return a.index.compareTo(b.index);
+    });
+  return sorted;
+});
 
 /// Custom category service singleton provider
 final customCategoryServiceProvider = Provider<CustomCategoryService>((ref) {

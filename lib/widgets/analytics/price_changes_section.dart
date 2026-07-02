@@ -147,7 +147,6 @@ class _PriceChangeCard extends StatelessWidget {
     final theme = Theme.of(context);
     final lastChange = subscription.lastPriceChange!;
     final oldPrice = (lastChange['price'] as num).toDouble();
-    final changeCurrency = lastChange['currency'] as String? ?? subscription.currency;
     final changeDate = DateTime.parse(lastChange['date'] as String);
     final changeAmount = subscription.price - oldPrice;
     final changePercent = subscription.lastPriceChangePercent;

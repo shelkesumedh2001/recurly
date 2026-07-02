@@ -8,6 +8,7 @@ import '../models/enums.dart';
 import '../models/exchange_rate.dart';
 import '../models/subscription.dart';
 import '../models/subscription_template.dart';
+import '../providers/category_providers.dart';
 import '../providers/currency_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../providers/template_providers.dart';
@@ -361,7 +362,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                     labelText: 'Category',
                     prefixIcon: Icon(Icons.category_outlined),
                   ),
-                  items: SubscriptionCategory.values.map((category) {
+                  items: ref.watch(categoriesByUsageProvider).map((category) {
                     return DropdownMenuItem(
                       value: category,
                       child: Row(

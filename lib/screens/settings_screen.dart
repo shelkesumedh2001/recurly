@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +16,7 @@ import '../providers/subscription_providers.dart';
 import '../providers/sync_providers.dart';
 import '../providers/theme_providers.dart';
 import '../services/database_service.dart';
+import '../utils/changelog.dart';
 import '../services/notification_service.dart';
 import '../services/sync_service.dart';
 import '../utils/constants.dart';
@@ -151,10 +154,15 @@ class SettingsScreen extends ConsumerWidget {
             title: 'Report a Bug',
             subtitle: 'Help us improve',
             onTap: () async {
+              // Pre-fill diagnostics so reports are actionable without a
+              // back-and-forth (app build, OS, sub count).
+              final diagnostics = 'App: Recurly $kAppBuild\n'
+                  'OS: Android ${Platform.operatingSystemVersion}\n'
+                  'Subscriptions: ${DatabaseService().getActiveSubscriptionCount()} active\n';
               final uri = Uri.parse(
                 'mailto:shelkesumedh2001@gmail.com'
-                '?subject=${Uri.encodeComponent('Recurly Bug Report (v${AppConstants.appVersion})')}'
-                '&body=${Uri.encodeComponent('Describe the bug:\n\n\nSteps to reproduce:\n1. \n2. \n3. \n\nExpected behavior:\n\n')}',
+                '?subject=${Uri.encodeComponent('Recurly Bug Report ($kAppBuild)')}'
+                '&body=${Uri.encodeComponent('Describe the bug:\n\n\nSteps to reproduce:\n1. \n2. \n3. \n\nExpected behavior:\n\n\n--- Diagnostics (please keep) ---\n$diagnostics')}',
               );
               try {
                 await launchUrl(uri);

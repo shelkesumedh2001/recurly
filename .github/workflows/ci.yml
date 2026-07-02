@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    name: Analyze & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.2'
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Analyze (fail on warnings+)
+        run: flutter analyze --no-fatal-infos lib/ test/
+
+      # widget_test.dart is excluded: its smoke test needs
+      # Firebase.initializeApp() and fails in CI by design (pre-existing).
+      - name: Run tests
+        run: |
+          flutter test $(find test -name '*.dart' ! -name 'widget_test.dart')
