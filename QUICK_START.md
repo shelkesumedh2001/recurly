@@ -1,243 +1,124 @@
 # Recurly - Quick Start Guide
 
-## 🚀 Get Running in 3 Steps
+> Recurly is live on the Google Play Store as of 2026-06-29 (v1.0.0+4). This guide is for running the app locally from source.
 
-### Step 1: Install Dependencies
+## Get Running in 3 Steps
+
+### 1. Install Dependencies
 ```bash
 flutter pub get
 ```
 
-### Step 2: Generate Code
+### 2. Generate Hive Adapters
 ```bash
 dart run build_runner build --delete-conflicting-outputs
 ```
 
-### Step 3: Run the App
+### 3. Run the App
 ```bash
 flutter run
 ```
 
----
-
-## 📁 What Was Built
-
-### Core Files Created (Ready to Use)
-
-#### 🎯 Entry Point
-- `lib/main.dart` - App initialization with Material You theming
-
-#### 📊 Data Models
-- `lib/models/subscription.dart` - Main subscription model with calculated properties
-- `lib/models/enums.dart` - Billing cycles and categories
-- `lib/utils/constants.dart` - App-wide constants and spacing
-
-#### 🗄️ Database
-- `lib/services/database_service.dart` - Complete CRUD operations with Hive
-
-#### 🎨 UI Screens
-- `lib/screens/home_screen.dart` - Main screen with hero section and list
-- `lib/widgets/subscription_card.dart` - Beautiful Material 3 cards
-- `lib/widgets/add_subscription_sheet.dart` - Bottom sheet with validation
-
-#### 🔄 State Management
-- `lib/providers/subscription_providers.dart` - Riverpod providers for all state
-
-#### 🎨 Theme
-- `lib/theme/app_theme.dart` - Material You dynamic theming
-
-#### 🛠️ Utilities
-- `lib/utils/extensions.dart` - Helpful extensions for DateTime, BuildContext, etc.
-
-#### ⚙️ Configuration
-- `pubspec.yaml` - All dependencies configured
-- `analysis_options.yaml` - Strict linting rules
-- `.gitignore` - Proper exclusions
+For deeper setup (prerequisites, Firebase config, release builds), see [`SETUP_GUIDE.md`](SETUP_GUIDE.md).
 
 ---
 
-## ✅ Features Implemented
+## What the App Does
 
-### User Can:
-- ✅ Add new subscription with name, price, billing cycle, category, date
-- ✅ View all subscriptions in a beautiful Material You list
-- ✅ See total monthly spending in hero section
-- ✅ See days until next renewal with color-coded urgency
-- ✅ Sort by date, price, or name
-- ✅ Experience smooth animations and transitions
-- ✅ Use app offline (Hive local database)
+Recurly is an offline-first subscription tracker with optional cloud sync and household sharing. The full feature list lives in [`README.md`](README.md); for architecture and data-model detail see [`PROJECT_STATE.md`](PROJECT_STATE.md).
 
-### Form Validation:
-- ✅ Required fields (name, price)
-- ✅ Minimum length validation
-- ✅ Numeric validation for price
-- ✅ Range validation (price > 0, < 10000)
-- ✅ Clear error messages
-
-### Design:
-- ✅ Material You dynamic colors (adapts to wallpaper on Android 12+)
-- ✅ Light and dark theme support
-- ✅ Material 3 typography scale
-- ✅ 8dp grid system
-- ✅ Proper elevation and surface tints
-- ✅ Empty state UI
+Headline capabilities:
+- Add/edit/archive subscriptions; Recently Deleted with 30-day grace
+- Monthly + yearly totals with multi-currency conversion (20 currencies)
+- Renewal notifications (1/3/7 days) + trial-end reminders
+- Budget gauge, category pie, renewal calendar heatmap, cancel simulator
+- Optional Google Sign-In with bidirectional Firestore sync
+- Household sharing with one partner + per-subscription splitting
+- Android home-screen widget
+- CSV / PDF export
 
 ---
 
-## 🎨 Design Highlights
+## Local Project Layout
 
-### Color Coding
-- **Red** → Renews in < 7 days (urgent)
-- **Yellow** → Renews in 7-14 days (warning)
-- **Blue/Dynamic** → Renews in > 14 days (normal)
+```
+lib/
+├── models/          # Hive @HiveType models (Subscription, AppPreferences, Budget, …)
+├── providers/       # Riverpod state (subscription, sync, household, split, currency, …)
+├── screens/         # Full-page UIs
+├── widgets/         # Reusable components
+│   └── analytics/   # Chart widgets used in the Analytics tab
+├── services/        # Database, sync, notifications, currency, household, split, export
+├── theme/           # Theme presets + dynamic color setup
+└── utils/           # billing_cycle, schema, email_validator, constants
+```
 
-### Typography
-- **57sp Bold** → Monthly total amount (Display Large)
-- **28sp SemiBold** → Screen titles (Headline Medium)
-- **22sp Medium** → Subscription names (Title Large)
-- **16sp Regular** → Body text (Body Large)
-
-### Spacing
-- Screen margins: 24dp
-- Card padding: 16dp
-- Card separation: 8dp
-- Section separation: 24dp
+For the Hive field allocation table (HiveField 0 through 22), see `PROJECT_STATE.md`.
 
 ---
 
-## 📱 Test the App
-
-### 1. Add a Subscription
-1. Tap the "Add Subscription" button (bottom right)
-2. Enter: Name = "Netflix", Price = "15.99"
-3. Select: Billing = "Monthly", Category = "Entertainment"
-4. Pick a first bill date
-5. Tap "SAVE"
-
-### 2. Verify It Works
-- Check subscription appears in list
-- Check monthly total updates to $15.99
-- Check renewal countdown shows correctly
-
-### 3. Test Sorting
-- Tap sort icon (top right)
-- Try "Sort by Name", "Sort by Price", "Sort by Date"
-
-### 4. Test Validation
-- Try submitting empty form → Should show errors
-- Try negative price → Should show error
-- Try very high price (10000) → Should show error
-
----
-
-## 🔧 Common Commands
+## Common Commands
 
 ```bash
-# Install dependencies
-flutter pub get
-
-# Generate Hive adapters
-dart run build_runner build --delete-conflicting-outputs
-
-# Run app
+# Run debug build on connected device
 flutter run
 
-# Run in release mode
+# Run release build (closer to production, no hot reload)
 flutter run --release
 
-# Check for issues
+# Regenerate Hive adapters after editing a @HiveType model
+dart run build_runner build --delete-conflicting-outputs
+
+# Watch and regenerate on save during development
+dart run build_runner watch --delete-conflicting-outputs
+
+# Static analysis
 flutter analyze
 
-# Clean build
+# Tests (Flutter test runner)
+flutter test
+
+# Clean build artifacts
 flutter clean
 
-# Run tests (when you add them)
-flutter test
+# Build the Play Store AAB
+flutter build appbundle --release --no-tree-shake-icons
 ```
 
----
-
-## 📂 Project Structure
-
-```
-recurly/
-├── lib/
-│   ├── models/              ← Data models
-│   ├── providers/           ← State management
-│   ├── screens/             ← Full-page UIs
-│   ├── widgets/             ← Reusable components
-│   ├── services/            ← Business logic
-│   ├── theme/               ← Theming
-│   ├── utils/               ← Helpers
-│   └── main.dart            ← Entry point
-│
-├── pubspec.yaml             ← Dependencies
-├── analysis_options.yaml    ← Linting rules
-├── README.md                ← Project overview
-├── SETUP_GUIDE.md           ← Detailed setup instructions
-├── PROJECT_SPECIFICATION.md ← Complete spec (improved)
-└── QUICK_START.md           ← This file!
-```
+The `--no-tree-shake-icons` flag is required because `category_management_screen` and `icon_picker_sheet` resolve `IconData` at runtime via the custom-category system.
 
 ---
 
-## 🐛 Troubleshooting
+## Verifying Your Build Locally
 
-### "Cannot find the generated adapter"
-→ Run: `dart run build_runner build --delete-conflicting-outputs`
+After `flutter run` starts, a quick smoke pass:
 
-### "Package not found"
-→ Run: `flutter pub get`
+1. **Add a subscription** → confirm it appears, monthly total updates, renewal countdown is correct
+2. **Tap a card** → details sheet opens with Edit / Delete / Archive / Close
+3. **Swipe right** → edit sheet; **swipe left** → moves to Recently Deleted with an undo toast
+4. **Analytics tab** → pie chart, projected spend, category drill-down all render
+5. **Settings → Notifications** → renewal reminders + trial-end reminders configurable
+6. **Settings → Sign In** (optional) → Google Sign-In + Firestore sync
 
-### "Material You colors not working"
-→ You need Android 12+ device/emulator. App falls back to default colors on older versions.
-
-### Hot reload not working after model changes
-→ Stop app, run build_runner, restart app (hot reload doesn't work for generated files)
-
----
-
-## 🎯 Next Steps (Your Choice!)
-
-### Option 1: Add More Features
-- Subscription details screen (tap on card to view/edit)
-- Delete/archive functionality
-- Search and filter
-- Custom categories
-
-### Option 2: Add Notifications
-- Local notifications for renewals
-- Notification settings
-- Custom reminder times
-
-### Option 3: Add Analytics
-- Spending trends chart (fl_chart)
-- Category breakdown
-- Year-over-year comparison
-
-### Option 4: Add Sharing
-- Firebase Authentication
-- Cloud sync
-- Share with family members
+For cloud sync to work you need a Firebase project with `google-services.json` in `android/app/`. See `SETUP_GUIDE.md` → "Firebase Setup" for the full procedure.
 
 ---
 
-## 📚 Learn More
+## Troubleshooting
 
-- **Full Setup Guide**: See `SETUP_GUIDE.md`
-- **Project Spec**: See `PROJECT_SPECIFICATION.md`
-- **Flutter Docs**: https://docs.flutter.dev
-- **Material 3**: https://m3.material.io
+| Symptom | Fix |
+|---|---|
+| "Cannot find the generated adapter" | `dart run build_runner build --delete-conflicting-outputs` |
+| Build runner errors | `flutter clean && flutter pub get && dart run build_runner build --delete-conflicting-outputs` |
+| Hot reload not picking up model change | Restart the app — hot reload doesn't refresh generated adapters |
+| Google Sign-In returns `code 10 / DEVELOPER_ERROR` | Your debug-key SHA-1 isn't in Firebase. Add it under the `com.sumedh.recurly` Android app in Firebase Console and re-download `google-services.json`. |
+| `dart:ui` / Flutter SDK mismatch | App is on Flutter 3.41.2 / Dart 3.11.0 — match those |
 
 ---
 
-## 🎉 You're Ready!
+## Next Steps
 
-The app is **production-ready** for Phase 1 features:
-- ✅ Clean architecture
-- ✅ Type-safe with null safety
-- ✅ Offline-first
-- ✅ Beautiful Material You design
-- ✅ Well-documented code
-- ✅ Extensible structure
-
-**Happy coding!** 🚀
+- For internal architectural detail and outstanding work: `PROJECT_STATE.md` and `DEV_STATUS.md`
+- For the full setup procedure (prerequisites, Firebase, release signing): `SETUP_GUIDE.md`
+- Public-facing overview: `README.md`
+- License: `LICENSE` (CC BY-NC 4.0 — personal and non-commercial use)
