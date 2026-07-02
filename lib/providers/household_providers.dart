@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -78,7 +79,7 @@ final householdCleanupProvider = Provider<void>((ref) {
         } else if (sub.splitWith != null && sub.splitWith!.isNotEmpty) {
           // Own sub with split — clear splitWith
           db.updateSubscription(
-            sub.copyWith(clearSplitWith: true, updatedAt: DateTime.now()),
+            sub.copyWith(clearSplitWith: true, updatedAt: clock.now()),
           );
         }
       }

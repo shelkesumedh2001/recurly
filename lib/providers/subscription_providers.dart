@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../models/subscription.dart';
 import '../models/sync_status.dart';
 import '../services/database_service.dart';
@@ -88,7 +90,7 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
   /// Add a new subscription
   Future<void> addSubscription(Subscription subscription) async {
     try {
-      subscription.updatedAt = DateTime.now();
+      subscription.updatedAt = clock.now();
       await _databaseService.addSubscription(subscription);
       await loadSubscriptions();
       _syncPush(subscription);
@@ -107,7 +109,7 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
   /// Update an existing subscription
   Future<void> updateSubscription(Subscription subscription) async {
     try {
-      subscription.updatedAt = DateTime.now();
+      subscription.updatedAt = clock.now();
       await _databaseService.updateSubscription(subscription);
       await loadSubscriptions();
       _syncPush(subscription);
@@ -146,7 +148,7 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
       // the remote listener's last-write-wins on next sync tick.
       final updated = _databaseService.getSubscriptionById(id);
       if (updated != null) {
-        updated.updatedAt = DateTime.now();
+        updated.updatedAt = clock.now();
         await _databaseService.updateSubscription(updated);
         _syncPush(updated);
       }
@@ -162,7 +164,7 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
       await _databaseService.unarchiveSubscription(id);
       final updated = _databaseService.getSubscriptionById(id);
       if (updated != null) {
-        updated.updatedAt = DateTime.now();
+        updated.updatedAt = clock.now();
         await _databaseService.updateSubscription(updated);
         _syncPush(updated);
         // Reschedule renewal notifications now that it's active again
@@ -338,8 +340,8 @@ final spendViewModeProvider = StateProvider<SpendViewMode>((ref) {
 /// Provider for partner subscriptions (from household sync) — reactive via stream
 final partnerSubscriptionsProvider = StreamProvider<List<Subscription>>((ref) {
   final syncService = ref.watch(syncServiceProvider);
-  final controller = StreamController<List<Subscription>>();
-  controller.add(syncService.partnerSubscriptions.value);
+  final controller = StreamController<List<Subscription>>()
+    ..add(syncService.partnerSubscriptions.value);
   void listener() {
     if (!controller.isClosed) {
       controller.add(syncService.partnerSubscriptions.value);

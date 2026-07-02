@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/app_preferences.dart';
+import '../providers/credit_card_providers.dart';
 import '../providers/preferences_providers.dart';
 import '../providers/subscription_providers.dart';
 
@@ -494,7 +495,11 @@ class NotificationSettingsScreen extends ConsumerWidget {
       final notificationService = ref.read(notificationServiceProvider);
 
       if (preferences.notificationsEnabled) {
-        await notificationService.rescheduleAllNotifications(subscriptions, preferences);
+        await notificationService.rescheduleAllNotifications(
+          subscriptions,
+          preferences,
+          cards: ref.read(creditCardsProvider),
+        );
       } else {
         await notificationService.cancelAllNotifications();
       }

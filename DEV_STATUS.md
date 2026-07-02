@@ -16,16 +16,133 @@ next app launch (startup `rescheduleAllNotifications` corrects it);
 (b) offline deletes reach remote only at next merge (no offline write queue).
 
 **To do, in order:**
-1. Run the ⏳ manual on-device test checklist below (gate for merging).
+1. ~~Run the manual on-device test checklist below~~ ✅ original 9 cases all
+   passed 2026-07-02 — merge gate for the 3 existing commits cleared. The 5
+   new **S1** cases are deferred; run them before shipping the S1 commit.
 2. Merge/push branch → CI (`.github/workflows/ci.yml`) runs first time.
 3. Bigger backlog items (from Minus comparison, see table in section below):
-   - **S1** Offline sync write-queue (fixes known gap (b); Hive box of
-     pending push/delete ops, drained on reconnect/startup)
-   - **#3** Credit-card due-date tracking (new feature)
+   - ~~**S1** Offline sync write-queue~~ ✅ DONE 2026-07-02 (see session
+     log below) — closes known gap (b); still needs the S1 on-device tests
+   - ~~**#3** Credit-card due-date tracking~~ ✅ DONE 2026-07-02 (see
+     session log below)
    - **#6** Budget rollover / daily-budget readout
-   - **#7** Flutter golden tests — do BEFORE R8/Task 12
+   - ~~**#7** Flutter golden tests~~ ✅ DONE 2026-07-02 (see session log
+     below) — R8/Task 12 is now unblocked
 4. Release prep for v1.0.0+5: bump pubspec `version:` AND `kAppBuild` in
    `lib/utils/changelog.dart` (+ its `kChangelog` entry — a test enforces).
+
+---
+
+## S1 Offline Write-Queue Session (2026-07-02, uncommitted)
+
+Closes known gap (b): offline writes now persist and replay instead of only
+reaching remote at the next full merge.
+
+| Piece | What |
+|---|---|
+| `lib/services/sync_queue.dart` | Hive `sync_queue` box of pending ops. Keyed by sub id → ops coalesce (latest wins). uid-tagged so an account switch can't replay into the wrong collection. 500-op cap (oldest evicted), 30-day stale purge. Push ops carry no payload — current local sub is read at drain time, so replays can't push stale data. |
+| `SyncService` | `pushSubscription`/`deleteRemoteSubscription` enqueue on failure. `drainPendingOps(uid)` replays oldest-first, stops at first failure. Triggers: `initialize()` and `forceSync` (**before** merge — a queued hard-delete must hit remote first or merge resurrects the sub locally), first server-confirmed snapshot after reconnect, after any successful push. |
+| `constants.dart` / `database_service.dart` | `syncQueueBox` opened at init. Plain maps — no new TypeAdapter, no schema bump. |
+| `test/sync_queue_test.dart` | 9 tests: coalescing both directions, per-uid isolation, ordering, stale purge, cap eviction, persistence across reopen. |
+| `analysis_base.yaml` | Workaround: Dart 3.11 silently drops `analyzer.exclude` when it shares a file with a `package:` include, so the exclude for the untracked `backup_ui_v1/` snapshot lives in this intermediate local include. |
+
+Verified: analyze 0 errors/warnings (84 pre-existing infos, same as main);
+CI-style test run 81/81 pass. S1 manual cases added to the ⏳ checklist below.
+
+---
+
+## #7 Golden Tests Session (2026-07-02, uncommitted)
+
+UI-regression safety net, done ahead of R8/Task 12 as planned.
+
+| Piece | What |
+|---|---|
+| `test/goldens_test.dart` | 3 goldens in `test/goldens/`: SubscriptionCard states (normal/warning/urgent renewal, active trial, partner read-only) in light AND dark, + leaf widgets (BudgetProgressBar safe/warning/exceeded, TrialBadge active/urgent/expired/compact, ThemePreviewCard). Regenerate after intentional UI changes: `flutter test test/goldens_test.dart --update-goldens`. |
+| Determinism | `Subscription` model now reads `clock.now()` (package:clock, added as direct dep) instead of `DateTime.now()` — identical in production, pinned in goldens via `withClock(Clock.fixed(2026-07-15))` so date-derived UI (countdowns, "Next:" labels, trial badges) never rots. |
+| Firebase in tests | `setupFirebaseCoreMocks()` (firebase_core_platform_interface, now an explicit dev dep) satisfies SubscriptionCard's provider chain (SubscriptionNotifier → SyncService → FirebaseFirestore.instance) without real Firebase. |
+| `test/flutter_test_config.dart` | Shared test bootstrap: loads FontManifest fonts (MaterialIcons) so golden icons render real glyphs; text stays deterministic Ahem. |
+| CI | Test glob tightened to `*_test.dart` so the bootstrap file isn't loaded as a test. Goldens rendered on Linux == CI's ubuntu runner. |
+
+Verified: analyze 0 errors/warnings (84 baseline infos); 84/84 tests pass
+CI-style (81 prior + 3 goldens). Goldens visually inspected — urgency
+colors, trial/partner badges, budget-bar states all render correctly.
+
+---
+
+## P1+P2 Audit-Fix Session (2026-07-02, uncommitted)
+
+All remaining audit items done in one pass (deferred: major dep bumps, big-file splits, JSON import — see notes).
+
+**P1:**
+| Item | What |
+|---|---|
+| Household/split hardening | Every Firestore op in `household_service` + `split_service` wrapped in `_timed()` (10s cap, same policy as SyncService). `createHousehold` = one atomic batch (3 self-authorized writes). `cleanupOwnSplitData` = chunked batches. Rule-ordering-sensitive sequences (disband) untouched. |
+| Notification look-ahead | Renewal + card-due reminders now schedule **3 future cycles** (`lookAheadCycles`), not just the next one — reminders no longer die if the app isn't opened for a while. Ids get a `#occurrence` discriminator (occurrence 0 keeps legacy shape); cancel loops cover all. |
+| Sync tests (fake_cloud_firestore) | New dev dep + test seams: `SyncService.debugFirestoreOverride` (getter — constructing the singleton no longer touches Firebase), `DatabaseService.registerAdapters()` + `debugSetSubscriptionsBox`, `SyncQueue.debugSetInstance`. **11 new tests** in `sync_service_firestore_test.dart`: merge LWW both ways, soft-delete propagation, 30-day tombstone purge (remote+local), S1 drain (delete/push/ghost/uid-isolation), and drain-before-merge resurrection prevention. |
+| Smoke test fixed | `widget_test.dart` boots the real RecurlyApp against mocked Firebase core, FakeFirestore, temp-Hive services, and an overridden signed-out auth stream. **CI now runs the FULL suite** (exclusion removed from ci.yml). |
+| **R8/ProGuard (Task 12) ✅** | `minifyEnabled` + `shrinkResources` + `proguard-rules.pro` (keeps: flutter_local_notifications/Gson reflection, home_widget receiver; dontwarn gms.auth/play-core). Release AAB builds clean (52.8MB — size is AOT-snapshot-dominated; win is dead code + obfuscation). Runtime smoke = checklist item. |
+
+**P2:**
+| Item | What |
+|---|---|
+| Notification tap-nav | TODO resolved: `NotificationService.tappedPayload` (works for warm tap + cold start via `getNotificationAppLaunchDetails`); MainNavigation routes card payloads → Credit Cards screen, sub payloads → Home tab. |
+| Heatmap currency | Calendar heatmap converts per-sub to display currency before intensity bucketing. |
+| Context lints | household_screen: dialog callbacks used the popped dialog's context for snackbars → now use the screen's context; `_refreshInviteCode` guards on `context.mounted`. |
+| clock.now() sweep | All remaining `DateTime.now()` in providers/screens/widgets → `clock.now()` (27 sites, 7 files). |
+| A11y | Tooltips added to all icon-only IconButtons (back arrows, edit/delete category, password visibility, clear budget, dismiss alert). |
+| Lint burn-down | **`flutter analyze`: 0 issues** (was 82+). `dart fix --apply` (89 fixes) + manual cascades/unawaited/setter-lint resolutions. |
+| Dep refresh | `flutter pub upgrade` (minors/patches only). |
+
+**Deliberately deferred:** major version bumps (firebase 4.x/cloud_firestore 6.x/riverpod 3.x/fl_chart 1.x — each needs its own migration+device pass), splitting the 4 oversized files (mechanical churn, regression risk pre-release), JSON import/Task A1 (needs a new file-picker native plugin → its own feature).
+
+Verified: analyze **0 issues**, **121/121 tests** (incl. goldens unchanged + smoke test), release AAB builds with R8. 6 new manual cases appended to the checklist.
+
+---
+
+## P0 Audit-Fix Session (2026-07-02, uncommitted)
+
+Full-app audit (see session transcript) surfaced 3 P0 issues; all fixed.
+
+| Fix | What |
+|---|---|
+| **Account deletion (auth_service)** | Was broken for household creators: deleted the household doc BEFORE clearing members' `householdId`, so the `isHouseholdMember` rule (which reads that doc) denied the member updates and the method died mid-wipe (subs gone, profile+Auth account left). Now: (1) `_ensureRecentLogin` FIRST — silent Google reauth, or a clean `requires-recent-login` abort before anything is wiped (fixes the other failure mode: `user.delete()` rejecting stale sessions after data loss); (2) household teardown reuses `HouseholdService.disband/leaveHousehold` (proven member-first order + split/reference-sub cleanup the old inline copy skipped entirely); (3) batched sub deletes; (4) Google session cleared after deletion. Also deleted auth_service's local `FirebaseAuthException` shadow class (footgun) — real firebase_auth class used everywhere; auth_screen's string-matching unaffected. profile_screen maps `requires-recent-login` to a friendly message. |
+| **Calendar custom cycles (renewal_calendar)** | `_getNextRenewal` projected custom-cycle subs as "+1 month", ignoring `customDays`. Replaced with new model method `Subscription.upcomingRenewals(end)` (chains `addOneCycle`). `addOneCycle` now guards non-positive `customDays` → 30 (a zero step would hang projection loops). Calendar golden passed UNCHANGED → monthly behavior identical. Note: chained month-adds have sticky clamping (Jan 31 → Feb 28 → Mar 28) — pre-existing `nextBillDate` semantics, documented in tests, anniversary-day drift left as backlog observation. |
+| **Silent mixed-currency totals** | `convert()` falls back to the raw amount when rates are missing. New `conversionUnavailableProvider` (uses existing `convertOrNull`) → warning row under the home hero total + banner on analytics: "Exchange rates unavailable — totals mix currencies". |
+
+Tests: +5 (custom-cycle projection every-14-days, monthly clamp chain, empty projection, non-positive customDays guard ×2). **109/109 pass**, analyze 0 errors/warnings. 4 new manual device cases added to checklist (creator account deletion is the critical one).
+
+---
+
+## #3 Credit-Card Due-Date Tracking Session (2026-07-02, uncommitted)
+
+Multi-card tracking with per-statement totals and payment-due reminders
+(scope confirmed with user: multi-card + assignment, reminders reuse the
+existing notification system).
+
+| Piece | What |
+|---|---|
+| `lib/models/credit_card.dart` | `CreditCardInfo` (HiveType **9**): name, statement `cutoffDay`, payment `dueDay`, optional color. Date getters use `clock.now()` (test-pinnable). Cards are **local-only, not synced**. |
+| `lib/utils/card_dates.dart` | Pure next/previous day-of-month occurrence math; days past a short month clamp to its last day (31 → Feb 28/29, Apr 30…). |
+| `Subscription.cardId` | HiveField **23**, additive (no migration bump), included in toJson/fromJson so it **syncs**; a device without that card id just shows nothing. |
+| `CreditCardService` + providers | CRUD singleton (box `credit_cards`, adapter registered in DatabaseService, init in main.dart). Deleting a card clears `cardId` from affected subs (+updatedAt bump so it syncs). `cardStatementSubsProvider`/`cardStatementTotalProvider`: renewals landing in the current statement window (prev cutoff, next cutoff], converted to display currency. |
+| UI | Settings → **Credit Cards** screen (list, add/edit sheet with day dropdowns, delete-with-confirm via `showAppToast`); each card shows statement-close date, payment-due date, and "N renewals this statement · $X". Add/edit sub sheet gets a "Payment card" dropdown (only when cards exist). Sub details sheet shows "Card: <name> · payment due <date>". |
+| Notifications | `scheduleCardDueNotifications` — payment-due reminders gated by the existing 3-day/1-day/on-day toggles + notification time; id space `card:<id><offset>`. Scheduled on card add/update, cancelled on delete, included in startup + settings-screen `rescheduleAllNotifications` (new `cards:` param). |
+| Tests | `test/card_dates_test.dart`: 14 cases — clamping (Feb leap/non-leap, 30-day months), year wrap, strict-after/on-or-before semantics, statement-window membership under a pinned clock. |
+
+Also: removed two lints deleted in Dart 3 (`invariant_booleans`,
+`prefer_equal_for_default_values`) from analysis_options.yaml — they began
+warning once the include-chain fix made options parsing strict.
+
+**Follow-up pass (same day, user feedback):**
+- **Renewal calendar** (analytics) now shows card payment-due dates: tertiary-color dot on due days (+"Card due" legend entry), and selecting a due day lists "<card> payment due" tiles above renewals. Projection via new pure `occurrencesInRange` (month-clamped) over ±1 year.
+- **Renewal reminders** now append " · Paid with <card>" when the sub is assigned to a tracked card. Suffix stays fresh: editing a sub reschedules its reminders (already did); card rename/delete now also reschedules assigned subs' reminders.
+- **Statement due-date correctness**: new `currentStatementDueDate` getter — the accumulating statement's own due date (first dueDay AFTER the next cutoff), distinct from `nextDueDate` (imminent payment of the closed statement, the reminder target). Card tile now reads "N renewals this statement · $X — due <currentStatementDueDate>".
+- 6 more tests (same-month due day, pre-cutoff window, calendar projection incl. Feb clamping).
+- **Calendar layout regression fixed**: the first due-marker implementation swapped the day cell's `Center` for a shrink-wrapping `Stack`, collapsing the heatmap highlights to tiny boxes (user-reported). Now `Stack[Center(number), Align(bottomCenter, dot)]` keeps the cell full-size. Calendar switched to `clock.now()` and covered by a new golden (`renewal_calendar_light.png`) using stub notifier overrides, so this can't silently regress again.
+
+Verified: analyze 0 errors/warnings; **104/104 tests pass** CI-style. Goldens
+unchanged. Release note for v1.0.0+5 changelog: "Track credit-card
+statement and payment due dates; assign subscriptions to cards".
 
 ---
 
@@ -67,18 +184,39 @@ delete/sync path. On branch `fix/spend-accuracy-and-soft-delete-sync`
 - `flutter test`: **67/67 pass** (added `soft_delete_test.dart`, `money_test.dart`, +2 in `sync_service_listener_test.dart`).
 - Pre-existing `widget_test.dart` "App smoke test" still fails (needs `Firebase.initializeApp()`) — unrelated, present before this session.
 
-### ⏳ PENDING — manual on-device tests (not yet run)
-The Firestore/notification/multi-device behavior can't be unit-tested. Run these before merging:
+### Manual on-device tests
+Firestore/notification/multi-device behavior can't be unit-tested.
 
-- [ ] **#1 Currency** — Add subs in 2 currencies (e.g. Netflix ₹649, Spotify $9.99) + a budget. Budget used/remaining and all analytics should match the home hero total (all converted). No raw mixed sums.
-- [ ] **#2 Cross-device delete** (2 devices, same account) — Device A swipe-deletes → lands in A's Recently Deleted; Device B removes from active **and** shows it in B's Recently Deleted (not lost).
-- [ ] **#2 Restore** — A restores → active again on **both** devices.
-- [ ] **#2 No resurrection** — deleted sub stays deleted after re-sync/relaunch; doesn't return as active.
-- [ ] **#2 Permanent delete** — "Delete Forever" → gone from both devices, no return.
-- [ ] **#2 Household** — deleting a sub drops it from the partner's Household Total view.
-- [ ] **#3 Notifications** — sub with reminder due tomorrow, swipe-delete → no reminder fires; restore → reminder rescheduled.
-- [ ] **#5 Money** — 50% split on $9.99 shows My Share $5.00 (not 4.995); budget set to exactly current spend doesn't read "over budget".
-- [ ] **N1 Purge** (optional) — delete a sub, set device clock +31 days, relaunch → gone from Recently Deleted.
+**Original fix-session cases — ✅ ALL TESTED 2026-07-02 (merge gate for the 3 existing commits cleared):**
+
+- [x] **#1 Currency** — Add subs in 2 currencies (e.g. Netflix ₹649, Spotify $9.99) + a budget. Budget used/remaining and all analytics should match the home hero total (all converted). No raw mixed sums.
+- [x] **#2 Cross-device delete** (2 devices, same account) — Device A swipe-deletes → lands in A's Recently Deleted; Device B removes from active **and** shows it in B's Recently Deleted (not lost).
+- [x] **#2 Restore** — A restores → active again on **both** devices.
+- [x] **#2 No resurrection** — deleted sub stays deleted after re-sync/relaunch; doesn't return as active.
+- [x] **#2 Permanent delete** — "Delete Forever" → gone from both devices, no return.
+- [x] **#2 Household** — deleting a sub drops it from the partner's Household Total view.
+- [x] **#3 Notifications** — sub with reminder due tomorrow, swipe-delete → no reminder fires; restore → reminder rescheduled.
+- [x] **#5 Money** — 50% split on $9.99 shows My Share $5.00 (not 4.995); budget set to exactly current spend doesn't read "over budget".
+- [x] **N1 Purge** — delete a sub, set device clock +31 days, relaunch → gone from Recently Deleted.
+
+**⏳ S1 offline write-queue cases — deferred, run before shipping the S1 commit:**
+
+- [ ] **S1 Offline delete** — airplane mode on A → swipe-delete a sub → reconnect (stay in app) → sub leaves B's active list without a force sync.
+- [ ] **S1 Offline delete-forever + restart** — airplane mode on A → "Delete Forever" → kill app → reconnect → relaunch → sub is gone remotely and does NOT resurrect on A (drain runs before merge).
+- [ ] **S1 Offline add/edit** — airplane mode on A → add a sub and edit another → reconnect → both appear/update on B.
+- [ ] **S1 Coalescing** — airplane mode on A → soft-delete then "Delete Forever" the same sub → reconnect → gone from both devices, not soft-deleted remotely.
+- [ ] **S1 Sync status** — while offline, sync indicator shows offline after a queued write; after reconnect+drain it returns to synced.
+- [ ] **#3 Card CRUD** — Settings → Credit Cards → add a card (cutoff 15, due 5) → assign a sub renewing before the cutoff → card shows "1 renewal this statement" with converted total; delete card → sub loses assignment, no crash.
+- [ ] **#3 Card reminder** — card with due day = tomorrow → "payment due tomorrow" notification scheduled (check via Settings → Notifications debug list); delete card → notification gone.
+- [ ] **P0 Account deletion (creator)** — 2 devices in a household, creator deletes account → no error; partner's device drops the household (self-heals); creator's Auth account + Firestore data fully gone (check Firebase Console).
+- [ ] **P0 Account deletion (stale session)** — sign in, wait >5 min, delete account → Google users get silent reauth and deletion succeeds; nothing half-deleted.
+- [ ] **P0 Rates warning** — fresh install, airplane mode, add subs in 2 currencies → hero + analytics show "Exchange rates unavailable" warning; goes away once rates fetch.
+- [ ] **P0 Custom-cycle calendar** — add a 14-day custom sub → analytics calendar shows dots every 14 days (not monthly).
+- [ ] **P1 R8 release smoke** — install the minified release build (Play Internal track or `flutter install --release`) → app opens, sign-in works, notifications schedule (check debug list), sync works, no crash on any tab. THE critical R8 test — obfuscation bugs only appear in release builds.
+- [ ] **P1 Notification look-ahead** — sub renewing tomorrow → Settings → Notifications debug list shows reminders for ~3 future cycles, not just one.
+- [ ] **P1 Notification tap** — tap a renewal reminder → app opens on Home; tap a card-due reminder → Credit Cards screen opens. Test once from a killed app (cold start).
+- [ ] **P2 Household timeout UX** — airplane mode → try creating/joining a household → clean error within ~10s, no infinite spinner.
+- [ ] **P2 Calendar heatmap currency** — ₹649 sub + USD display currency → its calendar cell intensity reflects the converted amount (light), not max-red.
 
 ---
 
@@ -115,7 +253,7 @@ Recurly went live on the Play Store Production track as **v1.0.0+4** (`com.sumed
 | Code committed and pushed to GitHub | ✅ (`b96d85e`) |
 | Keystore backed up off-machine | ✅ |
 | v1.0.0+5 — UI bugs (user-queued) | ⏳ Next session |
-| Task 12 — R8/ProGuard minification | ⏳ Beta has exited, now due |
+| Task 12 — R8/ProGuard minification | ✅ Done 2026-07-02 (uncommitted) — runtime smoke on device checklist |
 | Task A1 — JSON export/import | ⏳ Backlog (P2) |
 | Phase 6 — Monetization (RevenueCat) | ⏳ When user base established |
 | Rename "Partner" in household | ⏳ Polish item |

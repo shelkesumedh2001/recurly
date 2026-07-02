@@ -5,9 +5,11 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'providers/theme_providers.dart';
 import 'screens/main_navigation.dart';
 import 'services/auth_service.dart';
 import 'services/budget_service.dart';
+import 'services/credit_card_service.dart';
 import 'services/currency_service.dart';
 import 'services/custom_category_service.dart';
 import 'services/database_service.dart';
@@ -16,7 +18,6 @@ import 'services/notification_service.dart';
 import 'services/preferences_service.dart';
 import 'services/sync_service.dart';
 import 'services/theme_service.dart';
-import 'providers/theme_providers.dart';
 import 'utils/constants.dart';
 
 void main() async {
@@ -79,6 +80,12 @@ void main() async {
   }
 
   try {
+    await CreditCardService().initialize();
+  } catch (e) {
+    debugPrint('Failed to initialize credit card service: $e');
+  }
+
+  try {
     await CurrencyService().initialize();
   } catch (e) {
     debugPrint('Failed to initialize currency service: $e');
@@ -112,6 +119,7 @@ void main() async {
       await notificationService.rescheduleAllNotifications(
         subscriptions,
         preferences,
+        cards: CreditCardService().getAllCards(),
       );
     }
   } catch (e) {

@@ -47,7 +47,7 @@ class _WhoPaysMoresBarState extends ConsumerState<WhoPaysMoresBar>
     final displayCurrency = ref.watch(displayCurrencyProvider);
 
     final myColor = AppTheme.primaryCoral;
-    final partnerColor = const Color(0xFF2BBCC4); // teal from chart colors
+    const partnerColor = Color(0xFF2BBCC4); // teal from chart colors
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

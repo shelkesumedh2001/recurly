@@ -23,8 +23,7 @@ jobs:
       - name: Analyze (fail on warnings+)
         run: flutter analyze --no-fatal-infos lib/ test/
 
-      # widget_test.dart is excluded: its smoke test needs
-      # Firebase.initializeApp() and fails in CI by design (pre-existing).
+      # Full suite, smoke test included (it runs against mocked Firebase +
+      # fake_cloud_firestore since 2026-07-02).
       - name: Run tests
-        run: |
-          flutter test $(find test -name '*.dart' ! -name 'widget_test.dart')
+        run: flutter test

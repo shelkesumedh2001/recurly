@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:hive/hive.dart';
 
 import '../utils/billing_cycle.dart';
@@ -32,6 +33,7 @@ class Subscription extends HiveObject { // For recently deleted feature
     this.splitWith,
     this.priceHistory,
     this.customDays,
+    this.cardId,
   });
 
   /// Create from JSON (Firebase)
@@ -76,6 +78,7 @@ class Subscription extends HiveObject { // For recently deleted feature
           ?.map((e) => Map<String, dynamic>.from(e as Map))
           .toList(),
       customDays: json['customDays'] as int?,
+      cardId: json['cardId'] as String?,
     );
   }
   @HiveField(0)
@@ -151,6 +154,11 @@ class Subscription extends HiveObject { // For recently deleted feature
   @HiveField(22)
   int? customDays;
 
+  /// Credit card this sub is charged to (CreditCardInfo.id). Cards are
+  /// local-only; on a device without this card id, no card info is shown.
+  @HiveField(23)
+  String? cardId;
+
   /// Whether this subscription has any recorded price changes
   bool get hasPriceHistory => priceHistory != null && priceHistory!.isNotEmpty;
 
@@ -160,16 +168,16 @@ class Subscription extends HiveObject { // For recently deleted feature
 
   /// The amount of the last price change (current price minus last recorded price)
   double get lastPriceChangeAmount {
-    if (!hasPriceHistory) return 0.0;
+    if (!hasPriceHistory) return 0;
     final oldPrice = (lastPriceChange!['price'] as num).toDouble();
     return price - oldPrice;
   }
 
   /// The percentage of the last price change
   double get lastPriceChangePercent {
-    if (!hasPriceHistory) return 0.0;
+    if (!hasPriceHistory) return 0;
     final oldPrice = (lastPriceChange!['price'] as num).toDouble();
-    if (oldPrice == 0) return 0.0;
+    if (oldPrice == 0) return 0;
     return ((price - oldPrice) / oldPrice) * 100;
   }
 
@@ -179,7 +187,9 @@ class Subscription extends HiveObject { // For recently deleted feature
   /// starts when the trial ends. The trial-end day IS the first paid bill,
   /// so a sub with `trialEndDate = May 1` bills on May 1, then by cycle.
   DateTime get nextBillDate {
-    final now = DateTime.now();
+    // clock.now() == DateTime.now() in production; golden/unit tests pin it
+    // with withClock(Clock.fixed(...)) so date-derived UI is deterministic.
+    final now = clock.now();
     final today = DateTime(now.year, now.month, now.day);
 
     // Trial path: billing chain anchors on trialEndDate, not firstBillDate.
@@ -219,9 +229,22 @@ class Subscription extends HiveObject { // For recently deleted feature
     return nextDate;
   }
 
+  /// Projected bill dates from [nextBillDate] through [end] (inclusive),
+  /// honoring the billing cycle — including custom day counts, which
+  /// callers hand-rolling "+1 month" math get wrong.
+  List<DateTime> upcomingRenewals(DateTime end) {
+    final dates = <DateTime>[];
+    var next = nextBillDate;
+    while (!next.isAfter(end)) {
+      dates.add(next);
+      next = addOneCycle(billingCycle, next, customDays: customDays);
+    }
+    return dates;
+  }
+
   /// Days until the next renewal
   int get daysUntilRenewal {
-    final now = DateTime.now();
+    final now = clock.now();
     final today = DateTime(now.year, now.month, now.day);
     final next = DateTime(nextBillDate.year, nextBillDate.month, nextBillDate.day);
     return next.difference(today).inDays;
@@ -295,6 +318,7 @@ class Subscription extends HiveObject { // For recently deleted feature
       'splitWith': splitWith,
       'priceHistory': priceHistory,
       'customDays': customDays,
+      'cardId': cardId,
     };
   }
 
@@ -328,6 +352,8 @@ class Subscription extends HiveObject { // For recently deleted feature
     bool clearPriceHistory = false,
     int? customDays,
     bool clearCustomDays = false,
+    String? cardId,
+    bool clearCardId = false,
   }) {
     return Subscription(
       id: id ?? this.id,
@@ -353,13 +379,14 @@ class Subscription extends HiveObject { // For recently deleted feature
       splitWith: clearSplitWith ? null : (splitWith ?? this.splitWith),
       priceHistory: clearPriceHistory ? null : (priceHistory ?? this.priceHistory),
       customDays: clearCustomDays ? null : (customDays ?? this.customDays),
+      cardId: clearCardId ? null : (cardId ?? this.cardId),
     );
   }
 
   /// Days until trial ends (for free trials)
   int get daysUntilTrialEnds {
     if (!isFreeTrial || trialEndDate == null) return -1;
-    final now = DateTime.now();
+    final now = clock.now();
     final today = DateTime(now.year, now.month, now.day);
     final end = DateTime(trialEndDate!.year, trialEndDate!.month, trialEndDate!.day);
     return end.difference(today).inDays;
@@ -367,7 +394,7 @@ class Subscription extends HiveObject { // For recently deleted feature
 
   /// Check if trial has expired (date-only comparison — a trial ending today
   /// is not expired until tomorrow, matching `trialStatusText`'s "Trial ends today").
-  bool get isTrialExpired => isTrialExpiredAt(DateTime.now());
+  bool get isTrialExpired => isTrialExpiredAt(clock.now());
 
   /// Date-only expiry check with injectable `now` (for tests).
   bool isTrialExpiredAt(DateTime now) {

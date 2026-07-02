@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -18,7 +19,7 @@ class InviteCodeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isExpired =
-        expiry != null && DateTime.now().isAfter(expiry!);
+        expiry != null && clock.now().isAfter(expiry!);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -120,7 +121,7 @@ class InviteCodeCard extends StatelessWidget {
 
   String _getExpiryText() {
     if (expiry == null) return '';
-    final diff = expiry!.difference(DateTime.now());
+    final diff = expiry!.difference(clock.now());
     if (diff.inHours > 0) return '${diff.inHours}h';
     if (diff.inMinutes > 0) return '${diff.inMinutes}m';
     return 'soon';

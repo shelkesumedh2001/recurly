@@ -1,12 +1,16 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 
-import '../../models/enums.dart';
+import '../../models/credit_card.dart';
 import '../../models/subscription.dart';
+import '../../providers/credit_card_providers.dart';
+import '../../providers/currency_providers.dart';
 import '../../providers/subscription_providers.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/card_dates.dart';
 
 /// A calendar widget showing subscription renewals as a heatmap
 class RenewalCalendar extends ConsumerStatefulWidget {
@@ -18,7 +22,7 @@ class RenewalCalendar extends ConsumerStatefulWidget {
 
 class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
   CalendarFormat _calendarFormat = CalendarFormat.month;
-  DateTime _focusedDay = DateTime.now();
+  DateTime _focusedDay = clock.now();
   DateTime? _selectedDay;
 
   @override
@@ -26,13 +30,24 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
     final theme = Theme.of(context);
     final subscriptionsAsync = ref.watch(subscriptionProvider);
 
+    final cards = ref.watch(creditCardsProvider);
+
     return subscriptionsAsync.when(
       data: (subscriptions) {
         // Build renewal map for the calendar
         final renewalMap = _buildRenewalMap(subscriptions);
+        final cardDueMap = _buildCardDueMap(cards);
         final selectedDayRenewals = _selectedDay != null
             ? _getRenewalsForDay(_selectedDay!, subscriptions)
             : <Subscription>[];
+        final selectedDayCardsDue = _selectedDay != null
+            ? cardDueMap[DateTime(
+                  _selectedDay!.year,
+                  _selectedDay!.month,
+                  _selectedDay!.day,
+                )] ??
+                const <CreditCardInfo>[]
+            : const <CreditCardInfo>[];
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,8 +62,8 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
                 ),
               ),
               child: TableCalendar(
-                firstDay: DateTime.now().subtract(const Duration(days: 365)),
-                lastDay: DateTime.now().add(const Duration(days: 365)),
+                firstDay: clock.now().subtract(const Duration(days: 365)),
+                lastDay: clock.now().add(const Duration(days: 365)),
                 focusedDay: _focusedDay,
                 calendarFormat: _calendarFormat,
                 selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
@@ -130,22 +145,27 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
                 calendarBuilders: CalendarBuilders(
                   // Custom day builder with heatmap
                   defaultBuilder: (context, day, focusedDay) {
-                    return _buildDayCell(context, day, renewalMap, false, false);
+                    return _buildDayCell(context, day, renewalMap, cardDueMap, false, false);
                   },
                   todayBuilder: (context, day, focusedDay) {
-                    return _buildDayCell(context, day, renewalMap, true, false);
+                    return _buildDayCell(context, day, renewalMap, cardDueMap, true, false);
                   },
                   selectedBuilder: (context, day, focusedDay) {
-                    return _buildDayCell(context, day, renewalMap, false, true);
+                    return _buildDayCell(context, day, renewalMap, cardDueMap, false, true);
                   },
                   outsideBuilder: (context, day, focusedDay) {
-                    return _buildDayCell(context, day, renewalMap, false, false, isOutside: true);
+                    return _buildDayCell(context, day, renewalMap, cardDueMap, false, false, isOutside: true);
                   },
                 ),
               ),
             ),
 
-            // Selected day renewals
+            // Selected day: card payments due + renewals
+            if (_selectedDay != null && selectedDayCardsDue.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              ...selectedDayCardsDue
+                  .map((card) => _buildCardDueTile(context, card)),
+            ],
             if (_selectedDay != null && selectedDayRenewals.isNotEmpty) ...[
               const SizedBox(height: 20),
               Text(
@@ -156,7 +176,8 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
               ),
               const SizedBox(height: 12),
               ...selectedDayRenewals.map((sub) => _buildRenewalTile(context, sub)),
-            ] else if (_selectedDay != null) ...[
+            ] else if (_selectedDay != null &&
+                selectedDayCardsDue.isEmpty) ...[
               const SizedBox(height: 20),
               Center(
                 child: Text(
@@ -183,6 +204,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
     BuildContext context,
     DateTime day,
     Map<DateTime, double> renewalMap,
+    Map<DateTime, List<CreditCardInfo>> cardDueMap,
     bool isToday,
     bool isSelected, {
     bool isOutside = false,
@@ -191,6 +213,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
     final heatmapColors = AppTheme.getCalendarHeatmapColors(context);
     final normalizedDay = DateTime(day.year, day.month, day.day);
     final amount = renewalMap[normalizedDay] ?? 0;
+    final hasCardDue = cardDueMap.containsKey(normalizedDay);
 
     // Determine heatmap intensity (0-4 based on amount)
     int intensity = 0;
@@ -231,17 +254,72 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
             ? Border.all(color: AppTheme.primaryCoral, width: 2)
             : null,
       ),
-      child: Center(
-        child: Text(
-          '${day.day}',
-          style: TextStyle(
-            color: textColor,
-            fontWeight: isToday || isSelected || intensity > 0
-                ? FontWeight.bold
-                : FontWeight.normal,
-            fontSize: 14,
+      child: Stack(
+        children: [
+          // Center expands to fill the cell, so the heatmap decoration
+          // keeps its full size (a shrink-wrapping Stack collapses it).
+          Center(
+            child: Text(
+              '${day.day}',
+              style: TextStyle(
+                color: textColor,
+                fontWeight: isToday || isSelected || intensity > 0
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+                fontSize: 14,
+              ),
+            ),
           ),
+          // Card payment-due marker
+          if (hasCardDue)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Container(
+                  width: 5,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? theme.colorScheme.surface
+                        : theme.colorScheme.tertiary,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardDueTile(BuildContext context, CreditCardInfo card) {
+    final theme = Theme.of(context);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.tertiary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: theme.colorScheme.tertiary.withValues(alpha: 0.25),
         ),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.credit_card, color: theme.colorScheme.tertiary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '${card.name} payment due',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.tertiary,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -364,62 +442,85 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
             color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
           ),
         ),
+        const SizedBox(width: 16),
+        Container(
+          width: 5,
+          height: 5,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.tertiary,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          'Card due',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+          ),
+        ),
       ],
     );
   }
 
-  /// Build a map of dates to total renewal amounts for the next 12 months
+  /// Build a map of dates to total renewal amounts for the next 12 months.
+  /// Uses the model's cycle-accurate projection (custom cycles advance by
+  /// their customDays, not by "+1 month"). Amounts are converted to the
+  /// display currency so the heatmap intensity thresholds mean one thing —
+  /// raw mixed-currency sums made a ₹649 sub look like a $649 spike.
   Map<DateTime, double> _buildRenewalMap(List<Subscription> subscriptions) {
     final Map<DateTime, double> renewalMap = {};
-    final now = DateTime.now();
-    final endDate = now.add(const Duration(days: 365));
+    final endDate = clock.now().add(const Duration(days: 365));
+    final displayCurrency = ref.read(displayCurrencyProvider);
+    final rates = ref.read(exchangeRatesProvider).value;
+    final currencyService = ref.read(currencyServiceProvider);
 
     for (final sub in subscriptions) {
-      var nextRenewal = sub.nextBillDate;
-
-      // Add all renewal dates within the next year
-      while (nextRenewal.isBefore(endDate)) {
-        final normalizedDate = DateTime(nextRenewal.year, nextRenewal.month, nextRenewal.day);
-        renewalMap[normalizedDate] = (renewalMap[normalizedDate] ?? 0) + sub.price;
-        nextRenewal = _getNextRenewal(nextRenewal, sub);
+      final converted = currencyService.convert(
+        amount: sub.price,
+        from: sub.currency,
+        to: displayCurrency,
+        rates: rates,
+      );
+      for (final renewal in sub.upcomingRenewals(endDate)) {
+        final normalizedDate =
+            DateTime(renewal.year, renewal.month, renewal.day);
+        renewalMap[normalizedDate] =
+            (renewalMap[normalizedDate] ?? 0) + converted;
       }
     }
 
     return renewalMap;
   }
 
-  DateTime _getNextRenewal(DateTime current, Subscription sub) {
-    switch (sub.billingCycle) {
-      case BillingCycle.monthly:
-        return DateTime(current.year, current.month + 1, current.day);
-      case BillingCycle.yearly:
-        return DateTime(current.year + 1, current.month, current.day);
-      case BillingCycle.weekly:
-        return current.add(const Duration(days: 7));
-      case BillingCycle.custom:
-        return DateTime(current.year, current.month + 1, current.day);
+  /// Map each card's projected payment-due dates over the next year to the
+  /// cards due that day. Days past a short month's end clamp to its last
+  /// day, matching the card's own due-date math.
+  Map<DateTime, List<CreditCardInfo>> _buildCardDueMap(
+    List<CreditCardInfo> cards,
+  ) {
+    final map = <DateTime, List<CreditCardInfo>>{};
+    final now = clock.now();
+    final endDate = now.add(const Duration(days: 365));
+
+    for (final card in cards) {
+      for (final due in occurrencesInRange(card.dueDay, now, endDate)) {
+        (map[due] ??= []).add(card);
+      }
     }
+    return map;
   }
 
   /// Get renewals for a specific day
   List<Subscription> _getRenewalsForDay(DateTime day, List<Subscription> subscriptions) {
     final normalizedDay = DateTime(day.year, day.month, day.day);
-    final List<Subscription> renewals = [];
+    final endDate = clock.now().add(const Duration(days: 365));
 
-    for (final sub in subscriptions) {
-      var nextRenewal = sub.nextBillDate;
-      final endDate = DateTime.now().add(const Duration(days: 365));
-
-      while (nextRenewal.isBefore(endDate)) {
-        final normalizedRenewal = DateTime(nextRenewal.year, nextRenewal.month, nextRenewal.day);
-        if (normalizedRenewal == normalizedDay) {
-          renewals.add(sub);
-          break;
-        }
-        nextRenewal = _getNextRenewal(nextRenewal, sub);
-      }
-    }
-
-    return renewals;
+    return subscriptions.where((sub) {
+      return sub.upcomingRenewals(endDate).any(
+            (renewal) =>
+                DateTime(renewal.year, renewal.month, renewal.day) ==
+                normalizedDay,
+          );
+    }).toList();
   }
 }

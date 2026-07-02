@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/enums.dart';
 import '../models/exchange_rate.dart';
@@ -111,7 +112,7 @@ final subscriptionCountOverTimeProvider = Provider<List<SubscriptionCountData>>(
 
   return subscriptionsAsync.when(
     data: (subscriptions) {
-      final now = DateTime.now();
+      final now = clock.now();
       final List<SubscriptionCountData> countData = [];
 
       for (int i = 11; i >= 0; i--) {
@@ -146,9 +147,9 @@ final subscriptionsWithPriceChangesProvider = Provider<List<Subscription>>((ref)
 
   return subscriptionsAsync.when(
     data: (subscriptions) {
-      final withChanges = subscriptions.where((sub) => sub.hasPriceHistory).toList();
-      // Sort by most recent price change date (newest first)
-      withChanges.sort((a, b) {
+      final withChanges = subscriptions.where((sub) => sub.hasPriceHistory).toList()
+        // Sort by most recent price change date (newest first)
+        ..sort((a, b) {
         final aDate = DateTime.parse(a.lastPriceChange!['date'] as String);
         final bDate = DateTime.parse(b.lastPriceChange!['date'] as String);
         return bDate.compareTo(aDate);
@@ -214,7 +215,7 @@ final spendingTrendProvider = Provider<List<MonthlySpendingData>>((ref) {
 
   return subscriptionsAsync.when(
     data: (subscriptions) {
-      final now = DateTime.now();
+      final now = clock.now();
       final List<MonthlySpendingData> trendData = [];
 
       // Calculate for next 6 months
@@ -414,7 +415,7 @@ final monthlyComparisonProvider = Provider<MonthlyComparison?>((ref) {
     data: (subscriptions) {
       if (subscriptions.isEmpty) return null;
 
-      final now = DateTime.now();
+      final now = clock.now();
       final thisMonth = DateTime(now.year, now.month, 1);
       final lastMonth = DateTime(now.year, now.month - 1, 1);
 
@@ -470,7 +471,7 @@ final upcomingRenewalsProvider = Provider<List<UpcomingRenewal>>((ref) {
 
   return subscriptionsAsync.when(
     data: (subscriptions) {
-      final now = DateTime.now();
+      final now = clock.now();
       final today = DateTime(now.year, now.month, now.day);
       final cutoff = today.add(const Duration(days: 30));
       final List<UpcomingRenewal> renewals = [];
@@ -494,7 +495,7 @@ final upcomingRenewalsProvider = Provider<List<UpcomingRenewal>>((ref) {
             subscription: sub,
             date: billDate,
             convertedAmount: converted,
-          ));
+          ),);
           billDate = addOneCycle(
             sub.billingCycle,
             billDate,
@@ -622,7 +623,7 @@ final householdSpendComparisonProvider = Provider<HouseholdSpendComparison?>((re
     if (sub.ownerUid != null && sub.ownerUid != currentUid) continue;
     if (sub.isArchived || sub.deletedAt != null) continue;
 
-    double myMultiplier = 1.0;
+    double myMultiplier = 1;
     if (sub.splitWith != null) {
       for (final split in sub.splitWith!) {
         if (split['accepted'] == true) {

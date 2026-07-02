@@ -105,7 +105,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     for (final sub in subs) {
       double amount = sub.monthlyEquivalent;
       if (sub.splitWith != null && sub.splitWith!.isNotEmpty) {
-        double myMultiplier = 1.0;
+        double myMultiplier = 1;
         for (final split in sub.splitWith!) {
           if (split['accepted'] == true) {
             final partnerShare = (split['sharePercent'] as num).toDouble();
@@ -400,6 +400,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
             ),
           ),
+          if (ref.watch(conversionUnavailableProvider)) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(
+                  Icons.currency_exchange,
+                  size: 14,
+                  color: theme.colorScheme.error,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Exchange rates unavailable — this total mixes currencies',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
