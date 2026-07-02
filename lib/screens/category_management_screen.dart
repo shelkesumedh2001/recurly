@@ -329,7 +329,7 @@ class CategoryManagementScreen extends ConsumerWidget {
                           height: 64,
                           decoration: BoxDecoration(
                             color: colorHex != null
-                                ? _parseColor(colorHex!).withValues(alpha: 0.2)
+                                ? _parseColor(colorHex).withValues(alpha: 0.2)
                                 : theme.colorScheme.surfaceContainer,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(

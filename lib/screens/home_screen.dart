@@ -10,6 +10,7 @@ import '../providers/split_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../providers/sync_providers.dart';
 import '../services/currency_service.dart';
+import '../utils/changelog.dart';
 import '../utils/constants.dart';
 import '../utils/money.dart';
 import '../widgets/add_subscription_sheet.dart';
@@ -42,6 +43,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ..listenManual(syncInitProvider, (_, __) {})
       ..listenManual(householdSyncProvider, (_, __) {})
       ..listenManual(householdCleanupProvider, (_, __) {});
+    // Show "what's new" sheet once after a version upgrade.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) showChangelogIfUpdated(context);
+    });
   }
 
   @override
