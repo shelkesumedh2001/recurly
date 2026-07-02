@@ -355,7 +355,7 @@ invites/{inviteCode}
 
 **🚀 LIVE on Play Store Production as v1.0.0+4 (2026-06-29).** Shipped commit: `b96d85e`. Google Sign-In verified working on Play-distributed install (Bug 8 SHA-1 fix landed via Firebase Console + new `google-services.json`). Keystore backed up off-machine.
 
-**Next up (queued for v1.0.0+5):** UI bug fixes the user has pending, plus Task 12 (R8/ProGuard minification) which was explicitly deferred until beta exited.
+**v1.0.0+5 work COMPLETE on branch `fix/spend-accuracy-and-soft-delete-sync` (pushed 2026-07-03, not merged).** Contents: 9 spend-accuracy/soft-delete-sync bug fixes, S1 offline sync write-queue, credit-card due-date tracking (new feature: `CreditCardInfo` HiveType 9 + `Subscription.cardId` HiveField 23), golden tests, a full-app audit's P0+P1+P2 fixes (account-deletion ordering, custom-cycle calendar, missing-rates warnings, Firestore timeouts, 3-cycle notification look-ahead, notification tap navigation), and **Task 12 R8/ProGuard — done**. 121/121 tests, analyze clean. Gate before merge/release: the 17-item manual device-test batch in `DEV_STATUS.md`.
 
 **Tester bug-fix session closed 2026-04-27. 8 reported bugs fixed + 1 stubborn snackbar bug solved by replacing SnackBar with a custom OverlayEntry toast for delete/restore flows. New `Subscription.customDays` (HiveField 22), `AppPreferences` HiveFields 7/8/9 for trial-end reminders. Schema additions are additive — no migration bump needed.**
 

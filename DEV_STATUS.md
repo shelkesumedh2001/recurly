@@ -1,39 +1,43 @@
 # Recurly - Development Status
 
-**Last Updated**: 2026-07-01 (fix branch + quick wins, unpushed)
+**Last Updated**: 2026-07-03 (everything committed + pushed to branch)
 **Current Phase**: 🚀 LIVE on Play Store — v1.0.0+4 on Production track
 
 ---
 
 ## ▶️ RESUME HERE — Next Session
 
-Branch `fix/spend-accuracy-and-soft-delete-sync`, 3 commits, **not pushed**:
-`5f41d75` (9 bug fixes) → `2b373a8` (#6 cap) → `25446b9` (quick wins).
-State: 72/72 tests pass, `flutter analyze` 0 warnings. Code-review pass
-(2026-07-01) confirmed both fix commits sound — 2 known non-blocking gaps:
-(a) device B doesn't cancel notifications on *remote* soft-delete until its
-next app launch (startup `rescheduleAllNotifications` corrects it);
-(b) offline deletes reach remote only at next merge (no offline write queue).
+Branch `fix/spend-accuracy-and-soft-delete-sync` — **5 commits, PUSHED to
+GitHub, not merged**: `5f41d75` (9 bug fixes) → `2b373a8` (#6 cap) →
+`25446b9` (quick wins) → `f16963d` (docs refresh) → `e1bed77` (S1 offline
+queue, #3 credit cards, #7 goldens, P0+P1+P2 audit fixes, R8/Task 12).
+
+State: **121/121 tests pass** (unit + goldens + fake-Firestore sync tests +
+smoke), `flutter analyze` **0 issues**, release AAB builds clean with R8.
+Working tree clean. Known non-blocking gap remaining: device B doesn't
+cancel notifications on *remote* soft-delete until its next app launch
+(startup `rescheduleAllNotifications` corrects it).
 
 **To do, in order:**
-1. ~~Run the manual on-device test checklist below~~ ✅ original 9 cases all
-   passed 2026-07-02 — merge gate for the 3 existing commits cleared. The 5
-   new **S1** cases are deferred; run them before shipping the S1 commit.
-2. Merge/push branch → CI (`.github/workflows/ci.yml`) runs first time.
-3. Bigger backlog items (from Minus comparison, see table in section below):
-   - ~~**S1** Offline sync write-queue~~ ✅ DONE 2026-07-02 (see session
-     log below) — closes known gap (b); still needs the S1 on-device tests
-   - ~~**#3** Credit-card due-date tracking~~ ✅ DONE 2026-07-02 (see
-     session log below)
-   - **#6** Budget rollover / daily-budget readout
-   - ~~**#7** Flutter golden tests~~ ✅ DONE 2026-07-02 (see session log
-     below) — R8/Task 12 is now unblocked
-4. Release prep for v1.0.0+5: bump pubspec `version:` AND `kAppBuild` in
+1. **Run the 17-item manual device-test batch** (⏳ checklist below):
+   5×S1 offline sync, 2×#3 credit cards, 4×P0 (creator account deletion is
+   critical), 6×P1/P2 (R8 release-build smoke is critical — install the
+   minified build via Play Internal track or `flutter install --release`).
+2. Open a PR (or merge to main) → **first-ever CI run** (CI triggers only
+   on PRs and pushes to main, so it hasn't run yet).
+3. Release prep for v1.0.0+5: bump pubspec `version:` AND `kAppBuild` in
    `lib/utils/changelog.dart` (+ its `kChangelog` entry — a test enforces).
+   Release-note material is drafted in the session logs below (credit-card
+   tracking, offline sync, reminders that don't stop, notification taps).
+4. Backlog (nothing urgent): **#6** budget rollover / daily-budget readout;
+   staged major dep upgrades (firebase 4.x, cloud_firestore 6.x,
+   riverpod 3.x, fl_chart 1.x — one at a time, each with a device pass);
+   split the 4 oversized files; JSON backup/import (Task A1, needs a
+   file-picker plugin); rename "Partner"; Phase 6 monetization.
 
 ---
 
-## S1 Offline Write-Queue Session (2026-07-02, uncommitted)
+## S1 Offline Write-Queue Session (2026-07-02, commit `e1bed77`)
 
 Closes known gap (b): offline writes now persist and replay instead of only
 reaching remote at the next full merge.
@@ -51,7 +55,7 @@ CI-style test run 81/81 pass. S1 manual cases added to the ⏳ checklist below.
 
 ---
 
-## #7 Golden Tests Session (2026-07-02, uncommitted)
+## #7 Golden Tests Session (2026-07-02, commit `e1bed77`)
 
 UI-regression safety net, done ahead of R8/Task 12 as planned.
 
@@ -69,7 +73,7 @@ colors, trial/partner badges, budget-bar states all render correctly.
 
 ---
 
-## P1+P2 Audit-Fix Session (2026-07-02, uncommitted)
+## P1+P2 Audit-Fix Session (2026-07-02, commit `e1bed77`)
 
 All remaining audit items done in one pass (deferred: major dep bumps, big-file splits, JSON import — see notes).
 
@@ -99,7 +103,7 @@ Verified: analyze **0 issues**, **121/121 tests** (incl. goldens unchanged + smo
 
 ---
 
-## P0 Audit-Fix Session (2026-07-02, uncommitted)
+## P0 Audit-Fix Session (2026-07-02, commit `e1bed77`)
 
 Full-app audit (see session transcript) surfaced 3 P0 issues; all fixed.
 
@@ -113,7 +117,7 @@ Tests: +5 (custom-cycle projection every-14-days, monthly clamp chain, empty pro
 
 ---
 
-## #3 Credit-Card Due-Date Tracking Session (2026-07-02, uncommitted)
+## #3 Credit-Card Due-Date Tracking Session (2026-07-02, commit `e1bed77`)
 
 Multi-card tracking with per-statement totals and payment-due reminders
 (scope confirmed with user: multi-card + assignment, reminders reuse the
@@ -253,7 +257,7 @@ Recurly went live on the Play Store Production track as **v1.0.0+4** (`com.sumed
 | Code committed and pushed to GitHub | ✅ (`b96d85e`) |
 | Keystore backed up off-machine | ✅ |
 | v1.0.0+5 — UI bugs (user-queued) | ⏳ Next session |
-| Task 12 — R8/ProGuard minification | ✅ Done 2026-07-02 (uncommitted) — runtime smoke on device checklist |
+| Task 12 — R8/ProGuard minification | ✅ Done 2026-07-02, commit `e1bed77` — runtime smoke on device checklist |
 | Task A1 — JSON export/import | ⏳ Backlog (P2) |
 | Phase 6 — Monetization (RevenueCat) | ⏳ When user base established |
 | Rename "Partner" in household | ⏳ Polish item |
