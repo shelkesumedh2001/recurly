@@ -190,7 +190,7 @@ class AppTheme {
         ),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return TextStyle(
+            return const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: _primaryCoral,
@@ -204,7 +204,7 @@ class AppTheme {
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return IconThemeData(color: _primaryCoral, size: 24);
+            return const IconThemeData(color: _primaryCoral, size: 24);
           }
           return IconThemeData(
             color: colorScheme.onSurface.withValues(alpha: 0.6),

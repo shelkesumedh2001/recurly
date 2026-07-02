@@ -33,7 +33,7 @@ final freeTrialCountProvider = Provider<int>((ref) {
 /// Total potential cost when all trials end
 final totalTrialCostProvider = Provider<double>((ref) {
   final trials = ref.watch(freeTrialSubscriptionsProvider);
-  return trials.fold(0.0, (sum, sub) {
+  return trials.fold(0, (sum, sub) {
     final price = sub.priceAfterTrial ?? sub.price;
     // Use monthlyEquivalent on a temp sub so customDays is honored.
     return sum + sub.copyWith(price: price).monthlyEquivalent;

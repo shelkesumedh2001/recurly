@@ -17,6 +17,7 @@ class CategoryManagementScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Categories'),
         leading: IconButton(
+          tooltip: 'Back',
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
@@ -45,7 +46,7 @@ class CategoryManagementScreen extends ConsumerWidget {
           ...builtInCategories.map((category) => _buildBuiltInCategoryCard(
                 context,
                 category,
-              )),
+              ),),
 
           const SizedBox(height: 32),
 
@@ -80,7 +81,7 @@ class CategoryManagementScreen extends ConsumerWidget {
                   context,
                   ref,
                   category,
-                )),
+                ),),
 
           const SizedBox(height: 80), // Space for FAB
         ],
@@ -168,10 +169,12 @@ class CategoryManagementScreen extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
+              tooltip: 'Edit category',
               icon: const Icon(Icons.edit_outlined, size: 20),
               onPressed: () => _showEditCategorySheet(context, ref, category),
             ),
             IconButton(
+              tooltip: 'Delete category',
               icon: Icon(
                 Icons.delete_outline,
                 size: 20,
@@ -279,7 +282,7 @@ class CategoryManagementScreen extends ConsumerWidget {
     final nameController = TextEditingController(text: initialName);
     String selectedIcon = initialIcon ?? '';
     bool isEmoji = initialIsEmoji;
-    String? colorHex = initialColorHex;
+    final String? colorHex = initialColorHex;
 
     showModalBottomSheet(
       context: context,

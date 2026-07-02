@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../models/subscription.dart';
+import '../providers/credit_card_providers.dart';
 import '../providers/household_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../theme/app_theme.dart';
@@ -451,6 +452,14 @@ class SubscriptionCard extends ConsumerWidget {
                   _buildDetailRow(context, 'Next bill', DateFormat('MMM dd, yyyy').format(subscription.nextBillDate)),
                   _buildDetailRow(context, 'Days until renewal', '${subscription.daysUntilRenewal} days'),
                   _buildDetailRow(context, 'Monthly cost', '${subscription.currencySymbol}${subscription.monthlyEquivalent.toStringAsFixed(2)}'),
+                  if (subscription.cardId != null)
+                    if (ref.read(cardByIdProvider(subscription.cardId))
+                        case final card?)
+                      _buildDetailRow(
+                        context,
+                        'Card',
+                        '${card.name} · payment due ${DateFormat('MMM d').format(card.nextDueDate)}',
+                      ),
                   if (_hasSplit()) ...[
                     _buildDetailRow(context, 'Split', '${(subscription.splitWith!.first['sharePercent'] as num).toInt()}% partner\'s share'),
                     _buildDetailRow(context, 'Your share', '${subscription.currencySymbol}${(subscription.price * (1 - (subscription.splitWith!.first['sharePercent'] as num) / 100)).toStringAsFixed(2)}'),
@@ -651,10 +660,10 @@ class _SwipeHintBarState extends State<_SwipeHintBar> with SingleTickerProviderS
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
-    _opacity = Tween<double>(begin: 1.0, end: 0.0).animate(
+    _opacity = Tween<double>(begin: 1, end: 0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
-    _height = Tween<double>(begin: 1.0, end: 0.0).animate(
+    _height = Tween<double>(begin: 1, end: 0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
     Future.delayed(const Duration(seconds: 3), () {
@@ -678,7 +687,7 @@ class _SwipeHintBarState extends State<_SwipeHintBar> with SingleTickerProviderS
     );
     return SizeTransition(
       sizeFactor: _height,
-      axisAlignment: -1.0,
+      axisAlignment: -1,
       child: FadeTransition(
         opacity: _opacity,
         child: Padding(

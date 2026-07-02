@@ -7,9 +7,9 @@ import '../utils/constants.dart';
 
 /// Service for currency conversion and exchange rate management
 class CurrencyService {
+  factory CurrencyService() => _instance;
   CurrencyService._();
   static final CurrencyService _instance = CurrencyService._();
-  factory CurrencyService() => _instance;
 
   Box<ExchangeRateCache>? _ratesBox;
   static const String _cacheKey = 'exchange_rates';
@@ -72,7 +72,7 @@ class CurrencyService {
     if (!forceRefresh && isCacheValid()) {
       return getCachedRates();
     }
-    return await fetchLatestRates();
+    return fetchLatestRates();
   }
 
   /// Convert amount from one currency to another

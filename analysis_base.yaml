@@ -1,0 +1,13 @@
+# Intermediate include for analysis_options.yaml.
+#
+# The analyzer `exclude:` list lives here instead of analysis_options.yaml
+# because this Dart SDK (3.11) silently drops `analyzer.exclude` when it sits
+# in the same file as a `package:` include (flutter_lints). Routing the
+# package include through this local file dodges that merge bug — verified:
+# excludes are honored from here but ignored in analysis_options.yaml.
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    # Untracked pre-redesign UI snapshot kept at repo root; not real code.
+    - backup_ui_v1/**

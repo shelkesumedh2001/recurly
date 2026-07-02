@@ -24,7 +24,7 @@ void main() {
 
     test('kAppBuild has a changelog entry (release checklist guard)', () {
       expect(kChangelog.any((r) => r.build == kAppBuild), isTrue,
-          reason: 'Bump kAppBuild AND add its ChangelogRelease together');
+          reason: 'Bump kAppBuild AND add its ChangelogRelease together',);
     });
   });
 }

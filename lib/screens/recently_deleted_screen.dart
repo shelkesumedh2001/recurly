@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -224,7 +226,12 @@ class _DeletedCard extends ConsumerWidget {
           await databaseService.deleteSubscription(subscriptionId);
 
           if (isSyncEnabled && currentUser != null) {
-            SyncService().deleteRemoteSubscription(currentUser.uid, subscriptionId);
+            unawaited(
+              SyncService().deleteRemoteSubscription(
+                currentUser.uid,
+                subscriptionId,
+              ),
+            );
           }
 
           showAppToast('$subscriptionName deleted permanently');
@@ -397,7 +404,12 @@ class _DeletedCard extends ConsumerWidget {
                             onItemRemoved(subscription.id);
                             await databaseService.deleteSubscription(subscription.id);
                             if (isSyncEnabled && user != null) {
-                              SyncService().deleteRemoteSubscription(user.uid, subscription.id);
+                              unawaited(
+                                SyncService().deleteRemoteSubscription(
+                                  user.uid,
+                                  subscription.id,
+                                ),
+                              );
                             }
                             showAppToast('${subscription.name} deleted permanently');
                           },

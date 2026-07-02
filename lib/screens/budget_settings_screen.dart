@@ -49,6 +49,7 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
       appBar: AppBar(
         title: const Text('Budget'),
         leading: IconButton(
+          tooltip: 'Back',
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
@@ -104,6 +105,7 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
                       hintText: '0.00',
                       suffixIcon: settings.hasBudget
                           ? IconButton(
+                              tooltip: 'Clear budget',
                               icon: const Icon(Icons.clear),
                               onPressed: () {
                                 _overallBudgetController.clear();

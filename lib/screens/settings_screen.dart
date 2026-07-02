@@ -1,28 +1,33 @@
+import 'dart:async';
+
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../models/budget.dart';
 import '../models/exchange_rate.dart';
 import '../models/sync_status.dart';
 import '../providers/auth_providers.dart';
 import '../providers/budget_providers.dart';
 import '../providers/category_providers.dart';
+import '../providers/credit_card_providers.dart';
 import '../providers/currency_providers.dart';
 import '../providers/household_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../providers/sync_providers.dart';
 import '../providers/theme_providers.dart';
 import '../services/database_service.dart';
-import '../utils/changelog.dart';
 import '../services/notification_service.dart';
 import '../services/sync_service.dart';
+import '../utils/changelog.dart';
 import '../utils/constants.dart';
 import 'auth_screen.dart';
 import 'budget_settings_screen.dart';
 import 'category_management_screen.dart';
+import 'credit_cards_screen.dart';
 import 'household_screen.dart';
 import 'notification_settings_screen.dart';
 import 'privacy_policy_screen.dart';
@@ -87,6 +92,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           _buildBudgetCard(context, ref),
           _buildCategoriesCard(context, ref),
+          _buildCreditCardsCard(context, ref),
           _buildCurrencyCard(context, ref),
 
           const SizedBox(height: 24),
@@ -317,6 +323,28 @@ class SettingsScreen extends ConsumerWidget {
           context,
           MaterialPageRoute(
             builder: (context) => const CategoryManagementScreen(),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCreditCardsCard(BuildContext context, WidgetRef ref) {
+    final cardCount = ref.watch(creditCardsProvider).length;
+    final subtitle = cardCount > 0
+        ? '$cardCount ${cardCount == 1 ? 'card' : 'cards'} tracked'
+        : 'Track statement and payment due dates';
+
+    return _buildSettingCard(
+      context,
+      icon: Icons.credit_card_outlined,
+      title: 'Credit Cards',
+      subtitle: subtitle,
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const CreditCardsScreen(),
           ),
         );
       },
@@ -703,7 +731,7 @@ class SettingsScreen extends ConsumerWidget {
       }
 
       // Reload UI
-      ref.read(subscriptionProvider.notifier).loadSubscriptions();
+      unawaited(ref.read(subscriptionProvider.notifier).loadSubscriptions());
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
