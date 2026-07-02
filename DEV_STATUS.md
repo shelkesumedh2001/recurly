@@ -1,7 +1,124 @@
 # Recurly - Development Status
 
-**Last Updated**: 2026-04-27
-**Current Phase**: Tester-Reported Bug-Fix Session — Beta active in Google review
+**Last Updated**: 2026-07-01 (fix branch + quick wins, unpushed)
+**Current Phase**: 🚀 LIVE on Play Store — v1.0.0+4 on Production track
+
+---
+
+## ▶️ RESUME HERE — Next Session
+
+Branch `fix/spend-accuracy-and-soft-delete-sync`, 3 commits, **not pushed**:
+`5f41d75` (9 bug fixes) → `2b373a8` (#6 cap) → `25446b9` (quick wins).
+State: 72/72 tests pass, `flutter analyze` 0 warnings. Code-review pass
+(2026-07-01) confirmed both fix commits sound — 2 known non-blocking gaps:
+(a) device B doesn't cancel notifications on *remote* soft-delete until its
+next app launch (startup `rescheduleAllNotifications` corrects it);
+(b) offline deletes reach remote only at next merge (no offline write queue).
+
+**To do, in order:**
+1. Run the ⏳ manual on-device test checklist below (gate for merging).
+2. Merge/push branch → CI (`.github/workflows/ci.yml`) runs first time.
+3. Bigger backlog items (from Minus comparison, see table in section below):
+   - **S1** Offline sync write-queue (fixes known gap (b); Hive box of
+     pending push/delete ops, drained on reconnect/startup)
+   - **#3** Credit-card due-date tracking (new feature)
+   - **#6** Budget rollover / daily-budget readout
+   - **#7** Flutter golden tests — do BEFORE R8/Task 12
+4. Release prep for v1.0.0+5: bump pubspec `version:` AND `kAppBuild` in
+   `lib/utils/changelog.dart` (+ its `kChangelog` entry — a test enforces).
+
+---
+
+## Quick-Wins Session (2026-07-01, commit `25446b9`)
+
+Small items adopted from the Minus comparison:
+| Item | What |
+|---|---|
+| Category picker | Most-used categories first via `categoriesByUsageProvider` (derived from sub data, no schema change) |
+| CI | GitHub Actions: analyze (fail-on-warnings) + tests on push/PR; fixed the 3 old analyzer warnings |
+| In-app changelog | "What's new" sheet once per upgrade; `lib/utils/changelog.dart` (`kAppBuild`, `kChangelog`, pure `decideChangelog`); last-seen stored in schema box |
+| Bug report | Email pre-fills diagnostics (build, OS, sub count) |
+
+Deferred (bigger): S1 offline write-queue, #3 credit-card dates, #6 budget
+rollover, #7 golden tests, #8 quick-add numpad. Skipped: Wear OS, F-Droid.
+
+---
+
+## Spend-Accuracy & Soft-Delete Sync Fix Session (2026-07-01)
+
+Audit-driven bug-fix pass (triggered by comparing against the open-source
+**Minus** app). 9 issues found and fixed across budgets, analytics, and the
+delete/sync path. On branch `fix/spend-accuracy-and-soft-delete-sync`
+(commits `5f41d75`, `2b373a8`) — **not yet merged/pushed**.
+
+### Fixed
+| # | Area | Fix |
+|---|------|-----|
+| 1 | Currency | Budgets & analytics summed mixed-currency subs without conversion. Routed budget usage/status/remaining + yearly-projected through `convertedTotalSpendProvider`; convert per-sub in category spend, spending trend, most-expensive. Removed orphaned raw `totalMonthlySpendProvider`. |
+| 3 | Notifications | Swipe/details-sheet soft-delete never cancelled scheduled notifications. Centralized soft-delete/restore in `SubscriptionNotifier` (cancel on delete, reschedule + re-push on restore); routed all 6 call sites through it. |
+| 2 + N3 | Sync | Soft-delete pushed a **hard** remote delete → other devices lost the sub + it could resurrect. Now pushes the soft-deleted state (`deletedAt` set); bumps `updatedAt` on delete/restore for last-write-wins; filters partner soft-deletes out of household views; purges expired (>30d) soft-deletes from remote during merge. |
+| 4 + N2 | Cleanup | Removed dead `myShareSpendProvider`, `householdTotalSpendProvider`, `recentlyDeletedProvider`. Renamed budget `categorySpendProvider` → `categorySpendByNameProvider` (disambiguate from analytics' enum-keyed one). |
+| N1 | Data | `cleanupOldDeletedSubscriptions` was never called; now runs at startup so the "auto-deletes in X days" countdown is truthful. |
+| 5 | Money | Added `roundMoney()` (`lib/utils/money.dart`), applied at aggregate money boundaries so budget over/under comparisons & displays aren't flipped by float drift. Storage stays `double` — no risky live migration. |
+| 6 | Sync | `_locallyDeletedIds` could grow unbounded within a session. Added `_markLocallyDeleted()` with FIFO eviction at a 500-entry cap. |
+
+### Verification
+- `flutter analyze`: clean (no new issues).
+- `flutter test`: **67/67 pass** (added `soft_delete_test.dart`, `money_test.dart`, +2 in `sync_service_listener_test.dart`).
+- Pre-existing `widget_test.dart` "App smoke test" still fails (needs `Firebase.initializeApp()`) — unrelated, present before this session.
+
+### ⏳ PENDING — manual on-device tests (not yet run)
+The Firestore/notification/multi-device behavior can't be unit-tested. Run these before merging:
+
+- [ ] **#1 Currency** — Add subs in 2 currencies (e.g. Netflix ₹649, Spotify $9.99) + a budget. Budget used/remaining and all analytics should match the home hero total (all converted). No raw mixed sums.
+- [ ] **#2 Cross-device delete** (2 devices, same account) — Device A swipe-deletes → lands in A's Recently Deleted; Device B removes from active **and** shows it in B's Recently Deleted (not lost).
+- [ ] **#2 Restore** — A restores → active again on **both** devices.
+- [ ] **#2 No resurrection** — deleted sub stays deleted after re-sync/relaunch; doesn't return as active.
+- [ ] **#2 Permanent delete** — "Delete Forever" → gone from both devices, no return.
+- [ ] **#2 Household** — deleting a sub drops it from the partner's Household Total view.
+- [ ] **#3 Notifications** — sub with reminder due tomorrow, swipe-delete → no reminder fires; restore → reminder rescheduled.
+- [ ] **#5 Money** — 50% split on $9.99 shows My Share $5.00 (not 4.995); budget set to exactly current spend doesn't read "over budget".
+- [ ] **N1 Purge** (optional) — delete a sub, set device clock +31 days, relaunch → gone from Recently Deleted.
+
+---
+
+## Production Launch (2026-06-29)
+
+Recurly went live on the Play Store Production track as **v1.0.0+4** (`com.sumedh.recurly`).
+
+### What shipped
+- All 8 tester-session fixes from 2026-04-27 (see section below)
+- **Bug 8 — Google Sign-In SHA-1 fix**: Play app-signing-key SHA-1 added to Firebase Console for `com.sumedh.recurly`; `google-services.json` refreshed; verified working post-launch on a Play install
+- Version bump `1.0.0+3` → `1.0.0+4`
+
+### Release notes (used on Play Console)
+- Fixed Google Sign-In on Play-distributed builds
+- Trial subscription UX overhaul (optional price, duration picker)
+- New trial-end reminders (1/3/7 days before)
+- Custom billing cycles (set your own day count)
+- Tap-to-open in Recently Deleted
+- Fixed archive button in details sheet
+- Fixed undo toast persistence
+
+### Process notes for future releases
+- Promoted **straight to Production** (skipped Internal track verification). Trade-off accepted because no users had the link yet — practical risk was low.
+- Play Console threw a "no countries selected" error on first Production rollout; needed to add countries via **Production → Countries / regions** before the release would publish.
+- Build command unchanged: `flutter build appbundle --release --no-tree-shake-icons`
+- AAB size: 52.6 MB (up from 51 MB pre-fixes)
+- Git: shipped commit is `b96d85e` on `origin/main`
+
+### Post-launch state
+| Item | Status |
+|---|---|
+| Live on Play Store Production | ✅ |
+| Google Sign-In verified via Play install | ✅ |
+| Code committed and pushed to GitHub | ✅ (`b96d85e`) |
+| Keystore backed up off-machine | ✅ |
+| v1.0.0+5 — UI bugs (user-queued) | ⏳ Next session |
+| Task 12 — R8/ProGuard minification | ⏳ Beta has exited, now due |
+| Task A1 — JSON export/import | ⏳ Backlog (P2) |
+| Phase 6 — Monetization (RevenueCat) | ⏳ When user base established |
+| Rename "Partner" in household | ⏳ Polish item |
 
 ---
 
