@@ -353,6 +353,10 @@ invites/{inviteCode}
 
 # Current Status
 
+**🚀 LIVE on Play Store Production as v1.0.0+4 (2026-06-29).** Shipped commit: `b96d85e`. Google Sign-In verified working on Play-distributed install (Bug 8 SHA-1 fix landed via Firebase Console + new `google-services.json`). Keystore backed up off-machine.
+
+**Next up (queued for v1.0.0+5):** UI bug fixes the user has pending, plus Task 12 (R8/ProGuard minification) which was explicitly deferred until beta exited.
+
 **Tester bug-fix session closed 2026-04-27. 8 reported bugs fixed + 1 stubborn snackbar bug solved by replacing SnackBar with a custom OverlayEntry toast for delete/restore flows. New `Subscription.customDays` (HiveField 22), `AppPreferences` HiveFields 7/8/9 for trial-end reminders. Schema additions are additive — no migration bump needed.**
 
 **Pre-launch bug-fix sprint closed 2026-04-20. Beta in Google review; 12 opted-in testers active.**
@@ -368,7 +372,7 @@ invites/{inviteCode}
 
 See `DEV_STATUS.md` → "Pre-Launch Bug-Fix Sprint" for task-by-task breakdown and `bugFixing.md` for the full Execution Log.
 
-**Pre-launch polish complete. Preparing for Play Store launch.**
+**Pre-launch polish complete.** Beta in Closed Alpha 2026-04-27 → Production launched 2026-06-29.
 
 **Strategy:** Launch free for all users (Pro gates disabled), build user base first, add monetization later via RevenueCat.
 
@@ -389,19 +393,19 @@ See `DEV_STATUS.md` → "Pre-Launch Bug-Fix Sprint" for task-by-task breakdown a
 - ✅ AGP 8.9.3 + Gradle 8.12.1
 - ✅ End-to-end testing complete (all tests pass)
 
-**Remaining for Play Store:**
-- Feature graphic (1024x500 banner — make in Canva)
-- Privacy policy URL on shelke.tech
-- Upload to Play Console (listing, AAB, screenshots, content rating)
-- Back up keystore to safe location
-- See DEV_STATUS.md for full TODO checklist
+**Play Store launch tasks — all done as of 2026-06-29:**
+- ✅ Feature graphic, privacy policy URL on shelke.tech, store listing, screenshots, content rating
+- ✅ AAB uploaded to Closed Alpha (v1.0.0+3) → 12-tester beta → Production access granted
+- ✅ v1.0.0+4 promoted direct to Production track (with countries set on first rollout)
+- ✅ Keystore backed up off-machine
 
 **Release Build Info:**
 - Package: `com.sumedh.recurly`
-- AAB: `build/app/outputs/bundle/release/app-release.aab` (51MB)
+- Current live version: **1.0.0+4** (52.6MB AAB)
 - Build cmd: `flutter build appbundle --release --no-tree-shake-icons`
-- Signing: `android/app/upload-keystore.jks` (alias: `upload`)
-- SHA-1: `54:A3:F9:91:FF:83:D8:AA:66:29:2B:10:59:F9:9C:54:55:8A:C7:57`
+- Signing: `android/app/upload-keystore.jks` (alias: `upload`) — **backed up 2026-06-29**
+- Upload-key SHA-1: `54:A3:F9:91:FF:83:D8:AA:66:29:2B:10:59:F9:9C:54:55:8A:C7:57`
+- Play app-signing-key SHA-1 also registered in Firebase (added 2026-06-29 for Bug 8 fix)
 
 **Implemented (Phase 5.5 - Advanced Analytics - Complete):**
 - Subscription count line chart — 12-month history of active sub count
