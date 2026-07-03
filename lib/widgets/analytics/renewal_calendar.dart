@@ -64,6 +64,9 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
               child: TableCalendar(
                 firstDay: clock.now().subtract(const Duration(days: 365)),
                 lastDay: clock.now().add(const Duration(days: 365)),
+                // TableCalendar defaults "today" to its own DateTime.now(),
+                // bypassing the injectable clock — pin it or goldens rot.
+                currentDay: clock.now(),
                 focusedDay: _focusedDay,
                 calendarFormat: _calendarFormat,
                 selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
