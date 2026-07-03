@@ -21,11 +21,14 @@ const List<ChangelogRelease> kChangelog = [
   ChangelogRelease(
     build: '1.0.0+5',
     notes: [
+      'New: track credit cards — statement dates, payment due dates, and which subscriptions bill to each card',
+      'Changes made offline now sync reliably once you reconnect',
+      "Reminders cover your next few renewals, even if you don't open the app for a while",
+      'Tap a reminder to jump straight into the app',
       'Accurate totals when subscriptions use different currencies',
-      'Deleted subscriptions now stop sending reminders',
-      'Deletes and restores sync reliably across your devices',
-      'Recently Deleted now auto-cleans after 30 days',
+      'Deleted subscriptions stop sending reminders and stay deleted across devices',
       'Category picker shows your most-used categories first',
+      'Smaller, faster app build',
     ],
   ),
   ChangelogRelease(

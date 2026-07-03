@@ -14,6 +14,7 @@ import '../utils/changelog.dart';
 import '../utils/constants.dart';
 import '../utils/money.dart';
 import '../widgets/add_subscription_sheet.dart';
+import '../widgets/rates_warning.dart';
 import '../widgets/subscription_card.dart';
 import '../widgets/sync_indicator.dart';
 import 'archived_screen.dart';
@@ -400,30 +401,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
             ),
           ),
-          if (ref.watch(conversionUnavailableProvider)) ...[
-            const SizedBox(height: 10),
-            InkWell(
-              onTap: () => ref.read(refreshRatesProvider)(),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.currency_exchange,
-                    size: 14,
-                    color: theme.colorScheme.error,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Rates unavailable — total mixes currencies. Tap to retry.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          const RatesUnavailableWarning(compact: true),
         ],
       ),
     );
