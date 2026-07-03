@@ -20,6 +20,11 @@ jobs:
 
       - run: flutter pub get
 
+      # *.g.dart files are gitignored — generate the Hive adapters first
+      # or analyze/test fail on uri_has_not_been_generated.
+      - name: Generate code
+        run: dart run build_runner build --delete-conflicting-outputs
+
       - name: Analyze (fail on warnings+)
         run: flutter analyze --no-fatal-infos lib/ test/
 
