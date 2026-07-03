@@ -23,7 +23,6 @@ import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../services/sync_service.dart';
 import '../utils/changelog.dart';
-import '../utils/constants.dart';
 import 'auth_screen.dart';
 import 'budget_settings_screen.dart';
 import 'category_management_screen.dart';
@@ -138,7 +137,9 @@ class SettingsScreen extends ConsumerWidget {
             context,
             icon: Icons.info_outline,
             title: 'Version',
-            subtitle: AppConstants.appVersion,
+            // kAppBuild is the single source of truth for the app version —
+            // a test forces it to be bumped with pubspec on every release.
+            subtitle: kAppBuild,
             onTap: null,
           ),
           _buildSettingCard(

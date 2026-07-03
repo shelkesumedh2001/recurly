@@ -18,6 +18,7 @@ import '../widgets/analytics/spending_trend_chart.dart';
 import '../widgets/analytics/split_savings_card.dart';
 import '../widgets/analytics/subscription_count_chart.dart';
 import '../widgets/analytics/who_pays_more_bar.dart';
+import '../widgets/rates_warning.dart';
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
@@ -81,41 +82,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
         children: [
           // Currency-conversion warning: every chart below converts to the
           // display currency, so a missing-rates fallback poisons them all.
-          if (ref.watch(conversionUnavailableProvider))
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-              child: InkWell(
-                onTap: () => ref.read(refreshRatesProvider)(),
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.errorContainer
-                        .withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.currency_exchange,
-                        size: 16,
-                        color: theme.colorScheme.error,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Rates unavailable — totals mix currencies. Tap to retry.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onErrorContainer,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          const RatesUnavailableWarning(),
           // Tab bar
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
