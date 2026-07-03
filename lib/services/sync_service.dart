@@ -286,6 +286,7 @@ class SyncService {
       debugPrint('Push subscription error: $e');
       _handleSyncError(e);
       await SyncQueue().enqueuePush(uid, sub.id);
+      _scheduleDrainRetry(uid);
     }
   }
 
@@ -313,6 +314,7 @@ class SyncService {
       debugPrint('Delete remote subscription error: $e');
       _handleSyncError(e);
       await SyncQueue().enqueueDelete(uid, subId);
+      _scheduleDrainRetry(uid);
     }
   }
 
@@ -327,6 +329,18 @@ class SyncService {
   }
 
   bool _draining = false;
+  Timer? _drainRetryTimer;
+
+  /// Keep retrying the drain while ops sit queued. The remote listener's
+  /// reconnect signal can't be relied on alone: when the only post-reconnect
+  /// change is our own (SDK-queued) writes, Firestore fires no new snapshot,
+  /// so without this the queue — and the "offline" status — stick around
+  /// until the next app launch or manual sync.
+  void _scheduleDrainRetry(String uid) {
+    _drainRetryTimer?.cancel();
+    _drainRetryTimer =
+        Timer(const Duration(seconds: 45), () => drainPendingOps(uid));
+  }
 
   /// Replay queued offline writes (oldest first) for [uid].
   ///
@@ -362,9 +376,11 @@ class SyncService {
         } catch (e) {
           debugPrint('Drain pending op failed (${op.op} ${op.subId}): $e');
           _handleSyncError(e);
+          _scheduleDrainRetry(uid);
           return;
         }
       }
+      _drainRetryTimer?.cancel();
       if (syncStatus.value == SyncStatus.offline) {
         syncStatus.value = SyncStatus.synced;
       }
@@ -481,6 +497,8 @@ class SyncService {
   /// Dispose listeners on sign-out. Safe to call repeatedly — all operations
   /// are idempotent.
   void dispose() {
+    _drainRetryTimer?.cancel();
+    _drainRetryTimer = null;
     _syncListener?.cancel();
     _householdListener?.cancel();
     _syncListener = null;

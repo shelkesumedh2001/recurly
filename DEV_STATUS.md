@@ -188,7 +188,7 @@ delete/sync path. On branch `fix/spend-accuracy-and-soft-delete-sync`
 - `flutter test`: **67/67 pass** (added `soft_delete_test.dart`, `money_test.dart`, +2 in `sync_service_listener_test.dart`).
 - Pre-existing `widget_test.dart` "App smoke test" still fails (needs `Firebase.initializeApp()`) — unrelated, present before this session.
 
-### Manual on-device tests
+### Manual on-device tests — ✅ ALL 16 PASSED 2026-07-03 (on R8 release builds, both devices)
 Firestore/notification/multi-device behavior can't be unit-tested.
 
 **Original fix-session cases — ✅ ALL TESTED 2026-07-02 (merge gate for the 3 existing commits cleared):**
@@ -205,22 +205,22 @@ Firestore/notification/multi-device behavior can't be unit-tested.
 
 **⏳ S1 offline write-queue cases — deferred, run before shipping the S1 commit:**
 
-- [ ] **S1 Offline delete** — airplane mode on A → swipe-delete a sub → reconnect (stay in app) → sub leaves B's active list without a force sync.
-- [ ] **S1 Offline delete-forever + restart** — airplane mode on A → "Delete Forever" → kill app → reconnect → relaunch → sub is gone remotely and does NOT resurrect on A (drain runs before merge).
-- [ ] **S1 Offline add/edit** — airplane mode on A → add a sub and edit another → reconnect → both appear/update on B.
-- [ ] **S1 Coalescing** — airplane mode on A → soft-delete then "Delete Forever" the same sub → reconnect → gone from both devices, not soft-deleted remotely.
-- [ ] **S1 Sync status** — while offline, sync indicator shows offline after a queued write; after reconnect+drain it returns to synced.
-- [ ] **#3 Card CRUD** — Settings → Credit Cards → add a card (cutoff 15, due 5) → assign a sub renewing before the cutoff → card shows "1 renewal this statement" with converted total; delete card → sub loses assignment, no crash.
-- [ ] **#3 Card reminder** — card with due day = tomorrow → "payment due tomorrow" notification scheduled (check via Settings → Notifications debug list); delete card → notification gone.
-- [ ] **P0 Account deletion (creator)** — 2 devices in a household, creator deletes account → no error; partner's device drops the household (self-heals); creator's Auth account + Firestore data fully gone (check Firebase Console).
-- [ ] **P0 Account deletion (stale session)** — sign in, wait >5 min, delete account → Google users get silent reauth and deletion succeeds; nothing half-deleted.
-- [ ] **P0 Rates warning** — fresh install, airplane mode, add subs in 2 currencies → hero + analytics show the "Rates unavailable" warning. Reconnect → warning clears by itself within ~45s, or immediately when tapped (tap-to-retry). *(First test run 2026-07-03 found the fetch failure was cached until app restart — fixed: provider self-retries + warnings are tappable + stale-cache fallback.)*
-- [ ] **P0 Custom-cycle calendar** — add a 14-day custom sub → analytics calendar shows dots every 14 days (not monthly).
-- [ ] **P1 R8 release smoke** — install the minified release build (Play Internal track or `flutter install --release`) → app opens, sign-in works, notifications schedule (check debug list), sync works, no crash on any tab. THE critical R8 test — obfuscation bugs only appear in release builds.
-- [ ] **P1 Notification look-ahead** — sub renewing tomorrow → Settings → Notifications debug list shows reminders for ~3 future cycles, not just one.
-- [ ] **P1 Notification tap** — tap a renewal reminder → app opens on Home; tap a card-due reminder → Credit Cards screen opens. Test once from a killed app (cold start).
-- [ ] **P2 Household timeout UX** — airplane mode → try creating/joining a household → clean error within ~10s, no infinite spinner.
-- [ ] **P2 Calendar heatmap currency** — ₹649 sub + USD display currency → its calendar cell intensity reflects the converted amount (light), not max-red.
+- [x] **S1 Offline delete** — airplane mode on A → swipe-delete a sub → reconnect (stay in app) → sub leaves B's active list without a force sync.
+- [x] **S1 Offline delete-forever + restart** — airplane mode on A → "Delete Forever" → kill app → reconnect → relaunch → sub is gone remotely and does NOT resurrect on A (drain runs before merge).
+- [x] **S1 Offline add/edit** — airplane mode on A → add a sub and edit another → reconnect → both appear/update on B.
+- [x] **S1 Coalescing** — airplane mode on A → soft-delete then "Delete Forever" the same sub → reconnect → gone from both devices, not soft-deleted remotely.
+- [x] **S1 Sync status** — while offline, sync indicator shows offline after a queued write; after reconnect+drain it returns to synced.
+- [x] **#3 Card CRUD** — Settings → Credit Cards → add a card (cutoff 15, due 5) → assign a sub renewing before the cutoff → card shows "1 renewal this statement" with converted total; delete card → sub loses assignment, no crash.
+- [x] **#3 Card reminder** — card with due day = tomorrow → "payment due tomorrow" notification scheduled (check via Settings → Notifications debug list); delete card → notification gone.
+- [x] **P0 Account deletion (creator)** — 2 devices in a household, creator deletes account → no error; partner's device drops the household (self-heals); creator's Auth account + Firestore data fully gone (check Firebase Console).
+- [x] **P0 Account deletion (stale session)** — sign in, wait >5 min, delete account → Google users get silent reauth and deletion succeeds; nothing half-deleted.
+- [x] **P0 Rates warning** — fresh install, airplane mode, add subs in 2 currencies → hero + analytics show the "Rates unavailable" warning. Reconnect → warning clears by itself within ~45s, or immediately when tapped (tap-to-retry). *(First test run 2026-07-03 found the fetch failure was cached until app restart — fixed: provider self-retries + warnings are tappable + stale-cache fallback.)*
+- [x] **P0 Custom-cycle calendar** — add a 14-day custom sub → analytics calendar shows dots every 14 days (not monthly).
+- [x] **P1 R8 release smoke** — install the minified release build (Play Internal track or `flutter install --release`) → app opens, sign-in works, notifications schedule (check debug list), sync works, no crash on any tab. THE critical R8 test — obfuscation bugs only appear in release builds.
+- [x] **P1 Notification look-ahead** — sub renewing tomorrow → Settings → Notifications debug list shows reminders for ~3 future cycles, not just one.
+- [x] **P1 Notification tap** — tap a renewal reminder → app opens on Home; tap a card-due reminder → Credit Cards screen opens. Test once from a killed app (cold start).
+- [x] **P2 Household timeout UX** — airplane mode → try creating/joining a household → "No internet connection" error within ~10s; NOTHING gets created. *(First run 2026-07-03: offline create "succeeded" via Firestore's local write queue + cache readback — fixed with a server-reachability pre-flight (`_ensureOnline`) on create/join/refresh-invite.)*
+- [x] **P2 Calendar heatmap currency** — ₹649 sub + USD display currency → its calendar cell intensity reflects the converted amount (light), not max-red.
 
 ---
 

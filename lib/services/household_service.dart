@@ -19,12 +19,34 @@ class HouseholdService {
 
   Future<T> _timed<T>(Future<T> future) => future.timeout(_opTimeout);
 
+  /// Households are an online feature (invite codes, partner membership).
+  /// Without this pre-flight, Firestore's offline persistence QUEUES the
+  /// writes and the UI instantly reads them back from the local cache —
+  /// the household "succeeds" on screen while offline and only
+  /// materializes server-side much later. Force a server round-trip first
+  /// so offline attempts fail fast with a clear message instead.
+  Future<void> _ensureOnline(String uid) async {
+    try {
+      await _timed(
+        _firestore
+            .collection('users')
+            .doc(uid)
+            .get(const GetOptions(source: Source.server)),
+      );
+    } catch (_) {
+      throw Exception(
+        'No internet connection — household changes need you online.',
+      );
+    }
+  }
+
   /// Create a new household.
   ///
   /// The three writes (household doc, invite lookup, own profile) commit
   /// as one batch — all are self-authorized, and a partial failure would
   /// otherwise leave an orphaned household or invite.
   Future<Household> createHousehold(String uid, String name) async {
+    await _ensureOnline(uid);
     final inviteCode = generateInviteCode();
     final householdId = _firestore.collection('households').doc().id;
 
@@ -70,6 +92,7 @@ class HouseholdService {
 
   /// Join a household with an invite code
   Future<Household> joinHousehold(String uid, String code) async {
+    await _ensureOnline(uid);
     final codeUpper = code.toUpperCase().trim();
 
     // Look up invite code
@@ -257,6 +280,7 @@ class HouseholdService {
 
   /// Refresh invite code
   Future<String> refreshInviteCode(String uid) async {
+    await _ensureOnline(uid);
     final userDoc =
         await _timed(_firestore.collection('users').doc(uid).get());
     final householdId = userDoc.data()?['householdId'] as String?;
