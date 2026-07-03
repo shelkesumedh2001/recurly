@@ -20,7 +20,10 @@ class AuthService {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  // Explicit scope: constructing GoogleSignIn() bare can make token minting
+  // on silently-restored sessions fail with MISSING_SCOPE (seen during
+  // account-deletion reauth on device).
+  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
 
   /// Current Firebase user
   User? get currentUser => _auth.currentUser;
@@ -218,19 +221,14 @@ class AuthService {
 
     final providers = user.providerData.map((p) => p.providerId).toSet();
     if (providers.contains('google.com')) {
-      var googleUser = await _googleSignIn.signInSilently();
-      googleUser ??= await _googleSignIn.signIn();
-      if (googleUser != null) {
-        final googleAuth = await googleUser.authentication;
-        // Throws user-mismatch if a different Google account was picked —
-        // which correctly aborts before anything is deleted.
-        await user.reauthenticateWithCredential(
-          GoogleAuthProvider.credential(
-            accessToken: googleAuth.accessToken,
-            idToken: googleAuth.idToken,
-          ),
-        );
+      try {
+        await _reauthenticateWithGoogle(user);
         return;
+      } catch (e) {
+        // Any reauth failure (cancelled picker, MISSING_SCOPE token errors,
+        // user-mismatch) falls through to the clean abort below — nothing
+        // has been deleted at this point.
+        debugPrint('Google reauth for account deletion failed: $e');
       }
     }
 
@@ -239,6 +237,38 @@ class AuthService {
       message:
           'For security, sign out and sign back in, then retry deleting '
           'your account.',
+    );
+  }
+
+  Future<void> _reauthenticateWithGoogle(User user) async {
+    var googleUser = await _googleSignIn.signInSilently();
+    googleUser ??= await _googleSignIn.signIn();
+    if (googleUser == null) {
+      throw Exception('Google sign-in cancelled');
+    }
+
+    GoogleSignInAuthentication googleAuth;
+    try {
+      googleAuth = await googleUser.authentication;
+    } on Exception {
+      // Silently-restored sessions can fail token minting (MISSING_SCOPE).
+      // Drop the session and get a fresh interactive one — new consent,
+      // new tokens.
+      await _googleSignIn.signOut();
+      googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        throw Exception('Google sign-in cancelled');
+      }
+      googleAuth = await googleUser.authentication;
+    }
+
+    // Throws user-mismatch if a different Google account was picked —
+    // which correctly aborts before anything is deleted.
+    await user.reauthenticateWithCredential(
+      GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      ),
     );
   }
 
