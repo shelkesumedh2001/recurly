@@ -47,6 +47,11 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.release
+            // R8 code shrinking + resource shrinking (Task 12). Keep rules
+            // for reflection-based plugins live in proguard-rules.pro.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }

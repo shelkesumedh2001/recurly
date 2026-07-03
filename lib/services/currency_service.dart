@@ -7,9 +7,9 @@ import '../utils/constants.dart';
 
 /// Service for currency conversion and exchange rate management
 class CurrencyService {
+  factory CurrencyService() => _instance;
   CurrencyService._();
   static final CurrencyService _instance = CurrencyService._();
-  factory CurrencyService() => _instance;
 
   Box<ExchangeRateCache>? _ratesBox;
   static const String _cacheKey = 'exchange_rates';
@@ -67,12 +67,17 @@ class CurrencyService {
     }
   }
 
-  /// Get exchange rates (from cache or fetch if needed)
+  /// Get exchange rates (from cache or fetch if needed).
+  ///
+  /// A failed fetch falls back to whatever cache exists, even a stale one —
+  /// day-old rates convert far better than the raw-amount passthrough that
+  /// happens with no rates at all.
   Future<ExchangeRateCache?> getRates({bool forceRefresh = false}) async {
     if (!forceRefresh && isCacheValid()) {
       return getCachedRates();
     }
-    return await fetchLatestRates();
+    final fetched = await fetchLatestRates();
+    return fetched ?? getCachedRates();
   }
 
   /// Convert amount from one currency to another

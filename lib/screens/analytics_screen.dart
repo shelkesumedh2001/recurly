@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/enums.dart';
 import '../providers/analytics_providers.dart';
 import '../providers/currency_providers.dart';
 import '../providers/subscription_providers.dart';
@@ -19,6 +18,7 @@ import '../widgets/analytics/spending_trend_chart.dart';
 import '../widgets/analytics/split_savings_card.dart';
 import '../widgets/analytics/subscription_count_chart.dart';
 import '../widgets/analytics/who_pays_more_bar.dart';
+import '../widgets/rates_warning.dart';
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
@@ -80,6 +80,9 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
       ),
       body: Column(
         children: [
+          // Currency-conversion warning: every chart below converts to the
+          // display currency, so a missing-rates fallback poisons them all.
+          const RatesUnavailableWarning(),
           // Tab bar
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),

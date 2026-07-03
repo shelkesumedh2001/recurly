@@ -85,12 +85,6 @@ class UnifiedCategory {
     this.colorHex,
   });
 
-  final String id;
-  final String name;
-  final String icon;
-  final bool isCustom;
-  final String? colorHex;
-
   /// Create from a built-in enum category
   factory UnifiedCategory.fromEnum(SubscriptionCategory enumCategory) {
     return UnifiedCategory(
@@ -111,6 +105,12 @@ class UnifiedCategory {
       colorHex: custom.colorHex,
     );
   }
+
+  final String id;
+  final String name;
+  final String icon;
+  final bool isCustom;
+  final String? colorHex;
 
   @override
   bool operator ==(Object other) =>

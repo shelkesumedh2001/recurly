@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../models/subscription.dart';
-import '../providers/auth_providers.dart';
+import '../providers/credit_card_providers.dart';
 import '../providers/household_providers.dart';
 import '../providers/subscription_providers.dart';
-import '../providers/sync_providers.dart';
-import '../services/sync_service.dart';
 import '../theme/app_theme.dart';
 import 'add_subscription_sheet.dart';
 import 'app_toast.dart';
@@ -34,7 +32,6 @@ class SubscriptionCard extends ConsumerWidget {
     );
 
     // Capture providers and data before widget can be disposed
-    final databaseService = ref.read(databaseServiceProvider);
     final subscriptionNotifier = ref.read(subscriptionProvider.notifier);
     final subscriptionId = subscription.id;
     final subscriptionName = subscription.name;
@@ -59,16 +56,9 @@ class SubscriptionCard extends ConsumerWidget {
         }
       },
       onDismissed: (direction) async {
-        final isSyncEnabled = ref.read(isSyncEnabledProvider);
-        final user = ref.read(currentFirebaseUserProvider);
-
         if (direction == DismissDirection.endToStart) {
-          await databaseService.moveToRecentlyDeleted(subscriptionId);
-          await subscriptionNotifier.loadSubscriptions();
-
-          if (isSyncEnabled && user != null) {
-            SyncService().deleteRemoteSubscription(user.uid, subscriptionId);
-          }
+          // Notifier handles cancelling notifications + remote sync.
+          await subscriptionNotifier.moveToRecentlyDeleted(subscriptionId);
 
           // Use a custom Overlay-based toast — the previous SnackBar
           // approach didn't auto-dismiss in this app's nested-Scaffold
@@ -78,14 +68,8 @@ class SubscriptionCard extends ConsumerWidget {
             '$subscriptionName moved to recently deleted',
             actionLabel: 'Undo',
             onAction: () async {
-              await databaseService.restoreFromRecentlyDeleted(subscriptionId);
-              await subscriptionNotifier.loadSubscriptions();
-              if (isSyncEnabled && user != null) {
-                final restored = databaseService.getSubscriptionById(subscriptionId);
-                if (restored != null) {
-                  SyncService().pushSubscription(user.uid, restored);
-                }
-              }
+              // Notifier reschedules notifications + re-pushes to remote.
+              await subscriptionNotifier.restoreFromRecentlyDeleted(subscriptionId);
             },
           );
         }
@@ -468,6 +452,14 @@ class SubscriptionCard extends ConsumerWidget {
                   _buildDetailRow(context, 'Next bill', DateFormat('MMM dd, yyyy').format(subscription.nextBillDate)),
                   _buildDetailRow(context, 'Days until renewal', '${subscription.daysUntilRenewal} days'),
                   _buildDetailRow(context, 'Monthly cost', '${subscription.currencySymbol}${subscription.monthlyEquivalent.toStringAsFixed(2)}'),
+                  if (subscription.cardId != null)
+                    if (ref.read(cardByIdProvider(subscription.cardId))
+                        case final card?)
+                      _buildDetailRow(
+                        context,
+                        'Card',
+                        '${card.name} · payment due ${DateFormat('MMM d').format(card.nextDueDate)}',
+                      ),
                   if (_hasSplit()) ...[
                     _buildDetailRow(context, 'Split', '${(subscription.splitWith!.first['sharePercent'] as num).toInt()}% partner\'s share'),
                     _buildDetailRow(context, 'Your share', '${subscription.currencySymbol}${(subscription.price * (1 - (subscription.splitWith!.first['sharePercent'] as num) / 100)).toStringAsFixed(2)}'),
@@ -527,40 +519,27 @@ class SubscriptionCard extends ConsumerWidget {
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: () async {
-                              // Capture EVERYTHING ref-derived BEFORE any
-                              // await. After Navigator.pop + the load
-                              // refresh, this card is no longer in the
-                              // widget tree, so calling `ref.read(...)` at
-                              // that point throws "Cannot use ref after
-                              // the widget was disposed" and the snackbar
-                              // call below it never runs.
-                              final databaseService = ref.read(databaseServiceProvider);
+                              // Capture the notifier BEFORE any await. After
+                              // Navigator.pop + the list refresh, this card is
+                              // no longer in the widget tree, so calling
+                              // `ref.read(...)` at that point throws "Cannot
+                              // use ref after the widget was disposed" and the
+                              // toast call below it never runs.
                               final notifier = ref.read(subscriptionProvider.notifier);
-                              final isSyncEnabled = ref.read(isSyncEnabledProvider);
-                              final user = ref.read(currentFirebaseUserProvider);
 
                               final confirmed = await _showDeleteDialog(context);
                               if (!confirmed) return;
                               if (context.mounted) {
                                 Navigator.pop(context);
                               }
-                              await databaseService.moveToRecentlyDeleted(subscription.id);
-                              await notifier.loadSubscriptions();
-                              if (isSyncEnabled && user != null) {
-                                SyncService().deleteRemoteSubscription(user.uid, subscription.id);
-                              }
+                              // Notifier handles cancelling notifications + remote sync.
+                              await notifier.moveToRecentlyDeleted(subscription.id);
                               showAppToast(
                                 '${subscription.name} moved to recently deleted',
                                 actionLabel: 'Undo',
                                 onAction: () async {
-                                  await databaseService.restoreFromRecentlyDeleted(subscription.id);
-                                  await notifier.loadSubscriptions();
-                                  if (isSyncEnabled && user != null) {
-                                    final restored = databaseService.getSubscriptionById(subscription.id);
-                                    if (restored != null) {
-                                      SyncService().pushSubscription(user.uid, restored);
-                                    }
-                                  }
+                                  // Notifier reschedules notifications + re-pushes.
+                                  await notifier.restoreFromRecentlyDeleted(subscription.id);
                                 },
                               );
                             },
@@ -681,10 +660,10 @@ class _SwipeHintBarState extends State<_SwipeHintBar> with SingleTickerProviderS
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
-    _opacity = Tween<double>(begin: 1.0, end: 0.0).animate(
+    _opacity = Tween<double>(begin: 1, end: 0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
-    _height = Tween<double>(begin: 1.0, end: 0.0).animate(
+    _height = Tween<double>(begin: 1, end: 0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
     Future.delayed(const Duration(seconds: 3), () {
@@ -708,7 +687,7 @@ class _SwipeHintBarState extends State<_SwipeHintBar> with SingleTickerProviderS
     );
     return SizeTransition(
       sizeFactor: _height,
-      axisAlignment: -1.0,
+      axisAlignment: -1,
       child: FadeTransition(
         opacity: _opacity,
         child: Padding(

@@ -5,7 +5,10 @@
 ![Platform](https://img.shields.io/badge/platform-Android-green)
 ![Flutter](https://img.shields.io/badge/Flutter-3.41-blue)
 ![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-lightgrey)
-![Version](https://img.shields.io/badge/version-1.0.0-orange)
+![Version](https://img.shields.io/badge/version-1.0.0%2B4-orange)
+![Status](https://img.shields.io/badge/status-live%20on%20Play%20Store-brightgreen)
+
+**Now live on the Google Play Store.**
 
 Track every subscription you pay for — renewals, costs, budgets, and shared expenses — all in one place, with or without an account.
 

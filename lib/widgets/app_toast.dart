@@ -53,6 +53,7 @@ class _AppToastController {
   final ValueNotifier<int> _dismissTrigger = ValueNotifier(0);
   ValueNotifier<int> get dismissTrigger => _dismissTrigger;
 
+  // ignore: use_setters_to_change_properties — registration, not a property
   void register(OverlayEntry entry) {
     _current = entry;
   }

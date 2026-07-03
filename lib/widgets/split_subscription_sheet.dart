@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -228,7 +230,7 @@ class _SplitSubscriptionSheetState
         sharePercent: _sharePercent,
       );
       // Reload subscriptions so split icon shows immediately
-      ref.read(subscriptionProvider.notifier).loadSubscriptions();
+      unawaited(ref.read(subscriptionProvider.notifier).loadSubscriptions());
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(

@@ -10,8 +10,11 @@ import '../providers/split_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../providers/sync_providers.dart';
 import '../services/currency_service.dart';
+import '../utils/changelog.dart';
 import '../utils/constants.dart';
+import '../utils/money.dart';
 import '../widgets/add_subscription_sheet.dart';
+import '../widgets/rates_warning.dart';
 import '../widgets/subscription_card.dart';
 import '../widgets/sync_indicator.dart';
 import 'archived_screen.dart';
@@ -41,6 +44,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ..listenManual(syncInitProvider, (_, __) {})
       ..listenManual(householdSyncProvider, (_, __) {})
       ..listenManual(householdCleanupProvider, (_, __) {});
+    // Show "what's new" sheet once after a version upgrade.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) showChangelogIfUpdated(context);
+    });
   }
 
   @override
@@ -84,7 +91,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         rates: rates,
       );
     }
-    return total;
+    return roundMoney(total);
   }
 
   /// Compute my share with currency conversion
@@ -99,7 +106,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     for (final sub in subs) {
       double amount = sub.monthlyEquivalent;
       if (sub.splitWith != null && sub.splitWith!.isNotEmpty) {
-        double myMultiplier = 1.0;
+        double myMultiplier = 1;
         for (final split in sub.splitWith!) {
           if (split['accepted'] == true) {
             final partnerShare = (split['sharePercent'] as num).toDouble();
@@ -115,7 +122,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         rates: rates,
       );
     }
-    return total;
+    return roundMoney(total);
   }
 
   @override
@@ -394,6 +401,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
             ),
           ),
+          const RatesUnavailableWarning(compact: true),
         ],
       ),
     );

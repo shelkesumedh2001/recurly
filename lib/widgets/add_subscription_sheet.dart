@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,8 @@ import '../models/enums.dart';
 import '../models/exchange_rate.dart';
 import '../models/subscription.dart';
 import '../models/subscription_template.dart';
+import '../providers/category_providers.dart';
+import '../providers/credit_card_providers.dart';
 import '../providers/currency_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../providers/template_providers.dart';
@@ -32,12 +35,13 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
 
   BillingCycle _selectedBillingCycle = BillingCycle.monthly;
   SubscriptionCategory _selectedCategory = SubscriptionCategory.entertainment;
-  DateTime _firstBillDate = DateTime.now();
+  DateTime _firstBillDate = clock.now();
   String? _selectedCurrency;
   bool _isLoading = false;
   bool _showTemplates = true;
   String? _logoUrl;
   String? _templateColor;
+  String? _selectedCardId;
 
   // Custom billing cycle (only used when _selectedBillingCycle == custom)
   final _customDaysController = TextEditingController(text: '30');
@@ -69,6 +73,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       _selectedCurrency = sub.currency;
       _logoUrl = sub.logoUrl;
       _templateColor = sub.color;
+      _selectedCardId = sub.cardId;
       _showTemplates = false; // Don't show templates when editing
       // Trial fields
       _isFreeTrial = sub.isFreeTrial;
@@ -97,7 +102,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   /// and apply it to [_trialEndDate]. Anchored on today.
   void _applyTrialDuration() {
     if (_trialDurationValue <= 0) return;
-    final now = DateTime.now();
+    final now = clock.now();
     final today = DateTime(now.year, now.month, now.day);
     DateTime end;
     switch (_trialDurationUnit) {
@@ -302,7 +307,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
 
                 // Billing Cycle
                 DropdownButtonFormField<BillingCycle>(
-                  value: _selectedBillingCycle,
+                  initialValue: _selectedBillingCycle,
                   decoration: const InputDecoration(
                     labelText: 'Billing Cycle',
                     prefixIcon: Icon(Icons.sync),
@@ -356,12 +361,12 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
 
                 // Category
                 DropdownButtonFormField<SubscriptionCategory>(
-                  value: _selectedCategory,
+                  initialValue: _selectedCategory,
                   decoration: const InputDecoration(
                     labelText: 'Category',
                     prefixIcon: Icon(Icons.category_outlined),
                   ),
-                  items: SubscriptionCategory.values.map((category) {
+                  items: ref.watch(categoriesByUsageProvider).map((category) {
                     return DropdownMenuItem(
                       value: category,
                       child: Row(
@@ -382,6 +387,35 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                   },
                 ),
                 const SizedBox(height: AppConstants.spacing16),
+
+                // Payment card (only shown when the user tracks cards)
+                if (ref.watch(creditCardsProvider).isNotEmpty) ...[
+                  DropdownButtonFormField<String?>(
+                    initialValue: _selectedCardId,
+                    decoration: const InputDecoration(
+                      labelText: 'Payment card',
+                      prefixIcon: Icon(Icons.credit_card_outlined),
+                    ),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('None'),
+                      ),
+                      ...ref.watch(creditCardsProvider).map(
+                            (card) => DropdownMenuItem<String?>(
+                              value: card.id,
+                              child: Text(card.name),
+                            ),
+                          ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedCardId = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: AppConstants.spacing16),
+                ],
 
                 // First Bill Date
                 InkWell(
@@ -435,7 +469,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
 
   /// Show date picker
   Future<void> _selectDate(BuildContext context) async {
-    final now = DateTime.now();
+    final now = clock.now();
     final picked = await showDatePicker(
       context: context,
       initialDate: _firstBillDate.isAfter(now) ? now : _firstBillDate,
@@ -490,7 +524,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
             {
               'price': existing.price,
               'currency': existing.currency,
-              'date': DateTime.now().toIso8601String(),
+              'date': clock.now().toIso8601String(),
             },
           ];
         }
@@ -498,7 +532,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
         subscription = existing.copyWith(
           name: _nameController.text.trim(),
           price: newPrice,
-          currency: _selectedCurrency!,
+          currency: _selectedCurrency,
           billingCycle: _selectedBillingCycle,
           firstBillDate: _firstBillDate,
           category: _selectedCategory,
@@ -508,10 +542,12 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           trialEndDate: _isFreeTrial ? _trialEndDate : null,
           clearTrialEndDate: !_isFreeTrial,
           priceAfterTrial: priceAfterTrial,
-          updatedAt: DateTime.now(),
+          updatedAt: clock.now(),
           priceHistory: updatedPriceHistory,
           customDays: customDays,
           clearCustomDays: _selectedBillingCycle != BillingCycle.custom,
+          cardId: _selectedCardId,
+          clearCardId: _selectedCardId == null,
         );
       } else {
         subscription = Subscription(
@@ -524,11 +560,12 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           category: _selectedCategory,
           logoUrl: _logoUrl,
           color: _templateColor,
-          createdAt: DateTime.now(),
+          createdAt: clock.now(),
           isFreeTrial: _isFreeTrial,
           trialEndDate: _isFreeTrial ? _trialEndDate : null,
           priceAfterTrial: priceAfterTrial,
           customDays: customDays,
+          cardId: _selectedCardId,
         );
       }
 
@@ -628,7 +665,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                     _isFreeTrial = value;
                     if (value && _trialEndDate == null) {
                       // Default to 7 days from now
-                      _trialEndDate = DateTime.now().add(const Duration(days: 7));
+                      _trialEndDate = clock.now().add(const Duration(days: 7));
                     }
                   });
                 },
@@ -673,7 +710,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                 Expanded(
                   flex: 3,
                   child: DropdownButtonFormField<_TrialDurationUnit>(
-                    value: _trialDurationUnit,
+                    initialValue: _trialDurationUnit,
                     decoration: const InputDecoration(
                       labelText: 'Unit',
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -768,7 +805,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
 
   /// Select trial end date
   Future<void> _selectTrialEndDate(BuildContext context) async {
-    final now = DateTime.now();
+    final now = clock.now();
     final picked = await showDatePicker(
       context: context,
       initialDate: _trialEndDate ?? now.add(const Duration(days: 7)),

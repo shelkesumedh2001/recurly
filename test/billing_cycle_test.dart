@@ -1,5 +1,7 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:recurly/models/enums.dart';
+import 'package:recurly/models/subscription.dart';
 import 'package:recurly/utils/billing_cycle.dart';
 
 void main() {
@@ -105,6 +107,83 @@ void main() {
         customDays: 21,
       );
       expect(result, DateTime(2025, 7, 6, 9, 30));
+    });
+
+    test('non-positive customDays falls back to 30 (never a zero step)', () {
+      // A zero/negative step would make bill-date projection loops hang.
+      expect(
+        addOneCycle(BillingCycle.custom, DateTime(2025, 1, 1), customDays: 0),
+        DateTime(2025, 1, 31),
+      );
+      expect(
+        addOneCycle(BillingCycle.custom, DateTime(2025, 1, 1), customDays: -7),
+        DateTime(2025, 1, 31),
+      );
+    });
+  });
+
+  group('Subscription.upcomingRenewals (calendar projection)', () {
+    Subscription sub({
+      required BillingCycle cycle,
+      int? customDays,
+      required DateTime firstBillDate,
+    }) {
+      return Subscription(
+        id: 'p1',
+        name: 'Proj',
+        price: 9.99,
+        billingCycle: cycle,
+        firstBillDate: firstBillDate,
+        category: SubscriptionCategory.entertainment,
+        createdAt: DateTime(2026, 1, 1),
+        customDays: customDays,
+      );
+    }
+
+    test('custom 14-day sub projects every 14 days — NOT monthly', () {
+      withClock(Clock.fixed(DateTime(2026, 7, 15)), () {
+        final s = sub(
+          cycle: BillingCycle.custom,
+          customDays: 14,
+          firstBillDate: DateTime(2026, 7, 6),
+        );
+        // Next bill: Jul 20 (7/6 + 14), then every 14 days.
+        final dates = s.upcomingRenewals(DateTime(2026, 9, 1));
+        expect(dates, [
+          DateTime(2026, 7, 20),
+          DateTime(2026, 8, 3),
+          DateTime(2026, 8, 17),
+          DateTime(2026, 8, 31),
+        ]);
+      });
+    });
+
+    test('monthly sub projects one date per month with day-clamp', () {
+      withClock(Clock.fixed(DateTime(2026, 1, 15)), () {
+        final s = sub(
+          cycle: BillingCycle.monthly,
+          firstBillDate: DateTime(2026, 1, 31),
+        );
+        // Chained month-adds clamp at February and stay on the 28th —
+        // matches nextBillDate's own chaining semantics.
+        final dates = s.upcomingRenewals(DateTime(2026, 4, 30));
+        expect(dates, [
+          DateTime(2026, 1, 31),
+          DateTime(2026, 2, 28),
+          DateTime(2026, 3, 28),
+          DateTime(2026, 4, 28),
+        ]);
+      });
+    });
+
+    test('end date before next bill yields empty projection', () {
+      withClock(Clock.fixed(DateTime(2026, 7, 15)), () {
+        final s = sub(
+          cycle: BillingCycle.monthly,
+          firstBillDate: DateTime(2026, 7, 1),
+        );
+        expect(s.upcomingRenewals(DateTime(2026, 7, 20)), isEmpty);
+      });
     });
   });
 }

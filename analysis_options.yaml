@@ -1,4 +1,6 @@
-include: package:flutter_lints/flutter.yaml
+# Includes flutter_lints plus the analyzer exclude list — see the note in
+# analysis_base.yaml for why the exclude can't live directly in this file.
+include: analysis_base.yaml
 
 linter:
   rules:
@@ -11,7 +13,6 @@ linter:
     comment_references: true
     control_flow_in_finally: true
     empty_statements: true
-    invariant_booleans: true
     literal_only_boolean_expressions: true
     no_adjacent_strings_in_list: true
     no_duplicate_case_values: true
@@ -79,7 +80,6 @@ linter:
     prefer_const_literals_to_create_immutables: true
     prefer_constructors_over_static_methods: true
     prefer_contains: true
-    prefer_equal_for_default_values: true
     prefer_expression_function_bodies: false
     prefer_final_fields: true
     prefer_final_in_for_each: true
