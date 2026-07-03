@@ -20,8 +20,8 @@ final syncServiceProvider = Provider<SyncService>((ref) {
 final syncStatusProvider = StreamProvider<SyncStatus>((ref) {
   final syncService = ref.watch(syncServiceProvider);
   // Convert ValueNotifier to Stream for reactivity
-  final controller = StreamController<SyncStatus>();
-  controller.add(syncService.syncStatus.value);
+  final controller = StreamController<SyncStatus>()
+    ..add(syncService.syncStatus.value);
   void listener() {
     if (!controller.isClosed) {
       controller.add(syncService.syncStatus.value);
@@ -97,7 +97,5 @@ final householdSyncProvider = Provider<void>((ref) {
   // Initialize household sync
   syncService.initializeHouseholdSync(uid, householdId);
 
-  ref.onDispose(() {
-    syncService.disposeHouseholdSync();
-  });
+  ref.onDispose(syncService.disposeHouseholdSync);
 });

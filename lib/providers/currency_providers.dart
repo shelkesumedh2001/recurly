@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/exchange_rate.dart';
 import '../services/currency_service.dart';
 import '../services/database_service.dart';
 import '../services/preferences_service.dart';
+import '../utils/money.dart';
 import 'subscription_providers.dart';
 
 /// Currency service singleton provider
@@ -76,10 +79,22 @@ class DisplayCurrencyNotifier extends StateNotifier<String> {
   }
 }
 
-/// Exchange rates provider (async)
+/// Exchange rates provider (async).
+///
+/// Self-healing: FutureProvider caches its result forever, so an app
+/// launched offline used to pin a failed fetch until restart (the only
+/// other refresh hooks are post-sync-init — signed-in users only — and the
+/// manual settings refresh). While rates are missing or stale, schedule a
+/// periodic re-fetch so connectivity returning actually fixes the totals.
 final exchangeRatesProvider = FutureProvider<ExchangeRateCache?>((ref) async {
   final service = ref.read(currencyServiceProvider);
-  return await service.getRates();
+  final rates = await service.getRates();
+
+  if (rates == null || rates.isStale) {
+    final retry = Timer(const Duration(seconds: 45), ref.invalidateSelf);
+    ref.onDispose(retry.cancel);
+  }
+  return rates;
 });
 
 /// Refresh exchange rates
@@ -103,6 +118,31 @@ final ratesStaleProvider = Provider<bool>((ref) {
   return rates.whenData((r) => r?.isStale ?? true).value ?? true;
 });
 
+/// True when at least one active sub's price can't actually be converted
+/// to the display currency (no cached rates yet, or the pair is missing).
+/// `convert()` silently passes the raw amount through in that case, so
+/// every "converted" total on screen is mixing currencies — surface it.
+final conversionUnavailableProvider = Provider<bool>((ref) {
+  final subscriptions = ref.watch(subscriptionProvider).value ?? [];
+  final displayCurrency = ref.watch(displayCurrencyProvider);
+  final rates = ref.watch(exchangeRatesProvider).value;
+  final service = ref.read(currencyServiceProvider);
+
+  return subscriptions.any(
+    (sub) =>
+        !sub.isArchived &&
+        sub.deletedAt == null &&
+        sub.currency != displayCurrency &&
+        service.convertOrNull(
+              amount: 1,
+              from: sub.currency,
+              to: displayCurrency,
+              rates: rates,
+            ) ==
+            null,
+  );
+});
+
 /// Convert total monthly spend to display currency
 final convertedTotalSpendProvider = Provider<double>((ref) {
   final subscriptions = ref.watch(subscriptionProvider).value ?? [];
@@ -122,7 +162,7 @@ final convertedTotalSpendProvider = Provider<double>((ref) {
     }
   }
 
-  return total;
+  return roundMoney(total);
 });
 
 /// Format amount in display currency

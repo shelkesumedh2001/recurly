@@ -2,7 +2,8 @@
 class AppConstants {
   // App Information
   static const String appName = 'Recurly';
-  static const String appVersion = '1.0.0';
+  // NOTE: the displayed app version is kAppBuild in utils/changelog.dart
+  // (test-enforced to move with pubspec.yaml) — no hardcoded copy here.
 
   // Hive Box Names
   static const String subscriptionsBox = 'subscriptions';
@@ -12,6 +13,8 @@ class AppConstants {
   static const String customCategoriesBox = 'custom_categories';
   static const String exchangeRatesBox = 'exchange_rates';
   static const String schemaBox = 'schema';
+  static const String syncQueueBox = 'sync_queue';
+  static const String creditCardsBox = 'credit_cards';
 
   // Notification Settings (Phase 3)
   static const String notificationChannelId = 'subscription_reminders_v2';

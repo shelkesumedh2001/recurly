@@ -22,7 +22,9 @@ DateTime addOneCycle(BillingCycle cycle, DateTime date, {int? customDays}) {
     case BillingCycle.weekly:
       return _addDays(date, 7);
     case BillingCycle.custom:
-      final days = customDays ?? 30;
+      // Non-positive day counts (bad/legacy data) fall back to the 30-day
+      // month-equivalent — a zero step would loop bill-date math forever.
+      final days = (customDays == null || customDays <= 0) ? 30 : customDays;
       return _addDays(date, days);
   }
 }

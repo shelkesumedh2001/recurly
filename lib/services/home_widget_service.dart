@@ -7,9 +7,9 @@ import 'preferences_service.dart';
 
 /// Service for managing home screen widgets
 class HomeWidgetService {
+  factory HomeWidgetService() => _instance;
   HomeWidgetService._();
   static final HomeWidgetService _instance = HomeWidgetService._();
-  factory HomeWidgetService() => _instance;
 
   // Android widget provider name
   static const String _androidWidgetProvider = 'SubscriptionWidgetProvider';
@@ -129,7 +129,7 @@ class HomeWidgetService {
 
     final date = subscription.nextBillDate;
     final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',];
     return '${months[date.month - 1]} ${date.day}';
   }
 

@@ -5,9 +5,11 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'providers/theme_providers.dart';
 import 'screens/main_navigation.dart';
 import 'services/auth_service.dart';
 import 'services/budget_service.dart';
+import 'services/credit_card_service.dart';
 import 'services/currency_service.dart';
 import 'services/custom_category_service.dart';
 import 'services/database_service.dart';
@@ -16,7 +18,6 @@ import 'services/notification_service.dart';
 import 'services/preferences_service.dart';
 import 'services/sync_service.dart';
 import 'services/theme_service.dart';
-import 'providers/theme_providers.dart';
 import 'utils/constants.dart';
 
 void main() async {
@@ -45,6 +46,17 @@ void main() async {
   // Initialize database (includes Hive adapters) - REQUIRED
   await DatabaseService().initialize();
 
+  // Purge subscriptions that have sat in Recently Deleted past the 30-day
+  // window (best-effort; failures shouldn't block startup).
+  try {
+    final purged = await DatabaseService().cleanupOldDeletedSubscriptions();
+    if (purged > 0) {
+      debugPrint('Purged $purged expired recently-deleted subscription(s)');
+    }
+  } catch (e) {
+    debugPrint('Recently-deleted cleanup failed: $e');
+  }
+
   // Initialize preferences service - REQUIRED
   await PreferencesService().initialize();
 
@@ -65,6 +77,12 @@ void main() async {
     await CustomCategoryService().initialize();
   } catch (e) {
     debugPrint('Failed to initialize custom category service: $e');
+  }
+
+  try {
+    await CreditCardService().initialize();
+  } catch (e) {
+    debugPrint('Failed to initialize credit card service: $e');
   }
 
   try {
@@ -101,6 +119,7 @@ void main() async {
       await notificationService.rescheduleAllNotifications(
         subscriptions,
         preferences,
+        cards: CreditCardService().getAllCards(),
       );
     }
   } catch (e) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -224,22 +226,18 @@ class _DeletedCard extends ConsumerWidget {
           await databaseService.deleteSubscription(subscriptionId);
 
           if (isSyncEnabled && currentUser != null) {
-            SyncService().deleteRemoteSubscription(currentUser.uid, subscriptionId);
+            unawaited(
+              SyncService().deleteRemoteSubscription(
+                currentUser.uid,
+                subscriptionId,
+              ),
+            );
           }
 
           showAppToast('$subscriptionName deleted permanently');
         } else {
-          // Restore
-          await databaseService.restoreFromRecentlyDeleted(subscriptionId);
-          await subscriptionNotifier.loadSubscriptions();
-
-          if (isSyncEnabled && currentUser != null) {
-            final restored = databaseService.getSubscriptionById(subscriptionId);
-            if (restored != null) {
-              SyncService().pushSubscription(currentUser.uid, restored);
-            }
-          }
-
+          // Restore — notifier reschedules notifications + re-pushes to remote.
+          await subscriptionNotifier.restoreFromRecentlyDeleted(subscriptionId);
           showAppToast('$subscriptionName restored');
         }
       },
@@ -388,14 +386,8 @@ class _DeletedCard extends ConsumerWidget {
                           onPressed: () async {
                             Navigator.pop(sheetContext);
                             onItemRemoved(subscription.id);
-                            await databaseService.restoreFromRecentlyDeleted(subscription.id);
-                            await notifier.loadSubscriptions();
-                            if (isSyncEnabled && user != null) {
-                              final restored = databaseService.getSubscriptionById(subscription.id);
-                              if (restored != null) {
-                                SyncService().pushSubscription(user.uid, restored);
-                              }
-                            }
+                            // Notifier reschedules notifications + re-pushes.
+                            await notifier.restoreFromRecentlyDeleted(subscription.id);
                             showAppToast('${subscription.name} restored');
                           },
                           icon: const Icon(Icons.restore, size: 18),
@@ -412,7 +404,12 @@ class _DeletedCard extends ConsumerWidget {
                             onItemRemoved(subscription.id);
                             await databaseService.deleteSubscription(subscription.id);
                             if (isSyncEnabled && user != null) {
-                              SyncService().deleteRemoteSubscription(user.uid, subscription.id);
+                              unawaited(
+                                SyncService().deleteRemoteSubscription(
+                                  user.uid,
+                                  subscription.id,
+                                ),
+                              );
                             }
                             showAppToast('${subscription.name} deleted permanently');
                           },
