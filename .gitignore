@@ -72,3 +72,10 @@ GEMINI_EDITS.txt
 
 # Local pre-redesign UI snapshot (not source code)
 backup_ui_v1/
+
+# Internal working docs — local only, never push
+AUDIT_REPORT.md
+DEV_STATUS.md
+PROJECT_SPECIFICATION.md
+PROJECT_STATE.md
+bugFixing.md
