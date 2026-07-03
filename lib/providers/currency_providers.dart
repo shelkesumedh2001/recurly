@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/exchange_rate.dart';
@@ -77,10 +79,22 @@ class DisplayCurrencyNotifier extends StateNotifier<String> {
   }
 }
 
-/// Exchange rates provider (async)
+/// Exchange rates provider (async).
+///
+/// Self-healing: FutureProvider caches its result forever, so an app
+/// launched offline used to pin a failed fetch until restart (the only
+/// other refresh hooks are post-sync-init — signed-in users only — and the
+/// manual settings refresh). While rates are missing or stale, schedule a
+/// periodic re-fetch so connectivity returning actually fixes the totals.
 final exchangeRatesProvider = FutureProvider<ExchangeRateCache?>((ref) async {
   final service = ref.read(currencyServiceProvider);
-  return service.getRates();
+  final rates = await service.getRates();
+
+  if (rates == null || rates.isStale) {
+    final retry = Timer(const Duration(seconds: 45), ref.invalidateSelf);
+    ref.onDispose(retry.cancel);
+  }
+  return rates;
 });
 
 /// Refresh exchange rates

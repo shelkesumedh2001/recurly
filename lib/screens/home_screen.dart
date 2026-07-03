@@ -402,23 +402,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           if (ref.watch(conversionUnavailableProvider)) ...[
             const SizedBox(height: 10),
-            Row(
-              children: [
-                Icon(
-                  Icons.currency_exchange,
-                  size: 14,
-                  color: theme.colorScheme.error,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Exchange rates unavailable — this total mixes currencies',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
+            InkWell(
+              onTap: () => ref.read(refreshRatesProvider)(),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.currency_exchange,
+                    size: 14,
+                    color: theme.colorScheme.error,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Rates unavailable — total mixes currencies. Tap to retry.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ],
