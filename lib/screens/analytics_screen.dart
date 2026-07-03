@@ -82,32 +82,38 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
           // Currency-conversion warning: every chart below converts to the
           // display currency, so a missing-rates fallback poisons them all.
           if (ref.watch(conversionUnavailableProvider))
-            Container(
-              margin: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color:
-                    theme.colorScheme.errorContainer.withValues(alpha: 0.5),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+              child: InkWell(
+                onTap: () => ref.read(refreshRatesProvider)(),
                 borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.currency_exchange,
-                    size: 16,
-                    color: theme.colorScheme.error,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.errorContainer
+                        .withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Exchange rates unavailable — totals mix currencies',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onErrorContainer,
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.currency_exchange,
+                        size: 16,
+                        color: theme.colorScheme.error,
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Rates unavailable — totals mix currencies. Tap to retry.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onErrorContainer,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           // Tab bar
