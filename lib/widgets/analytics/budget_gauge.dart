@@ -71,7 +71,7 @@ class _BudgetGaugeState extends ConsumerState<BudgetGauge>
       case BudgetStatus.safe:
         gaugeColor = AppTokens.of(context).success;
       case BudgetStatus.warning:
-        gaugeColor = const Color(0xFFFFB366); // amber
+        gaugeColor = AppTokens.of(context).warning;
       case BudgetStatus.exceeded:
         gaugeColor = AppTokens.of(context).danger;
       case BudgetStatus.noBudget:
@@ -121,6 +121,7 @@ class _BudgetGaugeState extends ConsumerState<BudgetGauge>
                             style: theme.textTheme.headlineMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                               color: gaugeColor,
+                              fontFeatures: kTabularFigures,
                             ),
                           ),
                         ),
@@ -132,6 +133,7 @@ class _BudgetGaugeState extends ConsumerState<BudgetGauge>
                     '${currencyService.formatAmount(totalSpend, displayCurrency)} / ${currencyService.formatAmount(budget, displayCurrency)}',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
+                      fontFeatures: kTabularFigures,
                     ),
                   ),
                   const SizedBox(height: 4),

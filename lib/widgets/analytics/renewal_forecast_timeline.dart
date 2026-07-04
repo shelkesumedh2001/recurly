@@ -213,6 +213,7 @@ class _RenewalForecastTimelineState
             style: theme.textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.bold,
               color: AppTokens.of(context).danger,
+              fontFeatures: kTabularFigures,
             ),
           ),
         ],
