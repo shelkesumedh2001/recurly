@@ -49,10 +49,17 @@ class _RenewalForecastTimelineState
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
           border: Border.all(
-            color: theme.colorScheme.outline.withValues(alpha: 0.1),
+            color: theme.colorScheme.outline.withValues(alpha: 0.06),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: theme.colorScheme.shadow.withValues(alpha: 0.05),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Center(
           child: Text(
@@ -140,11 +147,11 @@ class _RenewalForecastTimelineState
         color: isToday
             ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
             : theme.colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(
           color: isToday
               ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)
-              : theme.colorScheme.outline.withValues(alpha: 0.1),
+              : theme.colorScheme.outline.withValues(alpha: 0.08),
         ),
       ),
       child: Column(
