@@ -93,10 +93,17 @@ class _BudgetGaugeState extends ConsumerState<BudgetGauge>
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(AppRadius.xl),
             border: Border.all(
-              color: theme.colorScheme.outline.withValues(alpha: 0.1),
+              color: theme.colorScheme.outline.withValues(alpha: 0.06),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: theme.colorScheme.shadow.withValues(alpha: 0.05),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: AnimatedBuilder(
             animation: _animation,

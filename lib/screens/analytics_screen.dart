@@ -668,7 +668,9 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-/// Bordered surface container all charts sit in.
+/// Soft surface container all charts sit in. A large radius + hairline
+/// border + diffuse shadow so the card floats rather than reading as a
+/// hard-edged box.
 class _ChartCard extends StatelessWidget {
   const _ChartCard({required this.child});
 
@@ -681,10 +683,17 @@ class _ChartCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
         border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.1),
+          color: theme.colorScheme.outline.withValues(alpha: 0.06),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.shadow.withValues(alpha: 0.05),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: child,
     );
