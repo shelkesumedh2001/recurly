@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/navigation_providers.dart';
 import '../services/notification_service.dart';
 import 'analytics_screen.dart';
 import 'credit_cards_screen.dart';
@@ -16,11 +17,8 @@ class MainNavigation extends ConsumerStatefulWidget {
   ConsumerState<MainNavigation> createState() => _MainNavigationState();
 }
 
-class _MainNavigationState extends ConsumerState<MainNavigation>
-    with SingleTickerProviderStateMixin {
+class _MainNavigationState extends ConsumerState<MainNavigation> {
   int _selectedIndex = 0;
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
 
   // Navigation screens
   static const List<Widget> _screens = [
@@ -32,16 +30,6 @@ class _MainNavigationState extends ConsumerState<MainNavigation>
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _fadeAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    );
-    _animationController.forward();
-
     // Route notification taps: card reminders open the Cards screen, sub
     // reminders land on Home. Post-frame pass handles a payload that
     // arrived before this listener existed (cold start).
@@ -71,17 +59,16 @@ class _MainNavigationState extends ConsumerState<MainNavigation>
     NotificationService()
         .tappedPayload
         .removeListener(_handleNotificationTap);
-    _animationController.dispose();
     super.dispose();
   }
 
   void _onItemTapped(int index) {
     if (_selectedIndex != index) {
-      _animationController.reset();
       setState(() {
         _selectedIndex = index;
       });
-      _animationController.forward();
+      // Let tab content react to becoming visible (entrance animations).
+      ref.read(selectedTabProvider.notifier).state = index;
     }
   }
 
@@ -90,9 +77,11 @@ class _MainNavigationState extends ConsumerState<MainNavigation>
     final theme = Theme.of(context);
 
     return Scaffold(
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: _screens[_selectedIndex],
+      // IndexedStack keeps every tab alive: switching is instant and
+      // scroll position / search state survive the round trip.
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _screens,
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -107,42 +96,25 @@ class _MainNavigationState extends ConsumerState<MainNavigation>
           selectedIndex: _selectedIndex,
           onDestinationSelected: _onItemTapped,
           backgroundColor: theme.colorScheme.surface,
-          indicatorColor: theme.colorScheme.primary.withValues(alpha: 0.15),
           elevation: 0,
           height: 70,
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          destinations: [
+          // Icon/label colors come from the theme's navigationBarTheme so
+          // every preset styles the bar consistently.
+          destinations: const [
             NavigationDestination(
-              icon: Icon(
-                Icons.home_outlined,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-              selectedIcon: Icon(
-                Icons.home_rounded,
-                color: theme.colorScheme.primary,
-              ),
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home_rounded),
               label: 'Home',
             ),
             NavigationDestination(
-              icon: Icon(
-                Icons.pie_chart_outline_rounded,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-              selectedIcon: Icon(
-                Icons.pie_chart_rounded,
-                color: theme.colorScheme.primary,
-              ),
+              icon: Icon(Icons.pie_chart_outline_rounded),
+              selectedIcon: Icon(Icons.pie_chart_rounded),
               label: 'Analytics',
             ),
             NavigationDestination(
-              icon: Icon(
-                Icons.settings_outlined,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-              selectedIcon: Icon(
-                Icons.settings_rounded,
-                color: theme.colorScheme.primary,
-              ),
+              icon: Icon(Icons.settings_outlined),
+              selectedIcon: Icon(Icons.settings_rounded),
               label: 'Settings',
             ),
           ],

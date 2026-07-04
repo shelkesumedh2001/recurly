@@ -2,18 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/exchange_rate.dart';
+import '../models/subscription.dart';
 import '../models/sync_status.dart';
 import '../providers/auth_providers.dart';
 import '../providers/currency_providers.dart';
 import '../providers/household_providers.dart';
+import '../providers/preferences_providers.dart';
 import '../providers/split_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../providers/sync_providers.dart';
 import '../services/currency_service.dart';
+import '../theme/app_tokens.dart';
 import '../utils/changelog.dart';
 import '../utils/constants.dart';
 import '../utils/money.dart';
 import '../widgets/add_subscription_sheet.dart';
+import '../widgets/common/app_bottom_sheet.dart';
+import '../widgets/common/app_empty_state.dart';
 import '../widgets/rates_warning.dart';
 import '../widgets/subscription_card.dart';
 import '../widgets/sync_indicator.dart';
@@ -256,9 +261,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
                       child: Text(
-                        "Partner's Subscriptions",
+                        "${ref.watch(partnerLabelProvider)}'s subscriptions",
                         style: theme.textTheme.labelLarge?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -312,7 +317,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       children: [
         IconButton(
           icon: const Icon(Icons.call_split, size: 22),
-          tooltip: 'Split requests',
+          tooltip:
+              '$count pending split ${count == 1 ? 'request' : 'requests'}',
           onPressed: () {
             Navigator.push(
               context,
@@ -347,21 +353,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  /// Minimal hero section
+  /// Hero: monthly spend, subscription count, and what renews next.
   Widget _buildHeroSection(BuildContext context, String formattedTotal, int count) {
     final theme = Theme.of(context);
     final isInHousehold = ref.watch(isInHouseholdProvider);
     final spendViewMode = ref.watch(spendViewModeProvider);
+    final nextRenewal = _nextRenewalLine();
 
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(24),
+        // Soft accent wash that follows the preset's primary color.
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            theme.colorScheme.primary.withValues(alpha: 0.14),
+            theme.colorScheme.primary.withValues(alpha: 0.04),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
         border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.1),
-          width: 1,
+          color: theme.colorScheme.primary.withValues(alpha: 0.12),
         ),
       ),
       child: Column(
@@ -371,11 +385,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                isInHousehold
-                    ? spendViewMode.displayName
-                    : 'Monthly Total',
+                isInHousehold ? spendViewMode.displayName : 'Monthly spend',
                 style: theme.textTheme.labelLarge?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
                   fontWeight: FontWeight.w500,
                   letterSpacing: 0.5,
                 ),
@@ -396,15 +408,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '$count ${count == 1 ? 'subscription' : 'subscriptions'}',
+            nextRenewal == null
+                ? '$count ${count == 1 ? 'subscription' : 'subscriptions'}'
+                : '$count ${count == 1 ? 'subscription' : 'subscriptions'}'
+                    '  ·  $nextRenewal',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
             ),
           ),
           const RatesUnavailableWarning(compact: true),
         ],
       ),
     );
+  }
+
+  /// "Next: Netflix in 3 days" — surfaces the soonest renewal where the
+  /// money actually leaves, right under the total.
+  String? _nextRenewalLine() {
+    final subs = ref.watch(subscriptionProvider).value;
+    if (subs == null || subs.isEmpty) return null;
+
+    Subscription? next;
+    for (final sub in subs) {
+      if (sub.isArchived || sub.deletedAt != null) continue;
+      if (next == null || sub.daysUntilRenewal < next.daysUntilRenewal) {
+        next = sub;
+      }
+    }
+    if (next == null) return null;
+
+    final days = next.daysUntilRenewal;
+    final when = days == 0
+        ? 'today'
+        : days == 1
+            ? 'tomorrow'
+            : 'in $days days';
+    return 'next: ${next.name} $when';
   }
 
   Widget _buildSpendToggle(
@@ -415,33 +456,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: SpendViewMode.values.map((mode) {
           final isSelected = mode == current;
-          return GestureDetector(
-            onTap: () {
-              ref.read(spendViewModeProvider.notifier).state = mode;
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? theme.colorScheme.primary.withValues(alpha: 0.15)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                mode.displayName,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+          return Semantics(
+            button: true,
+            selected: isSelected,
+            label: '${mode.displayName} spend view',
+            child: InkWell(
+              onTap: () {
+                ref.read(spendViewModeProvider.notifier).state = mode;
+              },
+              borderRadius: BorderRadius.circular(AppRadius.sm - 2),
+              child: AnimatedContainer(
+                duration: AppMotion.of(context, AppMotion.fast),
+                curve: AppMotion.curve,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
                   color: isSelected
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                      ? theme.colorScheme.primary.withValues(alpha: 0.15)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(AppRadius.sm - 2),
+                ),
+                child: Text(
+                  mode.displayName,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    color: isSelected
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                  ),
                 ),
               ),
             ),
@@ -451,124 +500,64 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  /// Minimal empty state
+  /// Empty state — doubles as first-run onboarding for new users.
   Widget _buildEmptyState(BuildContext context, String searchQuery) {
-    final theme = Theme.of(context);
-
-    // Show "no results" if searching
+    // No matches while searching
     if (searchQuery.isNotEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.search_off,
-                  size: 64,
-                  color: theme.colorScheme.primary.withValues(alpha: 0.4),
-                ),
-              ),
-              const SizedBox(height: 32),
-              Text(
-                'No results found',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Try searching with a different term',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  height: 1.5,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
+      return AppEmptyState(
+        icon: Icons.search_off,
+        title: 'No matches',
+        message: 'Nothing named "$searchQuery" yet. '
+            'Check the spelling or try a shorter name.',
+        actionLabel: 'Clear search',
+        actionIcon: Icons.close,
+        onAction: () {
+          _searchController.clear();
+          ref.read(searchQueryProvider.notifier).state = '';
+        },
       );
     }
 
-    // Original empty state for no subscriptions
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.receipt_long_outlined,
-                size: 64,
-                color: theme.colorScheme.primary.withValues(alpha: 0.4),
-              ),
-            ),
-            const SizedBox(height: 32),
-            Text(
-              'No subscriptions yet',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Track your subscriptions\nand never miss a renewal',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+    // First run: invite the first subscription and preview what the app
+    // does — this is the onboarding, so no separate intro flow.
+    return AppEmptyState(
+      icon: Icons.receipt_long_outlined,
+      title: 'Track your first subscription',
+      message: 'Add anything that renews — streaming, cloud storage, '
+          'gym — and Recurly reminds you before it bills.',
+      actionLabel: 'Add subscription',
+      onAction: () => _showAddSubscriptionSheet(context),
+      footer: const Column(
+        children: [
+          _FeatureHint(
+            icon: Icons.notifications_active_outlined,
+            text: 'Reminders before every renewal',
+          ),
+          SizedBox(height: 12),
+          _FeatureHint(
+            icon: Icons.hourglass_bottom,
+            text: 'Free-trial tracking so you cancel in time',
+          ),
+          SizedBox(height: 12),
+          _FeatureHint(
+            icon: Icons.people_outline,
+            text: 'Split costs with your household',
+          ),
+        ],
       ),
     );
   }
 
   /// Error state
   Widget _buildErrorState(BuildContext context, String error) {
-    final theme = Theme.of(context);
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: theme.colorScheme.error.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Something went wrong',
-              style: theme.textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error,
-              style: theme.textTheme.bodySmall,
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+    return AppEmptyState(
+      icon: Icons.error_outline,
+      title: "Couldn't load subscriptions",
+      message: error,
+      actionLabel: 'Try again',
+      actionIcon: Icons.refresh,
+      onAction: () =>
+          ref.read(subscriptionProvider.notifier).loadSubscriptions(),
     );
   }
 
@@ -584,178 +573,135 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   /// Show menu options
   void _showMenu(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        final theme = Theme.of(context);
-        return Container(
-          margin: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(24),
+    showAppSheet(
+      context,
+      builder: (sheetContext) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppSheetTile(
+            icon: Icons.sort,
+            title: 'Sort',
+            subtitle: 'Change list order',
+            onTap: () {
+              Navigator.pop(sheetContext);
+              _showSortOptions(context, ref);
+            },
           ),
-          child: SafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(height: 8),
-                  Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildMenuItem(
-                    context,
-                    icon: Icons.sort,
-                    title: 'Sort',
-                    subtitle: 'Change order',
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showSortOptions(context, ref);
-                    },
-                  ),
-                  _buildMenuItem(
-                    context,
-                    icon: Icons.archive_outlined,
-                    title: 'Archived',
-                    subtitle: 'View archived subscriptions',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ArchivedScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildMenuItem(
-                    context,
-                    icon: Icons.delete_outline,
-                    title: 'Recently Deleted',
-                    subtitle: 'Restore within 30 days',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const RecentlyDeletedScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ),
-            ),
+          AppSheetTile(
+            icon: Icons.archive_outlined,
+            title: 'Archived',
+            subtitle: 'Paused subscriptions',
+            onTap: () {
+              Navigator.pop(sheetContext);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ArchivedScreen(),
+                ),
+              );
+            },
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildMenuItem(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
-    return ListTile(
-      leading: Icon(icon, color: theme.colorScheme.primary),
-      title: Text(
-        title,
-        style: const TextStyle(fontWeight: FontWeight.w600),
+          AppSheetTile(
+            icon: Icons.delete_outline,
+            title: 'Recently deleted',
+            subtitle: 'Restore within 30 days',
+            onTap: () {
+              Navigator.pop(sheetContext);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const RecentlyDeletedScreen(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
-      subtitle: Text(subtitle),
-      onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
     );
   }
 
-  /// Show sort options
+  /// Show sort options, marking the active one
   void _showSortOptions(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        final theme = Theme.of(context);
-        return Container(
-          margin: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(24),
+    final current = ref.read(homeSortModeProvider);
+
+    void applySort(HomeSortMode mode) {
+      final notifier = ref.read(subscriptionProvider.notifier);
+      switch (mode) {
+        case HomeSortMode.date:
+          notifier.sortByDate();
+        case HomeSortMode.price:
+          notifier.sortByPrice();
+        case HomeSortMode.name:
+          notifier.sortByName();
+      }
+      ref.read(homeSortModeProvider.notifier).state = mode;
+    }
+
+    showAppSheet(
+      context,
+      title: 'Sort by',
+      builder: (sheetContext) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppSheetTile(
+            icon: Icons.calendar_today_outlined,
+            title: 'Next bill date',
+            selected: current == HomeSortMode.date,
+            onTap: () {
+              applySort(HomeSortMode.date);
+              Navigator.pop(sheetContext);
+            },
           ),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 20),
-                Text(
-                  'Sort by',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildSortOption(
-                  context,
-                  icon: Icons.calendar_today_outlined,
-                  title: 'Next Bill Date',
-                  onTap: () {
-                    ref.read(subscriptionProvider.notifier).sortByDate();
-                    Navigator.pop(context);
-                  },
-                ),
-                _buildSortOption(
-                  context,
-                  icon: Icons.attach_money,
-                  title: 'Price',
-                  onTap: () {
-                    ref.read(subscriptionProvider.notifier).sortByPrice();
-                    Navigator.pop(context);
-                  },
-                ),
-                _buildSortOption(
-                  context,
-                  icon: Icons.sort_by_alpha,
-                  title: 'Name',
-                  onTap: () {
-                    ref.read(subscriptionProvider.notifier).sortByName();
-                    Navigator.pop(context);
-                  },
-                ),
-                const SizedBox(height: 12),
-              ],
-            ),
+          AppSheetTile(
+            icon: Icons.attach_money,
+            title: 'Price',
+            selected: current == HomeSortMode.price,
+            onTap: () {
+              applySort(HomeSortMode.price);
+              Navigator.pop(sheetContext);
+            },
           ),
-        );
-      },
+          AppSheetTile(
+            icon: Icons.sort_by_alpha,
+            title: 'Name',
+            selected: current == HomeSortMode.name,
+            onTap: () {
+              applySort(HomeSortMode.name);
+              Navigator.pop(sheetContext);
+            },
+          ),
+        ],
+      ),
     );
   }
+}
 
-  Widget _buildSortOption(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
+/// One line of the empty-state feature preview: quiet icon + short claim.
+class _FeatureHint extends StatelessWidget {
+  const _FeatureHint({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ListTile(
-      leading: Icon(icon, color: theme.colorScheme.primary),
-      title: Text(
-        title,
-        style: const TextStyle(fontWeight: FontWeight.w500),
-      ),
-      onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          icon,
+          size: 18,
+          color: theme.colorScheme.primary.withValues(alpha: 0.65),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          text,
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+          ),
+        ),
+      ],
     );
   }
 }

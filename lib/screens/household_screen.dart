@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/auth_providers.dart';
 import '../providers/household_providers.dart';
+import '../providers/preferences_providers.dart';
 import '../services/database_service.dart';
 import '../services/household_service.dart';
 import '../services/sync_service.dart';
@@ -102,7 +103,7 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
                           );
                         },
               icon: const Icon(Icons.add),
-              label: Text(isPro ? 'Create Household' : 'Create (Pro Required)'),
+              label: Text(isPro ? 'Create household' : 'Create (Pro Required)'),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
                 shape: RoundedRectangleBorder(
@@ -164,11 +165,29 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
                 color: theme.colorScheme.primary,
               ),
               const SizedBox(height: 12),
-              Text(
-                household.name,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      household.name,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  if (isCreator) ...[
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      tooltip: 'Rename household',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () =>
+                          _renameHousehold(context, household.id, household.name),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 4),
               Text(
@@ -214,12 +233,19 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    isMe ? 'You' : 'Partner',
+                    isMe ? 'You' : ref.watch(partnerLabelProvider),
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
+                if (!isMe)
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    tooltip: 'Rename',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _renamePartner(context),
+                  ),
                 if (memberId == household.createdBy)
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -300,7 +326,7 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Create Household'),
+        title: const Text('Create household'),
         content: SingleChildScrollView(
           child: TextField(
             controller: nameController,
@@ -347,7 +373,7 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Household created!'),
+            content: Text('Household created'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -364,6 +390,97 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Rename the household (creator only). Change syncs to the other member
+  /// through the household stream.
+  Future<void> _renameHousehold(
+    BuildContext context,
+    String householdId,
+    String currentName,
+  ) async {
+    final controller = TextEditingController(text: currentName);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Rename household'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(
+            labelText: 'Household name',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          onSubmitted: (v) => Navigator.pop(dialogContext, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    final trimmed = newName?.trim() ?? '';
+    if (trimmed.isEmpty || trimmed == currentName) return;
+
+    try {
+      final user = ref.read(currentFirebaseUserProvider);
+      if (user == null) return;
+      await HouseholdService().renameHousehold(user.uid, householdId, trimmed);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to rename: $e')),
+        );
+      }
+    }
+  }
+
+  /// Set this user's local label for the other member ("Wife", "Alex", …).
+  Future<void> _renamePartner(BuildContext context) async {
+    final current = ref.read(partnerLabelProvider);
+    final controller = TextEditingController(text: current);
+    final label = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Rename member'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(
+            labelText: 'What you call them',
+            hintText: 'e.g. Wife, Alex, Roommate',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          onSubmitted: (v) => Navigator.pop(dialogContext, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (label == null) return;
+    await ref.read(preferencesProvider.notifier).setPartnerLabel(label);
   }
 
   Future<void> _refreshInviteCode(BuildContext context) async {
@@ -393,7 +510,7 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Disband Household?'),
+        title: const Text('Disband household?'),
         content: const Text(
           'This will remove all members and delete the household. '
           'This cannot be undone.',
@@ -458,7 +575,7 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Leave Household?'),
+        title: const Text('Leave household?'),
         content: const Text('You can rejoin later with a new invite code.'),
         actions: [
           TextButton(

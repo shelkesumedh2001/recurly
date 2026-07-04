@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/subscription.dart';
 import '../providers/subscription_providers.dart';
+import '../widgets/common/app_empty_state.dart';
 
 class ArchivedScreen extends ConsumerWidget {
   const ArchivedScreen({super.key});
@@ -28,7 +29,14 @@ class ArchivedScreen extends ConsumerWidget {
         ),
       ),
       body: archivedSubscriptions.isEmpty
-          ? _buildEmptyState(context)
+          ? const AppEmptyState(
+              icon: Icons.archive_outlined,
+              title: 'No archived subscriptions',
+              message:
+                  'Archiving pauses a subscription without deleting its '
+                  'history. Archive one from its details sheet and it '
+                  'lands here.',
+            )
           : CustomScrollView(
               slivers: [
                 SliverPadding(
@@ -51,49 +59,6 @@ class ArchivedScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.archive_outlined,
-                size: 64,
-                color: theme.colorScheme.primary.withValues(alpha: 0.4),
-              ),
-            ),
-            const SizedBox(height: 32),
-            Text(
-              'No archived subscriptions',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Archived subscriptions will appear here',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _ArchivedCard extends ConsumerWidget {
@@ -217,7 +182,7 @@ class _ArchivedCard extends ConsumerWidget {
                 subscription.formattedPrice,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
             ],

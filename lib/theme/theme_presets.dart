@@ -15,9 +15,20 @@ class ThemePreset {
     required this.warningColor,
     required this.textColor,
     required this.subtextColor,
+    this.chartColors = defaultChartColors,
     this.isSystem = false,
     this.isPremium = false,
   });
+
+  /// Vibrant categorical palette used by the warm presets.
+  static const List<Color> defaultChartColors = [
+    Color(0xFFEF6F5C), // Warm coral red
+    Color(0xFF8E6FBF), // Rich violet
+    Color(0xFF2BBCC4), // Vibrant teal
+    Color(0xFFE0608A), // Berry pink
+    Color(0xFFF5A142), // Golden amber
+    Color(0xFF3DAE7E), // Emerald green
+  ];
 
   final String id;
   final String name;
@@ -31,6 +42,9 @@ class ThemePreset {
   final Color warningColor;
   final Color textColor;
   final Color subtextColor;
+
+  /// Categorical chart palette tuned to this preset's hue family.
+  final List<Color> chartColors;
   final bool isSystem;
   final bool isPremium;
 
@@ -124,6 +138,14 @@ class ThemePresets {
     warningColor: Color(0xFFFFB74D),
     textColor: Color(0xFFE8EAED),
     subtextColor: Color(0xFF9AA0A6),
+    chartColors: [
+      Color(0xFF64B5F6), // Sky blue
+      Color(0xFF9575CD), // Soft violet
+      Color(0xFF4DB6AC), // Teal
+      Color(0xFFF06292), // Rose
+      Color(0xFFFFB74D), // Amber
+      Color(0xFF81C784), // Green
+    ],
   );
 
   // === AMOLED BLACK ===
@@ -173,6 +195,14 @@ class ThemePresets {
     warningColor: Color(0xFFFFE082),
     textColor: Color(0xFFE0F7FA),
     subtextColor: Color(0xFF80DEEA),
+    chartColors: [
+      Color(0xFF4DD0E1), // Aqua
+      Color(0xFF7986CB), // Indigo
+      Color(0xFF80CBC4), // Sea glass
+      Color(0xFFBA68C8), // Orchid
+      Color(0xFFFFD54F), // Sand
+      Color(0xFFFF8A65), // Coral
+    ],
     isPremium: false,
   );
 
@@ -190,6 +220,14 @@ class ThemePresets {
     warningColor: Color(0xFFFFD54F),
     textColor: Color(0xFFE8F5E9),
     subtextColor: Color(0xFFA5D6A7),
+    chartColors: [
+      Color(0xFF81C784), // Leaf green
+      Color(0xFFAED581), // Spring green
+      Color(0xFF4DB6AC), // Teal
+      Color(0xFFFFB74D), // Amber
+      Color(0xFFA1887F), // Bark
+      Color(0xFF7986CB), // Bluebell
+    ],
     isPremium: false,
   );
 

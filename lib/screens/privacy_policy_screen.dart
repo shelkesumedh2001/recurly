@@ -8,7 +8,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Privacy Policy'),
+        title: const Text('Privacy policy'),
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -22,7 +22,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           const SizedBox(height: 24),
           _section(theme, 'Your Data, Your Device',
               'Recurly is built offline-first. Your subscription data lives on your device and never leaves it unless you choose to sign in and enable cloud sync.',),
-          _section(theme, 'Cloud Sync',
+          _section(theme, 'Cloud sync',
               'If you sign in, your data is securely stored in Google Firebase to enable sync across devices and household sharing. Only you and your household partner can access your data.',),
           _section(theme, 'No Ads, No Tracking',
               'We don\'t run ads, we don\'t track you, and we don\'t sell or share your data with anyone. Period.',),

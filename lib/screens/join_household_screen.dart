@@ -30,7 +30,7 @@ class _JoinHouseholdScreenState extends ConsumerState<JoinHouseholdScreen> {
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Join Household'),
+        title: const Text('Join household'),
         backgroundColor: theme.colorScheme.surface,
         elevation: 0,
       ),
@@ -98,7 +98,7 @@ class _JoinHouseholdScreenState extends ConsumerState<JoinHouseholdScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Text(
-                      'Join Household',
+                      'Join household',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -136,7 +136,7 @@ class _JoinHouseholdScreenState extends ConsumerState<JoinHouseholdScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Joined ${household.name}!'),
+            content: Text('Joined ${household.name}'),
             behavior: SnackBarBehavior.floating,
           ),
         );

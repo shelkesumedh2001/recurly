@@ -49,7 +49,7 @@ class _SpendingTrendChartState extends ConsumerState<SpendingTrendChart>
         child: Text(
           'No data available',
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
           ),
         ),
       );

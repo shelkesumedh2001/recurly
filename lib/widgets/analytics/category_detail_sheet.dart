@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/enums.dart';
 import '../../models/subscription.dart';
 import '../../providers/subscription_providers.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/app_tokens.dart';
 import 'cancel_simulator_sheet.dart';
 
 /// Bottom sheet showing subscriptions in a specific category
@@ -24,7 +24,7 @@ class CategoryDetailSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final subscriptionsAsync = ref.watch(subscriptionProvider);
-    final color = AppTheme.getCategoryColor(categoryIndex);
+    final color = AppTokens.of(context).chartColor(categoryIndex);
 
     return Container(
       constraints: BoxConstraints(
@@ -95,7 +95,7 @@ class CategoryDetailSheet extends ConsumerWidget {
                           width: constraints.maxWidth,
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
-                              colors: AppTheme.getCategoryGradient(categoryIndex),
+                              colors: AppTokens.of(context).chartGradient(categoryIndex),
                             ),
                             borderRadius: BorderRadius.circular(3),
                           ),
@@ -129,7 +129,7 @@ class CategoryDetailSheet extends ConsumerWidget {
                       child: Text(
                         'No subscriptions in this category',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                         ),
                       ),
                     ),
@@ -277,13 +277,13 @@ class _SubscriptionTile extends StatelessWidget {
                     subscription.formattedPrice,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.expenseColor,
+                      color: AppTokens.of(context).danger,
                     ),
                   ),
                   Text(
                     '/${subscription.billingCycle == BillingCycle.yearly ? 'yr' : subscription.billingCycle == BillingCycle.weekly ? 'wk' : 'mo'}',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                 ],

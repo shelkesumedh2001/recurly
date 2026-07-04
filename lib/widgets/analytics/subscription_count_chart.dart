@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../providers/analytics_providers.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/app_tokens.dart';
 
 class SubscriptionCountChart extends ConsumerStatefulWidget {
   const SubscriptionCountChart({super.key});
@@ -48,7 +48,7 @@ class _SubscriptionCountChartState extends ConsumerState<SubscriptionCountChart>
         child: Text(
           'No data available',
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
           ),
         ),
       );
@@ -140,7 +140,7 @@ class _SubscriptionCountChartState extends ConsumerState<SubscriptionCountChart>
                         child: Text(
                           value.toInt().toString(),
                           style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                           ),
                         ),
                       );
@@ -176,7 +176,7 @@ class _SubscriptionCountChartState extends ConsumerState<SubscriptionCountChart>
                   }).toList(),
                   isCurved: true,
                   curveSmoothness: 0.3,
-                  color: AppTheme.incomeColor,
+                  color: AppTokens.of(context).success,
                   barWidth: 3,
                   isStrokeCapRound: true,
                   dotData: FlDotData(
@@ -184,7 +184,7 @@ class _SubscriptionCountChartState extends ConsumerState<SubscriptionCountChart>
                     getDotPainter: (spot, percent, barData, index) {
                       return FlDotCirclePainter(
                         radius: 4,
-                        color: AppTheme.incomeColor,
+                        color: AppTokens.of(context).success,
                         strokeWidth: 2,
                         strokeColor: theme.colorScheme.surface,
                       );
@@ -194,8 +194,8 @@ class _SubscriptionCountChartState extends ConsumerState<SubscriptionCountChart>
                     show: true,
                     gradient: LinearGradient(
                       colors: [
-                        AppTheme.incomeColor.withValues(alpha: 0.3),
-                        AppTheme.incomeColor.withValues(alpha: 0.05),
+                        AppTokens.of(context).success.withValues(alpha: 0.3),
+                        AppTokens.of(context).success.withValues(alpha: 0.05),
                       ],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,

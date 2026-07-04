@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/analytics_providers.dart';
 import '../../providers/currency_providers.dart';
-import '../../theme/app_theme.dart';
+import '../../providers/preferences_providers.dart';
 
 class WhoPaysMoresBar extends ConsumerStatefulWidget {
   const WhoPaysMoresBar({super.key});
@@ -46,7 +46,7 @@ class _WhoPaysMoresBarState extends ConsumerState<WhoPaysMoresBar>
     final currencyService = ref.watch(currencyServiceProvider);
     final displayCurrency = ref.watch(displayCurrencyProvider);
 
-    final myColor = AppTheme.primaryCoral;
+    final myColor = Theme.of(context).colorScheme.primary;
     const partnerColor = Color(0xFF2BBCC4); // teal from chart colors
 
     return Column(
@@ -85,7 +85,7 @@ class _WhoPaysMoresBarState extends ConsumerState<WhoPaysMoresBar>
                   // Partner
                   _buildBar(
                     theme,
-                    label: 'Partner',
+                    label: ref.watch(partnerLabelProvider),
                     amount: currencyService.formatAmount(comparison.partnerTotal, displayCurrency),
                     percent: comparison.partnerPercent,
                     color: partnerColor,
@@ -98,7 +98,7 @@ class _WhoPaysMoresBarState extends ConsumerState<WhoPaysMoresBar>
                       Text(
                         'Total',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                         ),
                       ),
                       Text(

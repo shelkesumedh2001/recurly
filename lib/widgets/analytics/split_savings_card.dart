@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/analytics_providers.dart';
 import '../../providers/currency_providers.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/app_tokens.dart';
 
 class SplitSavingsCard extends ConsumerWidget {
   const SplitSavingsCard({super.key});
@@ -21,10 +21,10 @@ class SplitSavingsCard extends ConsumerWidget {
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.incomeColor.withValues(alpha: 0.08),
+        color: AppTokens.of(context).success.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: AppTheme.incomeColor.withValues(alpha: 0.2),
+          color: AppTokens.of(context).success.withValues(alpha: 0.2),
         ),
       ),
       child: Row(
@@ -32,12 +32,12 @@ class SplitSavingsCard extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppTheme.incomeColor.withValues(alpha: 0.15),
+              color: AppTokens.of(context).success.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               Icons.handshake_rounded,
-              color: AppTheme.incomeColor,
+              color: AppTokens.of(context).success,
               size: 22,
             ),
           ),
@@ -69,13 +69,13 @@ class SplitSavingsCard extends ConsumerWidget {
                 '${currencyService.formatAmount(savings.yearlySavings, displayCurrency)}/yr',
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: AppTheme.incomeColor,
+                  color: AppTokens.of(context).success,
                 ),
               ),
               Text(
                 '${savings.splitCount} split${savings.splitCount == 1 ? '' : 's'}',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
             ],

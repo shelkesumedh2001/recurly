@@ -105,7 +105,7 @@ Future<void> showChangelogIfUpdated(BuildContext context) async {
                 alignment: Alignment.centerRight,
                 child: FilledButton(
                   onPressed: () => Navigator.pop(sheetContext),
-                  child: const Text('Nice!'),
+                  child: const Text('Got it'),
                 ),
               ),
             ],

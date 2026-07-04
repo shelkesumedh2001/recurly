@@ -6,7 +6,7 @@ import '../providers/currency_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../services/currency_service.dart';
 import '../services/export_service.dart';
-import '../theme/app_theme.dart';
+import '../theme/app_tokens.dart';
 import '../widgets/analytics/budget_gauge.dart';
 import '../widgets/analytics/cancel_simulator_sheet.dart';
 import '../widgets/analytics/category_pie_chart.dart';
@@ -93,13 +93,17 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
             child: TabBar(
               controller: _tabController,
               indicator: BoxDecoration(
-                color: AppTheme.primaryCoral.withValues(alpha: 0.2),
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
               indicatorSize: TabBarIndicatorSize.tab,
               dividerColor: Colors.transparent,
-              labelColor: AppTheme.primaryCoral,
-              unselectedLabelColor: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+              labelColor: Theme.of(context).colorScheme.primary,
+              unselectedLabelColor:
+                  theme.colorScheme.onSurface.withValues(alpha: 0.6),
               labelStyle: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -152,7 +156,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Hero Stats
-          _buildHeroStats(theme, totalMonthlySpend, yearlyProjected, subscriptionCount, currencyService, displayCurrency),
+          _buildHeroStats(theme, totalMonthlySpend, yearlyProjected,
+              subscriptionCount, currencyService, displayCurrency,),
 
           // Budget Gauge (self-hides if no budget)
           const BudgetGauge(),
@@ -160,112 +165,40 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
           const SizedBox(height: 28),
 
           // Spending Trend Chart
-          Text(
-            'Projected Spending',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: theme.colorScheme.outline.withValues(alpha: 0.1),
-              ),
-            ),
-            child: const SpendingTrendChart(),
-          ),
+          const _SectionTitle('Projected spending'),
+          const _ChartCard(child: SpendingTrendChart()),
 
           const SizedBox(height: 28),
 
           // Subscription Count Chart
-          Text(
-            'Subscription Growth',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+          const _SectionTitle(
+            'Subscription growth',
+            subtitle: 'Active subscriptions over the past year',
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Active subscriptions over the past year',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: theme.colorScheme.outline.withValues(alpha: 0.1),
-              ),
-            ),
-            child: const SubscriptionCountChart(),
-          ),
+          const _ChartCard(child: SubscriptionCountChart()),
 
           const SizedBox(height: 28),
 
           // Category Chart
-          Text(
-            'Spending by Category',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: theme.colorScheme.outline.withValues(alpha: 0.1),
-              ),
-            ),
-            child: const CategoryPieChart(),
-          ),
+          const _SectionTitle('Spending by category'),
+          const _ChartCard(child: CategoryPieChart()),
 
           const SizedBox(height: 28),
 
           // Price Changes Section
-          Text(
-            'Price Changes',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+          const _SectionTitle(
+            'Price changes',
+            subtitle: 'How your subscription costs have moved',
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Track how your subscription costs have changed',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(height: 12),
           const PriceChangesSection(),
 
           const SizedBox(height: 28),
 
           // Upcoming Renewals Timeline
-          Text(
-            'Upcoming Renewals',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+          const _SectionTitle(
+            'Upcoming renewals',
+            subtitle: 'Charges in the next 30 days',
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Charges in the next 30 days',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(height: 12),
           const RenewalForecastTimeline(),
 
           const SizedBox(height: 28),
@@ -274,34 +207,27 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
           const WhoPaysMoresBar(),
 
           // Insights Section
-          Text(
-            'Insights',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
+          const _SectionTitle('Insights'),
           if (mostExpensive != null)
-            GestureDetector(
+            _buildInsightCard(
+              theme,
+              title: 'Most expensive',
+              value: mostExpensive.name,
+              subtitle: mostExpensive.formattedPrice,
+              icon: Icons.trending_up_rounded,
+              color: AppTokens.of(context).danger,
               onTap: () => showCancelSimulatorSheet(context, mostExpensive),
-              child: _buildInsightCard(
-                theme,
-                title: 'Most Expensive',
-                value: mostExpensive.name,
-                subtitle: mostExpensive.formattedPrice,
-                icon: Icons.trending_up_rounded,
-                color: AppTheme.expenseColor,
-              ),
             ),
           if (topCategory != null) ...[
             const SizedBox(height: 10),
             _buildInsightCard(
               theme,
-              title: 'Top Category',
+              title: 'Top category',
               value: topCategory.key.displayName,
-              subtitle: '${currencyService.formatAmount(topCategory.value, displayCurrency)}/mo',
+              subtitle:
+                  '${currencyService.formatAmount(topCategory.value, displayCurrency)}/mo',
               icon: Icons.pie_chart_rounded,
-              color: AppTheme.primaryCoral,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ],
 
@@ -316,27 +242,18 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
   }
 
   Widget _buildCalendarTab(ThemeData theme) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+    return const SingleChildScrollView(
+      padding: EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Renewal Calendar',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+          _SectionTitle(
+            'Renewal calendar',
+            subtitle: 'When each subscription bills this month',
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Track upcoming subscription renewals',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(height: 20),
-          const RenewalCalendar(),
-          const SizedBox(height: 40),
+          SizedBox(height: 8),
+          RenewalCalendar(),
+          SizedBox(height: 40),
         ],
       ),
     );
@@ -359,22 +276,22 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                AppTheme.expenseColor.withValues(alpha: 0.15),
-                AppTheme.primaryCoral.withValues(alpha: 0.1),
+                AppTokens.of(context).danger.withValues(alpha: 0.15),
+                Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: AppTheme.expenseColor.withValues(alpha: 0.2),
+              color: AppTokens.of(context).danger.withValues(alpha: 0.2),
             ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Monthly Spending',
+                'Monthly spending',
                 style: theme.textTheme.labelLarge?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
@@ -384,14 +301,14 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
                 currencyService.formatAmount(monthly, displayCurrency),
                 style: theme.textTheme.displayMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: AppTheme.expenseColor,
+                  color: AppTokens.of(context).danger,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 '$count active subscriptions',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
               const SizedBox(height: 8),
@@ -408,15 +325,16 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
                 theme,
                 label: 'Yearly',
                 value: currencyService.formatAmount(yearly, displayCurrency),
-                color: AppTheme.incomeColor,
+                color: AppTokens.of(context).success,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildStatCard(
                 theme,
-                label: 'Daily Avg',
-                value: currencyService.formatAmount(monthly / 30, displayCurrency),
+                label: 'Daily average',
+                value:
+                    currencyService.formatAmount(monthly / 30, displayCurrency),
                 color: theme.colorScheme.tertiary,
               ),
             ),
@@ -468,59 +386,76 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
     required String subtitle,
     required IconData icon,
     required Color color,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainer,
+    return Material(
+      color: theme.colorScheme.surfaceContainer,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.1),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: theme.colorScheme.outline.withValues(alpha: 0.1),
             ),
-            child: Icon(icon, color: color, size: 22),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: Icon(icon, color: color, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      value,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                subtitle,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+              if (onTap != null) ...[
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.35),
                 ),
               ],
-            ),
+            ],
           ),
-          Text(
-            subtitle,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -551,7 +486,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
               ),
               const SizedBox(height: 20),
               Text(
-                'Export Data',
+                'Export data',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -598,10 +533,10 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
       leading: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: AppTheme.primaryCoral.withValues(alpha: 0.12),
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: AppTheme.primaryCoral),
+        child: Icon(icon, color: Theme.of(context).colorScheme.primary),
       ),
       title: Text(
         title,
@@ -694,5 +629,64 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
         setState(() => _isExporting = false);
       }
     }
+  }
+}
+
+/// Section heading with the screen's standard 28/4/12 rhythm.
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.title, {this.subtitle});
+
+  final String title;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              subtitle!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Bordered surface container all charts sit in.
+class _ChartCard extends StatelessWidget {
+  const _ChartCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.1),
+        ),
+      ),
+      child: child,
+    );
   }
 }
