@@ -164,13 +164,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
 
           const SizedBox(height: 28),
 
-          // Spending Trend Chart
-          const _SectionTitle('Projected spending'),
-          const _ChartCard(child: SpendingTrendChart()),
-
-          const SizedBox(height: 28),
-
-          // Subscription Count Chart
+          // Subscription Count Chart (line)
           const _SectionTitle(
             'Subscription growth',
             subtitle: 'Active subscriptions over the past year',
@@ -179,9 +173,15 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
 
           const SizedBox(height: 28),
 
-          // Category Chart
+          // Category Chart (pie)
           const _SectionTitle('Spending by category'),
           const _ChartCard(child: CategoryPieChart()),
+
+          const SizedBox(height: 28),
+
+          // Spending Trend Chart (bar)
+          const _SectionTitle('Projected spending'),
+          const _ChartCard(child: SpendingTrendChart()),
 
           const SizedBox(height: 28),
 
