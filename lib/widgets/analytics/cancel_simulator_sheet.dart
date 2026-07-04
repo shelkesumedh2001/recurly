@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/subscription.dart';
 import '../../providers/currency_providers.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/app_tokens.dart';
 
 class CancelSimulatorSheet extends ConsumerStatefulWidget {
   const CancelSimulatorSheet({super.key, required this.subscription});
@@ -81,7 +81,7 @@ class _CancelSimulatorSheetState extends ConsumerState<CancelSimulatorSheet>
                   width: 52,
                   height: 52,
                   decoration: BoxDecoration(
-                    color: AppTheme.expenseColor.withValues(alpha: 0.1),
+                    color: AppTokens.of(context).danger.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: sub.logoUrl != null
@@ -96,7 +96,7 @@ class _CancelSimulatorSheetState extends ConsumerState<CancelSimulatorSheet>
                                 style: TextStyle(
                                   fontSize: 22,
                                   fontWeight: FontWeight.bold,
-                                  color: AppTheme.expenseColor,
+                                  color: AppTokens.of(context).danger,
                                 ),
                               ),
                             ),
@@ -108,7 +108,7 @@ class _CancelSimulatorSheetState extends ConsumerState<CancelSimulatorSheet>
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
-                              color: AppTheme.expenseColor,
+                              color: AppTokens.of(context).danger,
                             ),
                           ),
                         ),
@@ -139,7 +139,7 @@ class _CancelSimulatorSheetState extends ConsumerState<CancelSimulatorSheet>
                   sub.formattedPrice,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: AppTheme.expenseColor,
+                    color: AppTokens.of(context).danger,
                   ),
                 ),
               ],
@@ -248,10 +248,10 @@ class _CancelSimulatorSheetState extends ConsumerState<CancelSimulatorSheet>
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.incomeColor.withValues(alpha: 0.08),
+        color: AppTokens.of(context).success.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppTheme.incomeColor.withValues(alpha: 0.2),
+          color: AppTokens.of(context).success.withValues(alpha: 0.2),
         ),
       ),
       child: Row(
@@ -259,10 +259,10 @@ class _CancelSimulatorSheetState extends ConsumerState<CancelSimulatorSheet>
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppTheme.incomeColor.withValues(alpha: 0.15),
+              color: AppTokens.of(context).success.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: AppTheme.incomeColor, size: 22),
+            child: Icon(icon, color: AppTokens.of(context).success, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -277,7 +277,7 @@ class _CancelSimulatorSheetState extends ConsumerState<CancelSimulatorSheet>
             amount,
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppTheme.incomeColor,
+              color: AppTokens.of(context).success,
             ),
           ),
         ],

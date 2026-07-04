@@ -59,7 +59,8 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
   /// `super(const AsyncValue.loading())`.
   Future<void> loadSubscriptions() async {
     try {
-      final subscriptions = _databaseService.getActiveSubscriptions();
+      final subscriptions =
+          _applySortMode(_databaseService.getActiveSubscriptions());
       state = AsyncValue.data(subscriptions);
 
       // Update home screen widget
@@ -67,6 +68,23 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
     }
+  }
+
+  /// Order [subs] by the active Home sort mode, so refreshes (remote
+  /// changes, add/edit/delete) keep the user's chosen order instead of
+  /// falling back to Hive box order.
+  List<Subscription> _applySortMode(List<Subscription> subs) {
+    switch (_ref.read(homeSortModeProvider)) {
+      case HomeSortMode.date:
+        subs.sort((a, b) => a.nextBillDate.compareTo(b.nextBillDate));
+      case HomeSortMode.price:
+        subs.sort((a, b) => b.monthlyEquivalent.compareTo(a.monthlyEquivalent));
+      case HomeSortMode.name:
+        subs.sort(
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+        );
+    }
+    return subs;
   }
 
   /// Push to sync if enabled (fire-and-forget to avoid blocking UI offline)
@@ -309,6 +327,13 @@ final subscriptionsByCategoryProvider = Provider.family<List<Subscription>, Stri
 
 /// Provider for search query state
 final searchQueryProvider = StateProvider<String>((ref) => '');
+
+/// How the Home list is currently sorted. UI marker only — the list itself
+/// is re-ordered by the notifier's sort methods; loads default to date.
+enum HomeSortMode { date, price, name }
+
+final homeSortModeProvider =
+    StateProvider<HomeSortMode>((ref) => HomeSortMode.date);
 
 /// Provider for filtered subscriptions based on search query
 final filteredSubscriptionsProvider = Provider<AsyncValue<List<Subscription>>>((ref) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_tokens.dart';
 import '../../theme/theme_presets.dart';
 
 /// Preview card for a theme preset
@@ -31,15 +32,7 @@ class ThemePreviewCard extends StatelessWidget {
             color: isSelected ? accentColor : preset.cardColor,
             width: isSelected ? 2.5 : 1,
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: accentColor.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    spreadRadius: 1,
-                  ),
-                ]
-              : null,
+          boxShadow: isSelected ? appGlow(accentColor) : null,
         ),
         child: Padding(
           padding: const EdgeInsets.all(12),

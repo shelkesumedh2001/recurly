@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -23,6 +24,14 @@ import 'utils/constants.dart';
 void main() async {
   // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Flutter defaults to 60Hz on many Android devices — ask for the
+  // display's highest refresh rate (no-op where unsupported).
+  try {
+    await FlutterDisplayMode.setHighRefreshRate();
+  } catch (e) {
+    debugPrint('Could not set high refresh rate: $e');
+  }
 
   // Initialize timezone database (required for scheduled notifications)
   tz.initializeTimeZones();

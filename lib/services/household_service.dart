@@ -144,6 +144,23 @@ class HouseholdService {
     return household.copyWith(members: updatedMembers);
   }
 
+  /// Rename the household. Creator-only — matches the "creator refresh"
+  /// Firestore rule (members + createdBy unchanged, other fields free).
+  /// The new name reaches the other member through the household stream.
+  Future<void> renameHousehold(
+    String uid,
+    String householdId,
+    String newName,
+  ) async {
+    await _ensureOnline(uid);
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) throw Exception('Household name cannot be empty');
+
+    await _timed(_firestore.collection('households').doc(householdId).update({
+      'name': trimmed,
+    }),);
+  }
+
   /// Leave a household (for non-creator members)
   Future<void> leaveHousehold(String uid) async {
     final userDoc =

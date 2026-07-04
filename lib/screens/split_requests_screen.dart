@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/preferences_providers.dart';
 import '../providers/split_providers.dart';
+import '../widgets/common/app_empty_state.dart';
 import '../widgets/split_proposal_card.dart';
 
 class SplitRequestsScreen extends ConsumerWidget {
@@ -15,52 +17,19 @@ class SplitRequestsScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Split Requests'),
+        title: const Text('Split requests'),
         backgroundColor: theme.colorScheme.surface,
         elevation: 0,
       ),
       body: proposalsAsync.when(
         data: (proposals) {
           if (proposals.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(40),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(32),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest
-                            .withValues(alpha: 0.3),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.call_split,
-                        size: 64,
-                        color:
-                            theme.colorScheme.primary.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'No pending requests',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'When someone proposes a split, it will appear here.',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface
-                            .withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            return AppEmptyState(
+              icon: Icons.call_split,
+              title: 'No pending requests',
+              message:
+                  'When ${ref.watch(partnerLabelProvider)} proposes splitting a '
+                  'subscription, it appears here for you to accept or decline.',
             );
           }
 

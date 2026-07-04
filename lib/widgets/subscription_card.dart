@@ -1,18 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../models/subscription.dart';
 import '../providers/credit_card_providers.dart';
 import '../providers/household_providers.dart';
+import '../providers/preferences_providers.dart';
 import '../providers/subscription_providers.dart';
-import '../theme/app_theme.dart';
+import '../theme/app_tokens.dart';
 import 'add_subscription_sheet.dart';
 import 'app_toast.dart';
+import 'common/app_dialogs.dart';
+import 'common/detail_row.dart';
 import 'split_subscription_sheet.dart';
 import 'trial/trial_badge.dart';
 
 class SubscriptionCard extends ConsumerWidget {
-
   const SubscriptionCard({
     super.key,
     required this.subscription,
@@ -26,10 +30,8 @@ class SubscriptionCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final urgencyColor = AppTheme.getRenewalUrgencyColor(
-      context,
-      subscription.daysUntilRenewal,
-    );
+    final urgencyColor =
+        AppTokens.of(context).urgency(subscription.daysUntilRenewal);
 
     // Capture providers and data before widget can be disposed
     final subscriptionNotifier = ref.read(subscriptionProvider.notifier);
@@ -43,8 +45,10 @@ class SubscriptionCard extends ConsumerWidget {
 
     final card = Dismissible(
       key: Key(subscription.id),
-      background: _buildSwipeBackground(context, Alignment.centerLeft, Colors.blue, Icons.edit),
-      secondaryBackground: _buildSwipeBackground(context, Alignment.centerRight, Colors.red, Icons.delete),
+      background: _buildSwipeBackground(
+          context, Alignment.centerLeft, Colors.blue, Icons.edit,),
+      secondaryBackground: _buildSwipeBackground(
+          context, Alignment.centerRight, Colors.red, Icons.delete,),
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.endToStart) {
           // Swipe left to delete
@@ -69,7 +73,8 @@ class SubscriptionCard extends ConsumerWidget {
             actionLabel: 'Undo',
             onAction: () async {
               // Notifier reschedules notifications + re-pushes to remote.
-              await subscriptionNotifier.restoreFromRecentlyDeleted(subscriptionId);
+              await subscriptionNotifier
+                  .restoreFromRecentlyDeleted(subscriptionId);
             },
           );
         }
@@ -90,154 +95,164 @@ class SubscriptionCard extends ConsumerWidget {
     return card;
   }
 
-  Widget _buildCardContent(BuildContext context, WidgetRef ref, ThemeData theme, Color urgencyColor) {
+  Widget _buildCardContent(BuildContext context, WidgetRef ref, ThemeData theme,
+      Color urgencyColor,) {
     return Container(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: theme.colorScheme.outline.withValues(alpha: 0.08),
-            width: 1,
-          ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.08),
+          width: 1,
         ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => _showDetailsSheet(context, ref),
-            borderRadius: BorderRadius.circular(20),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  // Logo/Icon
-                  _buildLogo(context, urgencyColor),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showDetailsSheet(context, ref),
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                // Logo/Icon
+                _buildLogo(context, urgencyColor),
 
-                  const SizedBox(width: 16),
+                const SizedBox(width: 16),
 
-                  // Name and renewal info
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            if (isPartnerSub) ...[
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.tertiary.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Icon(
-                                  Icons.people,
-                                  size: 14,
-                                  color: theme.colorScheme.tertiary,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                            ],
-                            Flexible(
-                              child: Text(
-                                subscription.name,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: -0.2,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            if (subscription.isFreeTrial) ...[
-                              const SizedBox(width: 8),
-                              TrialBadge(subscription: subscription, compact: true),
-                            ],
-                            if (_hasSplit()) ...[
-                              const SizedBox(width: 6),
-                              Icon(
-                                Icons.call_split,
-                                size: 16,
-                                color: theme.colorScheme.primary.withValues(alpha: 0.6),
-                              ),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
+                // Name and renewal info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          if (isPartnerSub) ...[
                             Container(
-                              width: 6,
-                              height: 6,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2,),
                               decoration: BoxDecoration(
-                                color: urgencyColor,
-                                shape: BoxShape.circle,
+                                color: theme.colorScheme.tertiary
+                                    .withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Icon(
+                                Icons.people,
+                                size: 14,
+                                color: theme.colorScheme.tertiary,
                               ),
                             ),
                             const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                subscription.isFreeTrial
-                                    ? subscription.trialStatusText
-                                    : _getRenewalText(),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                          ],
+                          Flexible(
+                            child: Text(
+                              subscription.name,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: -0.2,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (subscription.isFreeTrial) ...[
+                            const SizedBox(width: 8),
+                            TrialBadge(
+                                subscription: subscription, compact: true,),
+                          ],
+                          if (_hasSplit()) ...[
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.call_split,
+                              size: 16,
+                              color: theme.colorScheme.primary
+                                  .withValues(alpha: 0.6),
                             ),
                           ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  // Price
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        subscription.isFreeTrial && subscription.price == 0
-                            ? 'FREE'
-                            : subscription.formattedPrice,
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.5,
-                          color: subscription.isFreeTrial
-                              ? theme.colorScheme.primary
-                              : null,
-                        ),
+                        ],
                       ),
-                      const SizedBox(height: 2),
-                      if (subscription.isFreeTrial && subscription.priceAfterTrial != null)
-                        Text(
-                          '${subscription.currencySymbol}${subscription.priceAfterTrial!.toStringAsFixed(2)} after',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                            fontWeight: FontWeight.w500,
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: urgencyColor,
+                              shape: BoxShape.circle,
+                            ),
                           ),
-                        )
-                      else
-                        Text(
-                          subscription.billingCycle.displayName.toLowerCase(),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                            fontWeight: FontWeight.w500,
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              subscription.isFreeTrial
+                                  ? subscription.trialStatusText
+                                  : _getRenewalText(),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurface
+                                    .withValues(alpha: 0.6),
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
+                        ],
+                      ),
                     ],
                   ),
-                ],
-              ),
+                ),
+
+                const SizedBox(width: 12),
+
+                // Price
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      subscription.isFreeTrial && subscription.price == 0
+                          ? 'FREE'
+                          : subscription.formattedPrice,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
+                        color: subscription.isFreeTrial
+                            ? theme.colorScheme.primary
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    if (subscription.isFreeTrial &&
+                        subscription.priceAfterTrial != null)
+                      Text(
+                        '${subscription.currencySymbol}${subscription.priceAfterTrial!.toStringAsFixed(2)} after',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.5),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      )
+                    else
+                      Text(
+                        subscription.billingCycle.displayName.toLowerCase(),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.5),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
+      ),
     );
   }
 
-  Widget _buildSwipeBackground(BuildContext context, Alignment alignment, Color color, IconData icon) {
+  Widget _buildSwipeBackground(
+      BuildContext context, Alignment alignment, Color color, IconData icon,) {
     return Container(
       alignment: alignment,
       padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -328,33 +343,15 @@ class SubscriptionCard extends ConsumerWidget {
     }
   }
 
-  Future<bool> _showDeleteDialog(BuildContext context) async {
-    return await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        final theme = Theme.of(context);
-        return AlertDialog(
-          title: const Text('Delete subscription?'),
-          content: Text(
-            '${subscription.name} will be moved to Recently Deleted. '
-            'You can restore it within 30 days.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: FilledButton.styleFrom(
-                backgroundColor: theme.colorScheme.error,
-              ),
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
-    ) ?? false;
+  Future<bool> _showDeleteDialog(BuildContext context) {
+    return showConfirmDialog(
+      context,
+      title: 'Delete subscription?',
+      message: '${subscription.name} will move to Recently deleted. '
+          'You can restore it within 30 days.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    );
   }
 
   void _showEditDialog(BuildContext context, WidgetRef ref) {
@@ -368,11 +365,8 @@ class SubscriptionCard extends ConsumerWidget {
 
   void _showDetailsSheet(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final urgencyColor = AppTheme.getRenewalUrgencyColor(
-      context,
-      subscription.daysUntilRenewal,
-    );
-    final scaffoldContext = context;
+    final urgencyColor =
+        AppTokens.of(context).urgency(subscription.daysUntilRenewal);
 
     showModalBottomSheet(
       context: context,
@@ -383,16 +377,21 @@ class SubscriptionCard extends ConsumerWidget {
           margin: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(AppRadius.xl),
+          ),
+          // Cap the height so long detail lists (trial + split + card)
+          // scroll instead of overflowing on small screens.
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
           ),
           child: SafeArea(
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header
+                  // Header: logo, name/category, renewal countdown pill
                   Row(
                     children: [
                       _buildLogo(context, urgencyColor),
@@ -410,11 +409,17 @@ class SubscriptionCard extends ConsumerWidget {
                             Text(
                               subscription.category.displayName,
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                color: theme.colorScheme.onSurface
+                                    .withValues(alpha: 0.6),
                               ),
                             ),
                           ],
                         ),
+                      ),
+                      const SizedBox(width: 12),
+                      _RenewalPill(
+                        days: subscription.daysUntilRenewal,
+                        color: urgencyColor,
                       ),
                     ],
                   ),
@@ -423,18 +428,26 @@ class SubscriptionCard extends ConsumerWidget {
                   // Partner badge
                   if (isPartnerSub) ...[
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.tertiary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
+                        color:
+                            theme.colorScheme.tertiary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppRadius.xs),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.people, size: 16, color: theme.colorScheme.tertiary),
+                          Icon(
+                            Icons.people,
+                            size: 16,
+                            color: theme.colorScheme.tertiary,
+                          ),
                           const SizedBox(width: 6),
                           Text(
-                            'Partner\'s Subscription',
+                            "${ref.read(partnerLabelProvider)}'s subscription",
                             style: theme.textTheme.labelMedium?.copyWith(
                               color: theme.colorScheme.tertiary,
                               fontWeight: FontWeight.w600,
@@ -447,22 +460,33 @@ class SubscriptionCard extends ConsumerWidget {
                   ],
 
                   // Details
-                  _buildDetailRow(context, 'Price', subscription.formattedPrice),
-                  _buildDetailRow(context, 'Billing', subscription.billingCycle.displayName),
-                  _buildDetailRow(context, 'Next bill', DateFormat('MMM dd, yyyy').format(subscription.nextBillDate)),
-                  _buildDetailRow(context, 'Days until renewal', '${subscription.daysUntilRenewal} days'),
-                  _buildDetailRow(context, 'Monthly cost', '${subscription.currencySymbol}${subscription.monthlyEquivalent.toStringAsFixed(2)}'),
+                  DetailRow('Price', subscription.formattedPrice),
+                  DetailRow('Billing', subscription.billingCycle.displayName),
+                  DetailRow(
+                    'Next bill',
+                    '${DateFormat('MMM dd, yyyy').format(subscription.nextBillDate)}'
+                        ' · ${_renewalCountdownText()}',
+                  ),
+                  DetailRow(
+                    'Monthly cost',
+                    '${subscription.currencySymbol}${subscription.monthlyEquivalent.toStringAsFixed(2)}',
+                  ),
                   if (subscription.cardId != null)
                     if (ref.read(cardByIdProvider(subscription.cardId))
                         case final card?)
-                      _buildDetailRow(
-                        context,
+                      DetailRow(
                         'Card',
                         '${card.name} · payment due ${DateFormat('MMM d').format(card.nextDueDate)}',
                       ),
                   if (_hasSplit()) ...[
-                    _buildDetailRow(context, 'Split', '${(subscription.splitWith!.first['sharePercent'] as num).toInt()}% partner\'s share'),
-                    _buildDetailRow(context, 'Your share', '${subscription.currencySymbol}${(subscription.price * (1 - (subscription.splitWith!.first['sharePercent'] as num) / 100)).toStringAsFixed(2)}'),
+                    DetailRow(
+                      'Split',
+                      "${(subscription.splitWith!.first['sharePercent'] as num).toInt()}% ${ref.read(partnerLabelProvider)}'s share",
+                    ),
+                    DetailRow(
+                      'Your share',
+                      '${subscription.currencySymbol}${(subscription.price * (1 - (subscription.splitWith!.first['sharePercent'] as num) / 100)).toStringAsFixed(2)}',
+                    ),
                   ],
 
                   // Split button (only for own subs in a household)
@@ -484,15 +508,18 @@ class SubscriptionCard extends ConsumerWidget {
                         },
                         icon: const Icon(Icons.call_split, size: 18),
                         label: Text(
-                          _hasSplit() ? 'Manage Split' : 'Split with Partner',
+                          _hasSplit()
+                              ? 'Manage split'
+                              : 'Split with ${ref.read(partnerLabelProvider)}',
                         ),
                       ),
                     ),
                   ],
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
 
-                  // Action buttons
+                  // Actions. The sheet dismisses by swipe/scrim, so own subs
+                  // don't need a Close button.
                   if (isPartnerSub)
                     SizedBox(
                       width: double.infinity,
@@ -502,11 +529,10 @@ class SubscriptionCard extends ConsumerWidget {
                       ),
                     )
                   else ...[
-                    // Edit & Delete row
                     Row(
                       children: [
                         Expanded(
-                          child: OutlinedButton.icon(
+                          child: FilledButton.tonalIcon(
                             onPressed: () {
                               Navigator.pop(context);
                               _showEditDialog(context, ref);
@@ -519,94 +545,73 @@ class SubscriptionCard extends ConsumerWidget {
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: () async {
-                              // Capture the notifier BEFORE any await. After
-                              // Navigator.pop + the list refresh, this card is
-                              // no longer in the widget tree, so calling
-                              // `ref.read(...)` at that point throws "Cannot
-                              // use ref after the widget was disposed" and the
-                              // toast call below it never runs.
-                              final notifier = ref.read(subscriptionProvider.notifier);
+                              // Capture the notifier BEFORE any await —
+                              // after Navigator.pop this card may be
+                              // disposed and ref unusable.
+                              final notifier =
+                                  ref.read(subscriptionProvider.notifier);
 
-                              final confirmed = await _showDeleteDialog(context);
+                              final confirmed = await showConfirmDialog(
+                                context,
+                                title: 'Archive subscription?',
+                                message: '${subscription.name} moves to '
+                                    'Archived and stops counting toward '
+                                    'your totals. You can unarchive it '
+                                    'any time.',
+                                confirmLabel: 'Archive',
+                              );
                               if (!confirmed) return;
                               if (context.mounted) {
                                 Navigator.pop(context);
                               }
-                              // Notifier handles cancelling notifications + remote sync.
-                              await notifier.moveToRecentlyDeleted(subscription.id);
+                              await notifier
+                                  .archiveSubscription(subscription.id);
                               showAppToast(
-                                '${subscription.name} moved to recently deleted',
+                                '${subscription.name} archived',
                                 actionLabel: 'Undo',
                                 onAction: () async {
-                                  // Notifier reschedules notifications + re-pushes.
-                                  await notifier.restoreFromRecentlyDeleted(subscription.id);
+                                  await notifier
+                                      .unarchiveSubscription(subscription.id);
                                 },
                               );
-                            },
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: theme.colorScheme.error,
-                              side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.5)),
-                            ),
-                            icon: const Icon(Icons.delete_outlined, size: 18),
-                            label: const Text('Delete'),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    // Archive & Close row
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () async {
-                              final confirmed = await showDialog<bool>(
-                                context: context,
-                                builder: (dialogContext) {
-                                  return AlertDialog(
-                                    title: const Text('Archive subscription?'),
-                                    content: Text(
-                                      'Are you sure you want to archive ${subscription.name}?',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(dialogContext, false),
-                                        child: const Text('Cancel'),
-                                      ),
-                                      FilledButton(
-                                        onPressed: () => Navigator.pop(dialogContext, true),
-                                        child: const Text('Archive'),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              );
-
-                              if (confirmed == true && context.mounted) {
-                                Navigator.pop(context);
-                                await ref.read(subscriptionProvider.notifier).archiveSubscription(subscription.id);
-                                if (scaffoldContext.mounted) {
-                                  ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                                    SnackBar(
-                                      content: Text('${subscription.name} archived'),
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
-                                }
-                              }
                             },
                             icon: const Icon(Icons.archive_outlined, size: 18),
                             label: const Text('Archive'),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Close'),
-                          ),
-                        ),
                       ],
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton.icon(
+                        onPressed: () async {
+                          // Capture before awaits (see Archive above).
+                          final notifier =
+                              ref.read(subscriptionProvider.notifier);
+
+                          final confirmed = await _showDeleteDialog(context);
+                          if (!confirmed) return;
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                          }
+                          // Notifier cancels notifications + syncs remote.
+                          await notifier.moveToRecentlyDeleted(subscription.id);
+                          showAppToast(
+                            '${subscription.name} moved to recently deleted',
+                            actionLabel: 'Undo',
+                            onAction: () async {
+                              await notifier
+                                  .restoreFromRecentlyDeleted(subscription.id);
+                            },
+                          );
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: theme.colorScheme.error,
+                        ),
+                        icon: const Icon(Icons.delete_outlined, size: 18),
+                        label: const Text('Delete'),
+                      ),
                     ),
                   ],
                 ],
@@ -618,28 +623,12 @@ class SubscriptionCard extends ConsumerWidget {
     );
   }
 
-  Widget _buildDetailRow(BuildContext context, String label, String value) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-          Text(
-            value,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
+  /// "renews today" / "in 3 days" for the merged next-bill row.
+  String _renewalCountdownText() {
+    final days = subscription.daysUntilRenewal;
+    if (days == 0) return 'today';
+    if (days == 1) return 'tomorrow';
+    return 'in $days days';
   }
 }
 
@@ -648,10 +637,12 @@ class _SwipeHintBar extends StatefulWidget {
   State<_SwipeHintBar> createState() => _SwipeHintBarState();
 }
 
-class _SwipeHintBarState extends State<_SwipeHintBar> with SingleTickerProviderStateMixin {
+class _SwipeHintBarState extends State<_SwipeHintBar>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _opacity;
   late final Animation<double> _height;
+  Timer? _dismissTimer;
 
   @override
   void initState() {
@@ -666,13 +657,16 @@ class _SwipeHintBarState extends State<_SwipeHintBar> with SingleTickerProviderS
     _height = Tween<double>(begin: 1, end: 0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) _controller.forward();
+    _dismissTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      _controller.duration = AppMotion.of(context, _controller.duration!);
+      _controller.forward();
     });
   }
 
   @override
   void dispose() {
+    _dismissTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -699,6 +693,38 @@ class _SwipeHintBarState extends State<_SwipeHintBar> with SingleTickerProviderS
               Text('swipe to delete \u2192', style: hintStyle),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Urgency-tinted countdown pill for the details sheet header.
+class _RenewalPill extends StatelessWidget {
+  const _RenewalPill({required this.days, required this.color});
+
+  final int days;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = days == 0
+        ? 'today'
+        : days == 1
+            ? 'tomorrow'
+            : '$days days';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.xs),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

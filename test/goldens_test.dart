@@ -8,12 +8,13 @@ import 'package:recurly/models/budget.dart';
 import 'package:recurly/models/credit_card.dart';
 import 'package:recurly/models/enums.dart';
 import 'package:recurly/models/subscription.dart';
+import 'package:recurly/models/theme_preferences.dart';
 import 'package:recurly/providers/credit_card_providers.dart';
 import 'package:recurly/providers/subscription_providers.dart';
 import 'package:recurly/services/credit_card_service.dart';
 import 'package:recurly/services/database_service.dart';
 import 'package:recurly/services/notification_service.dart';
-import 'package:recurly/theme/app_theme.dart';
+import 'package:recurly/services/theme_service.dart';
 import 'package:recurly/theme/theme_presets.dart';
 import 'package:recurly/widgets/analytics/renewal_calendar.dart';
 import 'package:recurly/widgets/budget/budget_progress_bar.dart';
@@ -81,7 +82,9 @@ Widget _harness(Widget child, {bool dark = false, List<Override> overrides = con
     overrides: overrides,
     child: MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: dark ? AppTheme.getDarkTheme() : AppTheme.getLightTheme(),
+      theme: dark
+          ? ThemeService().generateDarkTheme(ThemePreferences())
+          : ThemeService().generateLightTheme(ThemePreferences()),
       home: Scaffold(
         body: Padding(
           padding: const EdgeInsets.all(8),

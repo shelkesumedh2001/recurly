@@ -16,6 +16,7 @@ class AppPreferences extends HiveObject {
     this.trialReminder1DayEnabled = true,   // Default on: catch-the-charge reminder
     this.trialReminder3DaysEnabled = false,
     this.trialReminder7DaysEnabled = false,
+    this.partnerLabel = 'Partner',
   });
 
   /// Master switch for all notifications
@@ -58,6 +59,15 @@ class AppPreferences extends HiveObject {
   @HiveField(9)
   bool trialReminder7DaysEnabled;
 
+  /// What this user calls the other household member (e.g. "Wife",
+  /// "Alex", "Roommate"). Per-user and local — a display label only, so
+  /// each member can name the other however they like. Defaults to
+  /// "Partner". Additive HiveField — `defaultValue` makes the generated
+  /// adapter null-safe so existing users (whose stored record predates
+  /// field 10) don't crash on read. No schema bump needed.
+  @HiveField(10, defaultValue: 'Partner')
+  String partnerLabel;
+
   /// Create copy with updated fields
   AppPreferences copyWith({
     bool? notificationsEnabled,
@@ -70,6 +80,7 @@ class AppPreferences extends HiveObject {
     bool? trialReminder1DayEnabled,
     bool? trialReminder3DaysEnabled,
     bool? trialReminder7DaysEnabled,
+    String? partnerLabel,
   }) {
     return AppPreferences(
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
@@ -85,6 +96,7 @@ class AppPreferences extends HiveObject {
           trialReminder3DaysEnabled ?? this.trialReminder3DaysEnabled,
       trialReminder7DaysEnabled:
           trialReminder7DaysEnabled ?? this.trialReminder7DaysEnabled,
+      partnerLabel: partnerLabel ?? this.partnerLabel,
     );
   }
 }
