@@ -133,7 +133,7 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
                         ),
                         borderData: FlBorderData(show: false),
                         sectionsSpace: 2,
-                        centerSpaceRadius: 65,
+                        centerSpaceRadius: 82,
                         startDegreeOffset: -90,
                         sections: _showingSections(
                           theme,
@@ -260,7 +260,7 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
   ) {
     return List.generate(sortedEntries.length, (i) {
       final isTouched = i == _touchedIndex;
-      final radius = isTouched ? 55.0 : 46.0;
+      final radius = isTouched ? 34.0 : 26.0;
       final entry = sortedEntries[i];
 
       // Staggered animation
