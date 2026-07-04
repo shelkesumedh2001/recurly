@@ -68,9 +68,13 @@ class _SubscriptionCountChartState extends ConsumerState<SubscriptionCountChart>
               maxY: maxY,
               lineTouchData: LineTouchData(
                 touchTooltipData: LineTouchTooltipData(
-                  tooltipRoundedRadius: 8,
+                  tooltipBorderRadius: BorderRadius.circular(10),
                   tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   tooltipMargin: 8,
+                  getTooltipColor: (_) => theme.colorScheme.surfaceContainerHighest,
+                  tooltipBorder: BorderSide(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                  ),
                   getTooltipItems: (touchedSpots) {
                     return touchedSpots.map((spot) {
                       final data = countData[spot.x.toInt()];
@@ -79,18 +83,17 @@ class _SubscriptionCountChartState extends ConsumerState<SubscriptionCountChart>
                       );
                       return LineTooltipItem(
                         '$monthName\n',
-                        const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
+                        theme.textTheme.labelMedium!.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                          fontWeight: FontWeight.w600,
                         ),
                         children: [
                           TextSpan(
                             text: '${data.count} subs',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
+                            style: theme.textTheme.titleSmall!.copyWith(
+                              color: theme.colorScheme.onSurface,
+                              fontWeight: FontWeight.w700,
+                              fontFeatures: kTabularFigures,
                             ),
                           ),
                         ],
@@ -176,26 +179,16 @@ class _SubscriptionCountChartState extends ConsumerState<SubscriptionCountChart>
                   }).toList(),
                   isCurved: true,
                   curveSmoothness: 0.3,
-                  color: AppTokens.of(context).success,
-                  barWidth: 3,
+                  color: theme.colorScheme.primary,
+                  barWidth: 2.5,
                   isStrokeCapRound: true,
-                  dotData: FlDotData(
-                    show: true,
-                    getDotPainter: (spot, percent, barData, index) {
-                      return FlDotCirclePainter(
-                        radius: 4,
-                        color: AppTokens.of(context).success,
-                        strokeWidth: 2,
-                        strokeColor: theme.colorScheme.surface,
-                      );
-                    },
-                  ),
+                  dotData: const FlDotData(show: false),
                   belowBarData: BarAreaData(
                     show: true,
                     gradient: LinearGradient(
                       colors: [
-                        AppTokens.of(context).success.withValues(alpha: 0.3),
-                        AppTokens.of(context).success.withValues(alpha: 0.05),
+                        theme.colorScheme.primary.withValues(alpha: 0.22),
+                        theme.colorScheme.primary.withValues(alpha: 0),
                       ],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,

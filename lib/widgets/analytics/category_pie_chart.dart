@@ -132,7 +132,7 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
                           },
                         ),
                         borderData: FlBorderData(show: false),
-                        sectionsSpace: 3,
+                        sectionsSpace: 2,
                         centerSpaceRadius: 65,
                         startDegreeOffset: -90,
                         sections: _showingSections(
