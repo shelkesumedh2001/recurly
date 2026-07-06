@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../providers/analytics_providers.dart';
 import '../../providers/currency_providers.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/app_tokens.dart';
 
 class RenewalForecastTimeline extends ConsumerStatefulWidget {
   const RenewalForecastTimeline({super.key});
@@ -49,16 +49,23 @@ class _RenewalForecastTimelineState
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
           border: Border.all(
-            color: theme.colorScheme.outline.withValues(alpha: 0.1),
+            color: theme.colorScheme.outline.withValues(alpha: 0.06),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: theme.colorScheme.shadow.withValues(alpha: 0.05),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Center(
           child: Text(
             'No renewals in the next 30 days',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
             ),
           ),
         ),
@@ -138,13 +145,13 @@ class _RenewalForecastTimelineState
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: isToday
-            ? AppTheme.primaryCoral.withValues(alpha: 0.08)
+            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
             : theme.colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(
           color: isToday
-              ? AppTheme.primaryCoral.withValues(alpha: 0.3)
-              : theme.colorScheme.outline.withValues(alpha: 0.1),
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)
+              : theme.colorScheme.outline.withValues(alpha: 0.08),
         ),
       ),
       child: Column(
@@ -159,7 +166,7 @@ class _RenewalForecastTimelineState
                   height: 6,
                   margin: const EdgeInsets.only(right: 4),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryCoral,
+                    color: Theme.of(context).colorScheme.primary,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -169,7 +176,7 @@ class _RenewalForecastTimelineState
                   style: theme.textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: isToday
-                        ? AppTheme.primaryCoral
+                        ? Theme.of(context).colorScheme.primary
                         : theme.colorScheme.onSurface.withValues(alpha: 0.7),
                   ),
                 ),
@@ -212,7 +219,8 @@ class _RenewalForecastTimelineState
             currencyService.formatAmount(dayTotal, displayCurrency),
             style: theme.textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppTheme.expenseColor,
+              color: AppTokens.of(context).danger,
+              fontFeatures: kTabularFigures,
             ),
           ),
         ],

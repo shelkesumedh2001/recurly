@@ -1,5 +1,7 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/budget.dart';
+import '../models/subscription.dart';
 import '../services/budget_service.dart';
 import '../utils/money.dart';
 import 'currency_providers.dart';
@@ -135,4 +137,90 @@ final shouldShowBudgetAlertProvider = Provider<bool>((ref) {
   final budgetService = ref.read(budgetServiceProvider);
 
   return budgetService.shouldShowAlert(settings, status);
+});
+
+/// Calendar cash-flow view of the current month against the budget.
+///
+/// Distinct from the gauge's monthly-equivalent numbers: this sums the
+/// charges that actually land on the statement this month, so an annual
+/// bill counts in full in its renewal month instead of as 1/12th.
+class BudgetForecast {
+  const BudgetForecast({
+    required this.billedSoFar,
+    required this.upcoming,
+    required this.upcomingCount,
+  });
+
+  /// Pure core: split this calendar month's real charges into already-billed
+  /// (1st → [today]) and still-to-come ([today]+1 → month end). [convertedCharge]
+  /// returns one renewal's cost in display currency for a given sub, so this
+  /// stays currency-agnostic and unit-testable. Archived/soft-deleted subs and
+  /// non-positive charges (free trials with no post-trial price) are skipped.
+  factory BudgetForecast.forMonth({
+    required List<Subscription> subscriptions,
+    required DateTime today,
+    required double Function(Subscription sub) convertedCharge,
+  }) {
+    final day = DateTime(today.year, today.month, today.day);
+    final monthStart = DateTime(day.year, day.month, 1);
+    final monthEnd = DateTime(day.year, day.month + 1, 0);
+
+    double billed = 0;
+    double upcoming = 0;
+    var upcomingCount = 0;
+
+    for (final sub in subscriptions) {
+      if (sub.isArchived || sub.deletedAt != null) continue;
+      final charge = convertedCharge(sub);
+      if (charge <= 0) continue;
+
+      for (final date in sub.renewalsInRange(monthStart, monthEnd)) {
+        if (date.isAfter(day)) {
+          upcoming += charge;
+          upcomingCount++;
+        } else {
+          billed += charge;
+        }
+      }
+    }
+
+    return BudgetForecast(
+      billedSoFar: roundMoney(billed),
+      upcoming: roundMoney(upcoming),
+      upcomingCount: upcomingCount,
+    );
+  }
+
+  /// Charges from the 1st through today (inclusive), display currency.
+  final double billedSoFar;
+
+  /// Charges after today through month end, display currency.
+  final double upcoming;
+
+  /// Number of renewals still to come this month.
+  final int upcomingCount;
+
+  /// Where the month ends up if nothing changes.
+  double get projected => roundMoney(billedSoFar + upcoming);
+}
+
+final budgetForecastProvider = Provider<BudgetForecast?>((ref) {
+  final settings = ref.watch(budgetSettingsProvider);
+  if (!settings.hasBudget) return null;
+
+  final subscriptions = ref.watch(subscriptionProvider).value ?? [];
+  final displayCurrency = ref.watch(displayCurrencyProvider);
+  final rates = ref.watch(exchangeRatesProvider).value;
+  final service = ref.read(currencyServiceProvider);
+
+  return BudgetForecast.forMonth(
+    subscriptions: subscriptions,
+    today: clock.now(),
+    convertedCharge: (sub) => service.convert(
+      amount: sub.chargePerRenewal,
+      from: sub.currency,
+      to: displayCurrency,
+      rates: rates,
+    ),
+  );
 });

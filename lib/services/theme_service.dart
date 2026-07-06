@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/theme_preferences.dart';
+import '../theme/app_tokens.dart';
 import '../theme/theme_presets.dart';
 import '../utils/constants.dart';
 
@@ -67,11 +68,15 @@ class ThemeService {
     }
   }
 
-  /// Convert Color to hex string
+  /// Convert Color to hex string.
+  ///
+  /// `Color.r/g/b` are normalized 0.0–1.0 doubles (Flutter 3.27+), so they
+  /// must be scaled to 0–255 — `.toInt()` on the raw channel floors every
+  /// value below 1.0 to 0 and turns almost any color into #000000 (black).
   String colorToHex(Color color) {
-    final r = color.r.toInt().toRadixString(16).padLeft(2, '0');
-    final g = color.g.toInt().toRadixString(16).padLeft(2, '0');
-    final b = color.b.toInt().toRadixString(16).padLeft(2, '0');
+    final r = (color.r * 255).round().toRadixString(16).padLeft(2, '0');
+    final g = (color.g * 255).round().toRadixString(16).padLeft(2, '0');
+    final b = (color.b * 255).round().toRadixString(16).padLeft(2, '0');
     return '#$r$g$b'.toUpperCase();
   }
 
@@ -121,6 +126,11 @@ class ThemeService {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: preset.backgroundColor,
       brightness: brightness,
+
+      // Semantic, preset-aware tokens (urgency, charts, heatmap)
+      extensions: <ThemeExtension<dynamic>>[
+        AppTokens.fromPreset(preset, isDark: isDark),
+      ],
 
       // Typography
       textTheme: _buildTextTheme(colorScheme, preset),
@@ -336,47 +346,56 @@ class ThemeService {
 
   TextTheme _buildTextTheme(ColorScheme colorScheme, ThemePreset preset) {
     return TextTheme(
+      // Display/headline/title carry money and dates — tabular figures keep
+      // digit columns aligned in lists and stats.
       displayLarge: TextStyle(
         fontSize: 48,
         fontWeight: FontWeight.w700,
         letterSpacing: -1.5,
         height: 1.1,
+        fontFeatures: kTabularFigures,
         color: preset.textColor,
       ),
       displayMedium: TextStyle(
         fontSize: 36,
         fontWeight: FontWeight.w700,
         letterSpacing: -1,
+        fontFeatures: kTabularFigures,
         color: preset.textColor,
       ),
       headlineLarge: TextStyle(
         fontSize: 28,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.5,
+        fontFeatures: kTabularFigures,
         color: preset.textColor,
       ),
       headlineMedium: TextStyle(
         fontSize: 24,
         fontWeight: FontWeight.w600,
         letterSpacing: -0.3,
+        fontFeatures: kTabularFigures,
         color: preset.textColor,
       ),
       headlineSmall: TextStyle(
         fontSize: 20,
         fontWeight: FontWeight.w600,
         letterSpacing: -0.2,
+        fontFeatures: kTabularFigures,
         color: preset.textColor,
       ),
       titleLarge: TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.w600,
         letterSpacing: 0,
+        fontFeatures: kTabularFigures,
         color: preset.textColor,
       ),
       titleMedium: TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.w500,
         letterSpacing: 0,
+        fontFeatures: kTabularFigures,
         color: preset.textColor,
       ),
       titleSmall: TextStyle(

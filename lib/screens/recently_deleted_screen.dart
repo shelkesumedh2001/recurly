@@ -10,6 +10,7 @@ import '../providers/sync_providers.dart';
 import '../services/database_service.dart';
 import '../services/sync_service.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/common/app_empty_state.dart';
 
 class RecentlyDeletedScreen extends ConsumerStatefulWidget {
   const RecentlyDeletedScreen({super.key});
@@ -59,7 +60,7 @@ class _RecentlyDeletedScreenState extends ConsumerState<RecentlyDeletedScreen> {
         scrolledUnderElevation: 0,
         backgroundColor: theme.colorScheme.surface,
         title: Text(
-          'Recently Deleted',
+          'Recently deleted',
           style: theme.textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.w700,
             letterSpacing: -0.5,
@@ -104,7 +105,13 @@ class _RecentlyDeletedScreenState extends ConsumerState<RecentlyDeletedScreen> {
           // List or empty state
           Expanded(
             child: _deletedSubscriptions.isEmpty
-                ? _buildEmptyState(context)
+                ? const AppEmptyState(
+                    icon: Icons.delete_outline,
+                    title: 'Recently deleted is empty',
+                    message:
+                        'Deleted subscriptions wait here for 30 days so you '
+                        'can restore them, then they are removed for good.',
+                  )
                 : ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     itemCount: _deletedSubscriptions.length,
@@ -126,49 +133,6 @@ class _RecentlyDeletedScreenState extends ConsumerState<RecentlyDeletedScreen> {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.delete_outline,
-                size: 64,
-                color: theme.colorScheme.primary.withValues(alpha: 0.4),
-              ),
-            ),
-            const SizedBox(height: 32),
-            Text(
-              'No recently deleted items',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Deleted subscriptions will appear here for 30 days',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _DeletedCard extends ConsumerWidget {

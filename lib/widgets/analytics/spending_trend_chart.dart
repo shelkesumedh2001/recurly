@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../providers/analytics_providers.dart';
 import '../../providers/currency_providers.dart';
+import '../../theme/app_tokens.dart';
 
 class SpendingTrendChart extends ConsumerStatefulWidget {
   const SpendingTrendChart({super.key});
@@ -49,7 +50,7 @@ class _SpendingTrendChartState extends ConsumerState<SpendingTrendChart>
         child: Text(
           'No data available',
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
           ),
         ),
       );
@@ -70,25 +71,28 @@ class _SpendingTrendChartState extends ConsumerState<SpendingTrendChart>
           maxY: maxY,
           barTouchData: BarTouchData(
             touchTooltipData: BarTouchTooltipData(
-              tooltipRoundedRadius: 8,
+              tooltipBorderRadius: BorderRadius.circular(10),
               tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               tooltipMargin: 8,
+              getTooltipColor: (_) => theme.colorScheme.surfaceContainerHighest,
+              tooltipBorder: BorderSide(
+                color: theme.colorScheme.outline.withValues(alpha: 0.2),
+              ),
               getTooltipItem: (group, groupIndex, rod, rodIndex) {
                 final monthName = DateFormat('MMM').format(DateTime(0, trendData[groupIndex].month));
                 return BarTooltipItem(
                   '$monthName\n',
-                  const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                  theme.textTheme.labelMedium!.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    fontWeight: FontWeight.w600,
                   ),
                   children: <TextSpan>[
                     TextSpan(
                       text: currencyService.formatAmount(rod.toY, displayCurrency),
-                      style: TextStyle(
-                        color: theme.colorScheme.onPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                      style: theme.textTheme.titleSmall!.copyWith(
+                        color: theme.colorScheme.onSurface,
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: kTabularFigures,
                       ),
                     ),
                   ],
@@ -156,18 +160,13 @@ class _SpendingTrendChartState extends ConsumerState<SpendingTrendChart>
                   gradient: LinearGradient(
                     colors: [
                       theme.colorScheme.primary,
-                      theme.colorScheme.primary.withValues(alpha: 0.6),
+                      theme.colorScheme.primary.withValues(alpha: 0.55),
                     ],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                   ),
-                  width: 20,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-                  backDrawRodData: BackgroundBarChartRodData(
-                    show: true,
-                    toY: maxY,
-                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.12),
-                  ),
+                  width: 16,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
                 ),
               ],
             );

@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import '../../models/subscription.dart';
 import '../../providers/analytics_providers.dart';
 import '../../providers/currency_providers.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/app_tokens.dart';
 
 class PriceChangesSection extends ConsumerStatefulWidget {
   const PriceChangesSection({super.key});
@@ -48,7 +48,7 @@ class _PriceChangesSectionState extends ConsumerState<PriceChangesSection>
     final isIncrease = !ratesUnavailable && totalImpact > 0;
     final bannerColor = ratesUnavailable
         ? theme.colorScheme.outline
-        : (isIncrease ? AppTheme.expenseColor : AppTheme.incomeColor);
+        : (isIncrease ? AppTokens.of(context).danger : AppTokens.of(context).success);
     final impactLabel = ratesUnavailable
         ? '—/mo impact (rates unavailable)'
         : '${isIncrease ? '+' : '-'}${currencyService.formatAmount(totalImpact.abs(), displayCurrency)}/mo impact';
@@ -152,7 +152,7 @@ class _PriceChangeCard extends StatelessWidget {
     final changePercent = subscription.lastPriceChangePercent;
     final isIncrease = changeAmount > 0;
 
-    final color = isIncrease ? AppTheme.expenseColor : AppTheme.incomeColor;
+    final color = isIncrease ? AppTokens.of(context).danger : AppTokens.of(context).success;
 
     // Format old price with its currency symbol
     final symbol = subscription.currencySymbol;

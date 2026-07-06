@@ -7,6 +7,7 @@ import '../models/exchange_rate.dart';
 import '../providers/credit_card_providers.dart';
 import '../providers/currency_providers.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/common/app_empty_state.dart';
 
 /// Manage tracked credit cards: statement cutoff day, payment due day,
 /// and which subscriptions land on the current statement.
@@ -18,14 +19,23 @@ class CreditCardsScreen extends ConsumerWidget {
     final cards = ref.watch(creditCardsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Credit Cards')),
+      appBar: AppBar(title: const Text('Credit cards')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCardSheet(context, ref),
         icon: const Icon(Icons.add_card),
         label: const Text('Add card'),
       ),
       body: cards.isEmpty
-          ? _buildEmptyState(context)
+          ? AppEmptyState(
+              icon: Icons.credit_card_outlined,
+              title: 'No cards yet',
+              message:
+                  'Track statement cutoffs and payment due dates, and see '
+                  'which subscriptions land on each statement.',
+              actionLabel: 'Add card',
+              actionIcon: Icons.add_card,
+              onAction: () => _showCardSheet(context, ref),
+            )
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
               itemCount: cards.length,
@@ -36,39 +46,6 @@ class CreditCardsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.credit_card_outlined,
-              size: 64,
-              color: theme.colorScheme.primary.withValues(alpha: 0.4),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No cards yet',
-              style: theme.textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Add a credit card with its statement cutoff and payment due '
-              'days, then assign subscriptions to it to see what lands on '
-              'each statement.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _CardTile extends ConsumerWidget {

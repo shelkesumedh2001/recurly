@@ -152,7 +152,7 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
             child: Column(
               children: [
                 SwitchListTile(
-                  title: const Text('Budget Alerts'),
+                  title: const Text('Budget alerts'),
                   subtitle: const Text('Notify when approaching or exceeding budget'),
                   value: settings.budgetAlertsEnabled,
                   onChanged: (value) {
@@ -162,7 +162,7 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
                 if (settings.budgetAlertsEnabled) ...[
                   const Divider(height: 1),
                   ListTile(
-                    title: const Text('Warning Threshold'),
+                    title: const Text('Warning threshold'),
                     subtitle: Text('Alert at ${(settings.warningThreshold * 100).toInt()}% of budget'),
                     trailing: SizedBox(
                       width: 150,
@@ -436,7 +436,7 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('${category.displayName} Budget'),
+        title: Text('${category.displayName} budget'),
         content: TextField(
           controller: controller,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -489,7 +489,7 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Clear All Budgets?'),
+        title: const Text('Clear all budgets?'),
         content: const Text(
           'This will remove all budget limits. Your subscription data will not be affected.',
         ),

@@ -100,7 +100,7 @@ class BudgetAlertCard extends StatelessWidget {
                     icon: Icon(
                       Icons.close,
                       size: 18,
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                     onPressed: onDismiss,
                     visualDensity: VisualDensity.compact,

@@ -57,7 +57,7 @@ class InviteCodeCard extends StatelessWidget {
             Text(
               'Expires in ${_getExpiryText()}',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
           ],
@@ -72,7 +72,7 @@ class InviteCodeCard extends StatelessWidget {
                     Clipboard.setData(ClipboardData(text: code));
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Code copied!'),
+                        content: Text('Invite code copied'),
                         behavior: SnackBarBehavior.floating,
                         duration: Duration(seconds: 1),
                       ),

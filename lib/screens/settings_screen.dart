@@ -19,10 +19,17 @@ import '../providers/household_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../providers/sync_providers.dart';
 import '../providers/theme_providers.dart';
+import '../services/backup_service.dart';
+import '../services/credit_card_service.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
+import '../services/preferences_service.dart';
 import '../services/sync_service.dart';
 import '../utils/changelog.dart';
+import '../widgets/app_toast.dart';
+import '../widgets/common/app_dialogs.dart';
+import '../widgets/common/section_header.dart';
+import '../widgets/common/settings_tile.dart';
 import 'auth_screen.dart';
 import 'budget_settings_screen.dart';
 import 'category_management_screen.dart';
@@ -60,9 +67,8 @@ class SettingsScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(20),
         children: [
           // App Section
-          _buildSectionHeader(context, 'App'),
-          _buildSettingCard(
-            context,
+          const SectionHeader('App'),
+          SettingsTile(
             icon: Icons.palette_outlined,
             title: 'Theme',
             subtitle: currentPreset.name,
@@ -75,8 +81,7 @@ class SettingsScreen extends ConsumerWidget {
               );
             },
           ),
-          _buildSettingCard(
-            context,
+          SettingsTile(
             icon: Icons.notifications_outlined,
             title: 'Notifications',
             subtitle: 'Manage renewal reminders',
@@ -97,7 +102,7 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // Account Section
-          _buildSectionHeader(context, 'Account'),
+          const SectionHeader('Account'),
           _buildAuthCard(context, ref),
           _buildSyncCard(context, ref),
           _buildHouseholdNavCard(context, ref),
@@ -105,25 +110,22 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // Data Section
-          _buildSectionHeader(context, 'Data'),
-          _buildSettingCard(
-            context,
-            icon: Icons.cloud_download_outlined,
-            title: 'Export Data',
-            subtitle: 'Download your subscriptions',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Export feature coming soon!'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
+          const SectionHeader('Data'),
+          SettingsTile(
+            icon: Icons.save_alt_rounded,
+            title: 'Back up',
+            subtitle: 'Save everything to a JSON file',
+            onTap: () => _backup(context),
           ),
-          _buildSettingCard(
-            context,
+          SettingsTile(
+            icon: Icons.settings_backup_restore_rounded,
+            title: 'Restore',
+            subtitle: 'Import a Recurly backup file',
+            onTap: () => _restore(context, ref),
+          ),
+          SettingsTile(
             icon: Icons.delete_outline,
-            title: 'Clear All Data',
+            title: 'Clear all data',
             subtitle: 'Delete all subscriptions',
             onTap: () => _showClearDataDialog(context, ref),
             isDestructive: true,
@@ -132,9 +134,8 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // About Section
-          _buildSectionHeader(context, 'About'),
-          _buildSettingCard(
-            context,
+          const SectionHeader('About'),
+          const SettingsTile(
             icon: Icons.info_outline,
             title: 'Version',
             // kAppBuild is the single source of truth for the app version —
@@ -142,10 +143,9 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: kAppBuild,
             onTap: null,
           ),
-          _buildSettingCard(
-            context,
+          SettingsTile(
             icon: Icons.privacy_tip_outlined,
-            title: 'Privacy Policy',
+            title: 'Privacy policy',
             subtitle: 'How we protect your data',
             onTap: () {
               Navigator.of(context).push(
@@ -155,10 +155,9 @@ class SettingsScreen extends ConsumerWidget {
               );
             },
           ),
-          _buildSettingCard(
-            context,
+          SettingsTile(
             icon: Icons.bug_report_outlined,
-            title: 'Report a Bug',
+            title: 'Report a bug',
             subtitle: 'Help us improve',
             onTap: () async {
               // Pre-fill diagnostics so reports are actionable without a
@@ -190,68 +189,66 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 12),
-      child: Text(
-        title,
-        style: theme.textTheme.labelLarge?.copyWith(
-          color: theme.colorScheme.primary,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
+  Future<void> _backup(BuildContext context) async {
+    try {
+      await BackupService().shareBackup();
+    } catch (_) {
+      showAppToast("Couldn't create the backup file. Try again.");
+    }
   }
 
-  Widget _buildSettingCard(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback? onTap,
-    Widget? trailing,
-    bool isDestructive = false,
-  }) {
-    final theme = Theme.of(context);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.08),
-          width: 1,
-        ),
-      ),
-      child: ListTile(
-        onTap: onTap,
-        leading: Icon(
-          icon,
-          color: isDestructive ? theme.colorScheme.error : theme.colorScheme.primary,
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: isDestructive ? theme.colorScheme.error : null,
-          ),
-        ),
-        subtitle: Text(subtitle),
-        trailing: trailing ??
-            (onTap != null
-                ? Icon(
-                    Icons.chevron_right,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
-                  )
-                : null),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-      ),
+  Future<void> _restore(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Restore from backup?',
+      message: 'Entries in the file replace entries with the same id — '
+          'nothing else is deleted. Reminders are rescheduled after '
+          'the restore.',
+      confirmLabel: 'Choose file',
     );
+    if (!confirmed) return;
+
+    final BackupRestoreResult? result;
+    try {
+      result = await BackupService().restoreFromFile();
+    } on FormatException catch (e) {
+      showAppToast(e.message);
+      return;
+    } catch (_) {
+      showAppToast("Couldn't restore — the file may be damaged.");
+      return;
+    }
+    if (result == null) return; // picker cancelled
+
+    if (!context.mounted) return;
+
+    // Reload everything that renders from Hive.
+    await ref.read(subscriptionProvider.notifier).loadSubscriptions();
+    ref
+      ..invalidate(customCategoriesProvider)
+      ..invalidate(creditCardsProvider)
+      ..invalidate(budgetSettingsProvider);
+
+    // Restored subs need reminders; best-effort.
+    try {
+      final prefs = PreferencesService().getPreferences();
+      if (prefs.notificationsEnabled) {
+        await NotificationService().rescheduleAllNotifications(
+          DatabaseService().getActiveSubscriptions(),
+          prefs,
+          cards: CreditCardService().getAllCards(),
+        );
+      }
+    } catch (_) {}
+
+    // Signed-in users: push the restored data (updatedAt was bumped, so
+    // last-write-wins keeps the restored versions).
+    final user = ref.read(currentFirebaseUserProvider);
+    if (user != null && ref.read(isSyncEnabledProvider)) {
+      unawaited(SyncService().forceSync(user.uid));
+    }
+
+    showAppToast(result.summary);
   }
 
   Widget _buildBudgetCard(BuildContext context, WidgetRef ref) {
@@ -291,8 +288,7 @@ class SettingsScreen extends ConsumerWidget {
       subtitle = 'Set spending limits';
     }
 
-    return _buildSettingCard(
-      context,
+    return SettingsTile(
       icon: Icons.account_balance_wallet_outlined,
       title: 'Budget',
       subtitle: subtitle,
@@ -314,8 +310,7 @@ class SettingsScreen extends ConsumerWidget {
         ? '$customCount custom ${customCount == 1 ? 'category' : 'categories'}'
         : 'Manage subscription categories';
 
-    return _buildSettingCard(
-      context,
+    return SettingsTile(
       icon: Icons.category_outlined,
       title: 'Categories',
       subtitle: subtitle,
@@ -336,10 +331,9 @@ class SettingsScreen extends ConsumerWidget {
         ? '$cardCount ${cardCount == 1 ? 'card' : 'cards'} tracked'
         : 'Track statement and payment due dates';
 
-    return _buildSettingCard(
-      context,
+    return SettingsTile(
       icon: Icons.credit_card_outlined,
-      title: 'Credit Cards',
+      title: 'Credit cards',
       subtitle: subtitle,
       onTap: () {
         Navigator.push(
@@ -368,10 +362,9 @@ class SettingsScreen extends ConsumerWidget {
       }
     });
 
-    return _buildSettingCard(
-      context,
+    return SettingsTile(
       icon: Icons.currency_exchange,
-      title: 'Display Currency',
+      title: 'Display currency',
       subtitle: subtitle,
       onTap: () => _showCurrencyPicker(context, ref),
     );
@@ -467,8 +460,7 @@ class SettingsScreen extends ConsumerWidget {
 
     if (isSignedIn) {
       final profile = profileAsync.value;
-      return _buildSettingCard(
-        context,
+      return SettingsTile(
         icon: Icons.person,
         title: profile?.displayName ?? 'Profile',
         subtitle: profile?.email ?? 'Signed in',
@@ -518,10 +510,9 @@ class SettingsScreen extends ConsumerWidget {
       );
     }
 
-    return _buildSettingCard(
-      context,
+    return SettingsTile(
       icon: Icons.person_outline,
-      title: 'Sign In',
+      title: 'Sign in',
       subtitle: 'Sync data across devices',
       onTap: () {
         Navigator.push(
@@ -552,14 +543,13 @@ class SettingsScreen extends ConsumerWidget {
         subtitle = 'Cloud sync';
     }
 
-    return _buildSettingCard(
-      context,
+    return SettingsTile(
       icon: syncStatus == SyncStatus.synced
           ? Icons.cloud_done_outlined
           : syncStatus == SyncStatus.error
               ? Icons.cloud_off_outlined
               : Icons.cloud_sync_outlined,
-      title: 'Cloud Sync',
+      title: 'Cloud sync',
       subtitle: subtitle,
       onTap: syncStatus == SyncStatus.error
           ? () {
@@ -579,8 +569,7 @@ class SettingsScreen extends ConsumerWidget {
     final householdAsync = ref.watch(currentHouseholdProvider);
     final household = householdAsync.value;
 
-    return _buildSettingCard(
-      context,
+    return SettingsTile(
       icon: Icons.people_outline,
       title: 'Household',
       subtitle: household != null

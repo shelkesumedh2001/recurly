@@ -139,7 +139,7 @@ class ProfileScreen extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Sign Out?'),
+        title: const Text('Sign out?'),
         content: const Text(
           'Your local data will be kept. You can sign back in anytime.',
         ),
@@ -168,7 +168,7 @@ class ProfileScreen extends ConsumerWidget {
       builder: (context) {
         final theme = Theme.of(context);
         return AlertDialog(
-          title: const Text('Delete Account?'),
+          title: const Text('Delete account?'),
           content: const Text(
             'This will permanently delete your account, cloud data, and '
             'remove you from any household. Local data will remain on this device. '

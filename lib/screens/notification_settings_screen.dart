@@ -276,7 +276,7 @@ class NotificationSettingsScreen extends ConsumerWidget {
                       }
                     },
                     leading: Icon(Icons.notifications_active_outlined, color: theme.colorScheme.primary),
-                    title: const Text('Test Immediate Notification'),
+                    title: const Text('Send a test notification'),
                     subtitle: const Text('Check if notifications can display'),
                     trailing: const Icon(Icons.chevron_right),
                   ),
@@ -288,7 +288,7 @@ class NotificationSettingsScreen extends ConsumerWidget {
                         await showDialog(
                           context: context,
                           builder: (context) => AlertDialog(
-                            title: Text('Pending Notifications (${pending.length})'),
+                            title: Text('Pending notifications (${pending.length})'),
                             content: SizedBox(
                               width: double.maxFinite,
                               child: Column(
@@ -331,7 +331,7 @@ class NotificationSettingsScreen extends ConsumerWidget {
                       }
                     },
                     leading: Icon(Icons.bug_report_outlined, color: theme.colorScheme.tertiary),
-                    title: const Text('View Pending Notifications'),
+                    title: const Text('View pending notifications'),
                     subtitle: const Text('Check scheduled reminders'),
                     trailing: const Icon(Icons.chevron_right),
                   ),

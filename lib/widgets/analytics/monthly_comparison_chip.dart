@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/analytics_providers.dart';
 import '../../providers/currency_providers.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/app_tokens.dart';
 
 class MonthlyComparisonChip extends ConsumerWidget {
   const MonthlyComparisonChip({super.key});
@@ -18,7 +18,7 @@ class MonthlyComparisonChip extends ConsumerWidget {
     final displayCurrency = ref.watch(displayCurrencyProvider);
 
     final isIncrease = comparison.delta > 0;
-    final color = isIncrease ? AppTheme.expenseColor : AppTheme.incomeColor;
+    final color = isIncrease ? AppTokens.of(context).danger : AppTokens.of(context).success;
     final icon = isIncrease ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded;
     final prefix = isIncrease ? '+' : '';
     final formattedDelta = currencyService.formatAmount(comparison.delta.abs(), displayCurrency);
