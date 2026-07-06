@@ -397,13 +397,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            formattedTotal,
-            style: theme.textTheme.displayLarge?.copyWith(
-              fontSize: 48,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -2,
-              height: 1,
+          // Scale the amount down to stay on a single line when the value is
+          // wide (long totals / high-denomination currencies). Shorter amounts
+          // keep the full 48px size.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              formattedTotal,
+              maxLines: 1,
+              softWrap: false,
+              style: theme.textTheme.displayLarge?.copyWith(
+                fontSize: 48,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -2,
+                height: 1,
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -634,7 +643,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         case HomeSortMode.name:
           notifier.sortByName();
       }
-      ref.read(homeSortModeProvider.notifier).state = mode;
+      ref.read(preferencesProvider.notifier).setHomeSortModeIndex(mode.index);
     }
 
     showAppSheet(
