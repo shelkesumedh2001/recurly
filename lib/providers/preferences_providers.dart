@@ -81,6 +81,13 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     await updatePreferences(updated);
   }
 
+  /// Mark the first-run onboarding as complete so the app boots straight
+  /// into the main navigation on subsequent launches.
+  Future<void> completeOnboarding() async {
+    if (state.onboardingComplete) return;
+    await updatePreferences(state.copyWith(onboardingComplete: true));
+  }
+
   /// Persist the Home-screen sort mode (stored as the `HomeSortMode` enum
   /// index) so the user's choice survives app restarts.
   Future<void> setHomeSortModeIndex(int index) async {
