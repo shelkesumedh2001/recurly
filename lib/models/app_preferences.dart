@@ -17,6 +17,7 @@ class AppPreferences extends HiveObject {
     this.trialReminder3DaysEnabled = false,
     this.trialReminder7DaysEnabled = false,
     this.partnerLabel = 'Partner',
+    this.homeSortModeIndex = 0,
   });
 
   /// Master switch for all notifications
@@ -68,6 +69,13 @@ class AppPreferences extends HiveObject {
   @HiveField(10, defaultValue: 'Partner')
   String partnerLabel;
 
+  /// Persisted Home-screen sort mode, stored as the `HomeSortMode` enum
+  /// index (0 = date, 1 = price, 2 = name) so the model stays free of the
+  /// provider-layer enum. Additive HiveField — `defaultValue` keeps the
+  /// generated adapter null-safe for records written before field 11.
+  @HiveField(11, defaultValue: 0)
+  int homeSortModeIndex;
+
   /// Create copy with updated fields
   AppPreferences copyWith({
     bool? notificationsEnabled,
@@ -81,6 +89,7 @@ class AppPreferences extends HiveObject {
     bool? trialReminder3DaysEnabled,
     bool? trialReminder7DaysEnabled,
     String? partnerLabel,
+    int? homeSortModeIndex,
   }) {
     return AppPreferences(
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
@@ -97,6 +106,7 @@ class AppPreferences extends HiveObject {
       trialReminder7DaysEnabled:
           trialReminder7DaysEnabled ?? this.trialReminder7DaysEnabled,
       partnerLabel: partnerLabel ?? this.partnerLabel,
+      homeSortModeIndex: homeSortModeIndex ?? this.homeSortModeIndex,
     );
   }
 }

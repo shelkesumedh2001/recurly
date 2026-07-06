@@ -81,6 +81,13 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     await updatePreferences(updated);
   }
 
+  /// Persist the Home-screen sort mode (stored as the `HomeSortMode` enum
+  /// index) so the user's choice survives app restarts.
+  Future<void> setHomeSortModeIndex(int index) async {
+    final updated = state.copyWith(homeSortModeIndex: index);
+    await updatePreferences(updated);
+  }
+
   /// Set the label this user uses for the other household member. Blank
   /// input falls back to the default so the UI never shows an empty name.
   Future<void> setPartnerLabel(String label) async {
