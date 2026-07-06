@@ -18,6 +18,7 @@ class AppPreferences extends HiveObject {
     this.trialReminder7DaysEnabled = false,
     this.partnerLabel = 'Partner',
     this.homeSortModeIndex = 0,
+    this.onboardingComplete = false,
   });
 
   /// Master switch for all notifications
@@ -76,6 +77,14 @@ class AppPreferences extends HiveObject {
   @HiveField(11, defaultValue: 0)
   int homeSortModeIndex;
 
+  /// Whether the first-run onboarding (theme picker) has been completed.
+  /// Constructor default is `false` so a fresh install shows onboarding,
+  /// but the Hive `defaultValue: true` means users whose stored record
+  /// predates this field are treated as already onboarded — so an app
+  /// UPDATE never drops an existing user back into onboarding.
+  @HiveField(12, defaultValue: true)
+  bool onboardingComplete;
+
   /// Create copy with updated fields
   AppPreferences copyWith({
     bool? notificationsEnabled,
@@ -90,6 +99,7 @@ class AppPreferences extends HiveObject {
     bool? trialReminder7DaysEnabled,
     String? partnerLabel,
     int? homeSortModeIndex,
+    bool? onboardingComplete,
   }) {
     return AppPreferences(
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
@@ -107,6 +117,7 @@ class AppPreferences extends HiveObject {
           trialReminder7DaysEnabled ?? this.trialReminder7DaysEnabled,
       partnerLabel: partnerLabel ?? this.partnerLabel,
       homeSortModeIndex: homeSortModeIndex ?? this.homeSortModeIndex,
+      onboardingComplete: onboardingComplete ?? this.onboardingComplete,
     );
   }
 }
