@@ -5,7 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/enums.dart';
 import '../../providers/analytics_providers.dart';
 import '../../providers/currency_providers.dart';
-import '../../theme/app_theme.dart';
+import '../../providers/navigation_providers.dart';
+import '../../theme/app_tokens.dart';
 import 'category_detail_sheet.dart';
 
 class CategoryPieChart extends ConsumerStatefulWidget {
@@ -32,11 +33,28 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
       parent: _animationController,
       curve: Curves.easeOutExpo,
     );
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted) {
-        _animationController.forward();
+    // Post-frame (not Future.delayed) so no timer outlives the widget in
+    // tests; skip the sweep entirely under OS reduced-motion.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _playEntrance();
+    });
+    // The chart lives in an IndexedStack tab, so it is built (and its
+    // ticker silently completes) before the user ever sees it — replay
+    // the fill sweep each time the Analytics tab becomes visible.
+    ref.listenManual(selectedTabProvider, (previous, next) {
+      if (next == analyticsTabIndex && previous != analyticsTabIndex) {
+        _playEntrance();
       }
     });
+  }
+
+  void _playEntrance() {
+    if (MediaQuery.of(context).disableAnimations) {
+      _animationController.value = 1;
+    } else {
+      _animationController.forward(from: 0);
+    }
   }
 
   @override
@@ -57,7 +75,7 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
         child: Text(
           'No data available',
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
           ),
         ),
       );
@@ -114,8 +132,8 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
                           },
                         ),
                         borderData: FlBorderData(show: false),
-                        sectionsSpace: 3,
-                        centerSpaceRadius: 65,
+                        sectionsSpace: 2,
+                        centerSpaceRadius: 82,
                         startDegreeOffset: -90,
                         sections: _showingSections(
                           theme,
@@ -138,7 +156,7 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
                         Text(
                           '/month',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                           ),
                         ),
                       ],
@@ -218,7 +236,7 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
                             '$percentage%',
                             style: theme.textTheme.bodySmall?.copyWith(
                               fontWeight: FontWeight.w500,
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                             ),
                           ),
                         ],
@@ -242,7 +260,7 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
   ) {
     return List.generate(sortedEntries.length, (i) {
       final isTouched = i == _touchedIndex;
-      final radius = isTouched ? 55.0 : 46.0;
+      final radius = isTouched ? 34.0 : 26.0;
       final entry = sortedEntries[i];
 
       // Staggered animation
@@ -266,10 +284,10 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
   }
 
   Color _getCategoryColorByIndex(int index) {
-    return AppTheme.getCategoryColor(index);
+    return AppTokens.of(context).chartColor(index);
   }
 
   List<Color> _getCategoryGradientByIndex(int index) {
-    return AppTheme.getCategoryGradient(index);
+    return AppTokens.of(context).chartGradient(index);
   }
 }

@@ -242,6 +242,41 @@ class Subscription extends HiveObject { // For recently deleted feature
     return dates;
   }
 
+  /// Bill dates that fall inside [start, end] (both inclusive), walking
+  /// the billing chain from its anchor — [firstBillDate] (the initial
+  /// payment) or, for free trials, the trial-end date where the first
+  /// charge lands. Unlike [upcomingRenewals] this also reconstructs
+  /// charges already in the past.
+  List<DateTime> renewalsInRange(DateTime start, DateTime end) {
+    final DateTime anchor;
+    if (isFreeTrial && trialEndDate != null) {
+      anchor = DateTime(
+        trialEndDate!.year,
+        trialEndDate!.month,
+        trialEndDate!.day,
+      );
+    } else {
+      anchor = DateTime(
+        firstBillDate.year,
+        firstBillDate.month,
+        firstBillDate.day,
+      );
+    }
+
+    final dates = <DateTime>[];
+    var next = anchor;
+    while (!next.isAfter(end)) {
+      if (!next.isBefore(start)) dates.add(next);
+      next = addOneCycle(billingCycle, next, customDays: customDays);
+    }
+    return dates;
+  }
+
+  /// What one renewal actually charges: the price, or the post-trial
+  /// price for free trials (0 if unknown — free means free).
+  double get chargePerRenewal =>
+      isFreeTrial ? (priceAfterTrial ?? price) : price;
+
   /// Days until the next renewal
   int get daysUntilRenewal {
     final now = clock.now();

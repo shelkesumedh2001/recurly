@@ -89,7 +89,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       child: Text(
                         'or',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                         ),
                       ),
                     ),
@@ -215,7 +215,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : Text(
-                        _isSignUp ? 'Create Account' : 'Sign In',
+                        _isSignUp ? 'Create Account' : 'Sign in',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -244,7 +244,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         _formKey.currentState?.reset();
                       });
                     },
-                    child: Text(_isSignUp ? 'Sign In' : 'Sign Up'),
+                    child: Text(_isSignUp ? 'Sign in' : 'Sign Up'),
                   ),
                 ],
               ),
@@ -257,7 +257,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 child: Text(
                   'Continue without account',
                   style: TextStyle(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
               ),

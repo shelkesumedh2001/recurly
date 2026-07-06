@@ -30,7 +30,7 @@ enum SpendViewMode {
   String get displayName {
     switch (this) {
       case SpendViewMode.myShare:
-        return 'My Share';
+        return 'My share';
       case SpendViewMode.householdTotal:
         return 'Household';
     }

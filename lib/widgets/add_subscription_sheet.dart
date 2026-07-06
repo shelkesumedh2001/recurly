@@ -584,8 +584,8 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           SnackBar(
             content: Text(
               _isEditMode
-                  ? '${subscription.name} updated successfully!'
-                  : '${subscription.name} added successfully!',
+                  ? '${subscription.name} updated'
+                  : '${subscription.name} added',
             ),
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
@@ -635,7 +635,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                 Icons.timer_outlined,
                 color: _isFreeTrial
                     ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    : theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 size: 20,
               ),
               const SizedBox(width: 12),
@@ -959,7 +959,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
             ),
             Icon(
               Icons.arrow_drop_down,
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
             ),
           ],
         ),

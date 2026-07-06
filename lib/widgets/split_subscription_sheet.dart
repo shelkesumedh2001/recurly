@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/subscription.dart';
 import '../providers/auth_providers.dart';
 import '../providers/household_providers.dart';
+import '../providers/preferences_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../services/split_service.dart';
 
@@ -31,6 +32,7 @@ class _SplitSubscriptionSheetState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final sub = widget.subscription;
+    final partnerLabel = ref.watch(partnerLabelProvider);
     final partnerShare = sub.price * (_sharePercent / 100);
     final myShare = sub.price - partnerShare;
 
@@ -98,7 +100,7 @@ class _SplitSubscriptionSheetState
 
               // Slider
               Text(
-                "Partner's Share: ${_sharePercent.round()}%",
+                "$partnerLabel's share: ${_sharePercent.round()}%",
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
@@ -118,13 +120,13 @@ class _SplitSubscriptionSheetState
                 children: [
                   _buildShareInfo(
                     theme,
-                    label: 'Your Share',
+                    label: 'Your share',
                     amount: '${sub.currencySymbol}${myShare.toStringAsFixed(2)}',
                     percent: '${(100 - _sharePercent).round()}%',
                   ),
                   _buildShareInfo(
                     theme,
-                    label: "Partner's Share",
+                    label: "$partnerLabel's share",
                     amount:
                         '${sub.currencySymbol}${partnerShare.toStringAsFixed(2)}',
                     percent: '${_sharePercent.round()}%',
@@ -212,8 +214,9 @@ class _SplitSubscriptionSheetState
     if (partnerUid.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No household partner found'),
+          SnackBar(
+            content:
+                Text('No ${ref.read(partnerLabelProvider)} found in the household'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -235,7 +238,7 @@ class _SplitSubscriptionSheetState
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Split proposed!'),
+            content: Text('Split proposed'),
             behavior: SnackBarBehavior.floating,
           ),
         );

@@ -25,7 +25,7 @@ class _DataMigrationScreenState extends ConsumerState<DataMigrationScreen> {
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Cloud Migration'),
+        title: const Text('Cloud migration'),
         backgroundColor: theme.colorScheme.surface,
         elevation: 0,
       ),
@@ -51,7 +51,7 @@ class _DataMigrationScreenState extends ConsumerState<DataMigrationScreen> {
             const SizedBox(height: 32),
 
             Text(
-              _isDone ? 'Migration Complete!' : 'Upload to Cloud?',
+              _isDone ? 'Migration complete' : 'Upload to cloud?',
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
@@ -108,7 +108,7 @@ class _DataMigrationScreenState extends ConsumerState<DataMigrationScreen> {
                   'Skip for now',
                   style: TextStyle(
                     color:
-                        theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                        theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
               ),

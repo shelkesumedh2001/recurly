@@ -80,6 +80,16 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     final updated = state.copyWith(trialReminder7DaysEnabled: enabled);
     await updatePreferences(updated);
   }
+
+  /// Set the label this user uses for the other household member. Blank
+  /// input falls back to the default so the UI never shows an empty name.
+  Future<void> setPartnerLabel(String label) async {
+    final trimmed = label.trim();
+    final updated = state.copyWith(
+      partnerLabel: trimmed.isEmpty ? 'Partner' : trimmed,
+    );
+    await updatePreferences(updated);
+  }
 }
 
 /// Provider for preferences state
@@ -87,4 +97,9 @@ final preferencesProvider =
     StateNotifierProvider<PreferencesNotifier, AppPreferences>((ref) {
   final preferencesService = ref.watch(preferencesServiceProvider);
   return PreferencesNotifier(preferencesService);
+});
+
+/// This user's label for the other household member (default "Partner").
+final partnerLabelProvider = Provider<String>((ref) {
+  return ref.watch(preferencesProvider).partnerLabel;
 });

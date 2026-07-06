@@ -5,10 +5,10 @@
 ![Platform](https://img.shields.io/badge/platform-Android-green)
 ![Flutter](https://img.shields.io/badge/Flutter-3.41-blue)
 ![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-lightgrey)
-![Version](https://img.shields.io/badge/version-1.0.0%2B4-orange)
+![Version](https://img.shields.io/badge/version-1.0.0%2B5-orange)
 ![Status](https://img.shields.io/badge/status-live%20on%20Play%20Store-brightgreen)
 
-**Now live on the Google Play Store.**
+**[Get it on Google Play](https://play.google.com/store/apps/details?id=com.sumedh.recurly)**
 
 Track every subscription you pay for — renewals, costs, budgets, and shared expenses — all in one place, with or without an account.
 
@@ -33,6 +33,11 @@ Track every subscription you pay for — renewals, costs, budgets, and shared ex
 - Subscription logos, custom categories, and icon picker
 - Archive subscriptions and restore recently deleted (30-day window)
 - Calendar view of all upcoming renewals
+
+### Credit cards
+- Track statement cutoff and payment due days per card
+- Assign subscriptions to cards and see what lands on each statement
+- Payment-due reminders alongside renewal reminders
 
 ### Spending & Analytics
 - Monthly and yearly spend totals on the dashboard
@@ -61,8 +66,14 @@ Track every subscription you pay for — renewals, costs, budgets, and shared ex
 - Countdown badge on card and details sheet
 - Price-after-trial displayed so you know what's coming
 
+### Theming
+- 8 theme presets — warm dark, AMOLED, ocean, forest, and more
+- Custom accent color; every preset themes charts and urgency colors
+- Design tokens keep spacing, radii, and semantic colors consistent
+
 ### Sync & Privacy
 - Offline-first — all features work without an account
+- Offline writes queue up and replay when connectivity returns
 - Optional Google Sign-In with Firestore cloud sync
 - Data stays on-device by default; sync is opt-in
 
@@ -72,7 +83,7 @@ Track every subscription you pay for — renewals, costs, budgets, and shared ex
 
 | Layer | Technology |
 |---|---|
-| UI | Flutter 3.41 · Material 3 · Dynamic color |
+| UI | Flutter 3.41 · Material 3 · preset-driven design tokens |
 | State | Riverpod |
 | Local DB | Hive (offline-first) |
 | Cloud | Firebase Auth · Firestore |
@@ -116,9 +127,10 @@ lib/
 ├── providers/       # Riverpod state providers
 ├── screens/         # Full-page screens
 ├── widgets/         # Reusable UI components
+│   ├── common/      # Shared kit: sheets, tiles, empty states, dialogs
 │   └── analytics/   # Analytics chart widgets
 ├── services/        # Business logic (sync, notifications, export…)
-├── theme/           # App themes and color system
+├── theme/           # Theme presets + AppTokens design tokens
 └── main.dart
 ```
 

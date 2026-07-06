@@ -9,7 +9,7 @@ import '../../models/subscription.dart';
 import '../../providers/credit_card_providers.dart';
 import '../../providers/currency_providers.dart';
 import '../../providers/subscription_providers.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/app_tokens.dart';
 import '../../utils/card_dates.dart';
 
 /// A calendar widget showing subscription renewals as a heatmap
@@ -87,7 +87,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
                 calendarStyle: CalendarStyle(
                   // Today styling
                   todayDecoration: BoxDecoration(
-                    color: AppTheme.primaryCoral.withValues(alpha: 0.3),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                     shape: BoxShape.circle,
                   ),
                   todayTextStyle: TextStyle(
@@ -96,7 +96,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
                   ),
                   // Selected day styling
                   selectedDecoration: BoxDecoration(
-                    color: AppTheme.primaryCoral,
+                    color: Theme.of(context).colorScheme.primary,
                     shape: BoxShape.circle,
                   ),
                   selectedTextStyle: TextStyle(
@@ -116,7 +116,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
                   // Markers
                   markersMaxCount: 1,
                   markerDecoration: BoxDecoration(
-                    color: AppTheme.expenseColor,
+                    color: AppTokens.of(context).danger,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -137,7 +137,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
                 ),
                 daysOfWeekStyle: DaysOfWeekStyle(
                   weekdayStyle: theme.textTheme.labelSmall!.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     fontWeight: FontWeight.w600,
                   ),
                   weekendStyle: theme.textTheme.labelSmall!.copyWith(
@@ -186,7 +186,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
                 child: Text(
                   'No renewals on ${DateFormat.yMMMd().format(_selectedDay!)}',
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
               ),
@@ -213,7 +213,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
     bool isOutside = false,
   }) {
     final theme = Theme.of(context);
-    final heatmapColors = AppTheme.getCalendarHeatmapColors(context);
+    final heatmapColors = AppTokens.of(context).heatmapColors;
     final normalizedDay = DateTime(day.year, day.month, day.day);
     final amount = renewalMap[normalizedDay] ?? 0;
     final hasCardDue = cardDueMap.containsKey(normalizedDay);
@@ -233,9 +233,9 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
     }
 
     final bgColor = isSelected
-        ? AppTheme.primaryCoral
+        ? Theme.of(context).colorScheme.primary
         : isToday
-            ? AppTheme.primaryCoral.withValues(alpha: 0.3)
+            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)
             : intensity > 0
                 ? heatmapColors[intensity]
                 : Colors.transparent;
@@ -254,7 +254,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
         color: bgColor,
         borderRadius: BorderRadius.circular(8),
         border: isToday && !isSelected
-            ? Border.all(color: AppTheme.primaryCoral, width: 2)
+            ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
             : null,
       ),
       child: Stack(
@@ -346,7 +346,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: AppTheme.expenseColor.withValues(alpha: 0.1),
+              color: AppTokens.of(context).danger.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: sub.logoUrl != null
@@ -360,7 +360,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
                           sub.name[0].toUpperCase(),
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: AppTheme.expenseColor,
+                            color: AppTokens.of(context).danger,
                           ),
                         ),
                       ),
@@ -371,7 +371,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
                       sub.name[0].toUpperCase(),
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: AppTheme.expenseColor,
+                        color: AppTokens.of(context).danger,
                       ),
                     ),
                   ),
@@ -390,7 +390,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
                 Text(
                   sub.billingCycle.displayName,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
               ],
@@ -400,7 +400,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
             sub.formattedPrice,
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppTheme.expenseColor,
+              color: AppTokens.of(context).danger,
             ),
           ),
         ],
@@ -410,7 +410,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
 
   Widget _buildLegend(BuildContext context) {
     final theme = Theme.of(context);
-    final heatmapColors = AppTheme.getCalendarHeatmapColors(context);
+    final heatmapColors = AppTokens.of(context).heatmapColors;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -418,7 +418,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
         Text(
           'Less',
           style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
           ),
         ),
         const SizedBox(width: 8),
@@ -442,7 +442,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
         Text(
           'More',
           style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
           ),
         ),
         const SizedBox(width: 16),
@@ -458,7 +458,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
         Text(
           'Card due',
           style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
           ),
         ),
       ],

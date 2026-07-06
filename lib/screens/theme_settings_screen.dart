@@ -132,7 +132,7 @@ class ThemeSettingsScreen extends ConsumerWidget {
                     ),
                     Icon(
                       Icons.chevron_right,
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ],
                 ),
@@ -174,7 +174,7 @@ class ThemeSettingsScreen extends ConsumerWidget {
           Card(
             margin: EdgeInsets.zero,
             child: SwitchListTile(
-              title: const Text('Gradient Hero Cards'),
+              title: const Text('Gradient hero cards'),
               subtitle: const Text('Use gradient backgrounds on summary cards'),
               value: preferences.useGradientCards,
               onChanged: (value) {
@@ -228,7 +228,7 @@ class ThemeSettingsScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reset Theme?'),
+        title: const Text('Reset theme?'),
         content: const Text(
           'This will reset all theme settings to their defaults. Your data will not be affected.',
         ),
@@ -255,10 +255,9 @@ class ThemeSettingsScreen extends ConsumerWidget {
     );
   }
 
-  String _getColorHex(Color color) {
-    final r = color.r.toInt().toRadixString(16).padLeft(2, '0');
-    final g = color.g.toInt().toRadixString(16).padLeft(2, '0');
-    final b = color.b.toInt().toRadixString(16).padLeft(2, '0');
-    return '#$r$g$b'.toUpperCase();
-  }
+  // Delegates to the single fixed implementation. `Color.r/g/b` are
+  // 0.0–1.0 doubles, so they must be scaled to 0–255 (see
+  // ThemeService.colorToHex) — the old inline `.toInt()` here rendered
+  // every accent's hex label as #000000.
+  String _getColorHex(Color color) => ThemeService().colorToHex(color);
 }
