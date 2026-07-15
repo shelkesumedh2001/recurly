@@ -328,12 +328,15 @@ final subscriptionsByCategoryProvider = Provider.family<List<Subscription>, Stri
 /// Provider for search query state
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
-/// How the Home list is currently sorted. UI marker only — the list itself
-/// is re-ordered by the notifier's sort methods; loads default to date.
+/// How the Home list is currently sorted. Backed by persisted preferences
+/// (`AppPreferences.homeSortModeIndex`) so the choice survives app restarts;
+/// `loadSubscriptions()` reads this to re-apply the order on every load.
 enum HomeSortMode { date, price, name }
 
-final homeSortModeProvider =
-    StateProvider<HomeSortMode>((ref) => HomeSortMode.date);
+final homeSortModeProvider = Provider<HomeSortMode>((ref) {
+  final index = ref.watch(preferencesProvider).homeSortModeIndex;
+  return HomeSortMode.values[index.clamp(0, HomeSortMode.values.length - 1)];
+});
 
 /// Provider for filtered subscriptions based on search query
 final filteredSubscriptionsProvider = Provider<AsyncValue<List<Subscription>>>((ref) {

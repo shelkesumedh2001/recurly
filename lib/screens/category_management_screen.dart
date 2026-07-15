@@ -287,6 +287,7 @@ class CategoryManagementScreen extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
           final theme = Theme.of(context);
@@ -315,6 +316,7 @@ class CategoryManagementScreen extends ConsumerWidget {
                           showModalBottomSheet(
                             context: context,
                             isScrollControlled: true,
+                            showDragHandle: true,
                             builder: (_) => IconPickerSheet(
                               initialIcon: selectedIcon.isNotEmpty ? selectedIcon : null,
                               initialIsEmoji: isEmoji,

@@ -198,7 +198,7 @@ class ThemePresets {
     chartColors: [
       Color(0xFF4DD0E1), // Aqua
       Color(0xFF7986CB), // Indigo
-      Color(0xFF80CBC4), // Sea glass
+      Color(0xFF66BB6A), // Sea green (was #80CBC4 — too close to Aqua)
       Color(0xFFBA68C8), // Orchid
       Color(0xFFFFD54F), // Sand
       Color(0xFFFF8A65), // Coral

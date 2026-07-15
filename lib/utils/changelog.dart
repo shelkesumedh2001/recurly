@@ -9,7 +9,7 @@ import 'constants.dart';
 /// each release, and a matching [ChangelogRelease] added to [kChangelog]
 /// (newest first). The sheet auto-shows once per upgrade: never on first
 /// install, never on downgrade (mirrors Minus's `decideChangelog` pattern).
-const String kAppBuild = '1.0.0+5';
+const String kAppBuild = '1.0.2+7';
 
 class ChangelogRelease {
   const ChangelogRelease({required this.build, required this.notes});
@@ -18,6 +18,26 @@ class ChangelogRelease {
 }
 
 const List<ChangelogRelease> kChangelog = [
+  ChangelogRelease(
+    build: '1.0.2+7',
+    notes: [
+      'Fixed: picking the same service again after closing the add sheet now works',
+      'Track expensive subscriptions — the price limit is now much higher',
+      'Bottom sheets now show a drag handle everywhere, so they’re easier to swipe away',
+    ],
+  ),
+  ChangelogRelease(
+    build: '1.0.1+6',
+    notes: [
+      'New: quick setup when you first open the app — pick your currency and theme',
+      'Back up and restore your data to a file',
+      'Monthly budget forecast: see projected spend and whether you’ll go over',
+      'Rename your household and what you call the other member',
+      'Refreshed charts and a cleaner analytics look',
+      'Your sort order is now remembered, and long amounts no longer wrap',
+      'Clearer category colors on the Ocean theme',
+    ],
+  ),
   ChangelogRelease(
     build: '1.0.0+5',
     notes: [

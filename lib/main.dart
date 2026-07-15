@@ -6,8 +6,10 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'providers/preferences_providers.dart';
 import 'providers/theme_providers.dart';
 import 'screens/main_navigation.dart';
+import 'screens/onboarding_screen.dart';
 import 'services/auth_service.dart';
 import 'services/budget_service.dart';
 import 'services/credit_card_service.dart';
@@ -184,6 +186,11 @@ class RecurlyApp extends ConsumerWidget {
     final darkTheme = ref.watch(darkThemeProvider);
     final themeMode = ref.watch(themeModeProvider);
 
+    // First-run gate: show the theme-picker onboarding until it's completed.
+    final onboardingComplete = ref.watch(
+      preferencesProvider.select((p) => p.onboardingComplete),
+    );
+
     return MaterialApp(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
@@ -195,8 +202,10 @@ class RecurlyApp extends ConsumerWidget {
       darkTheme: darkTheme,
       themeMode: themeMode,
 
-      // Main navigation with bottom nav bar
-      home: const MainNavigation(),
+      // First-run onboarding (theme picker) → then the main navigation.
+      home: onboardingComplete
+          ? const MainNavigation()
+          : const OnboardingScreen(),
     );
   }
 }

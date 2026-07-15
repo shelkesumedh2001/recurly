@@ -2,9 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/subscription_template.dart';
 import '../utils/template_constants.dart';
 
-/// Provider for selected template (null when creating from scratch)
-final selectedTemplateProvider = StateProvider<SubscriptionTemplate?>((ref) => null);
-
 /// Provider for template search query
 final templateSearchQueryProvider = StateProvider<String>((ref) => '');
 
