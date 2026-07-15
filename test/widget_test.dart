@@ -21,6 +21,7 @@ import 'package:recurly/services/database_service.dart';
 import 'package:recurly/services/preferences_service.dart';
 import 'package:recurly/services/sync_service.dart';
 import 'package:recurly/services/theme_service.dart';
+import 'package:recurly/widgets/add_subscription_sheet.dart';
 
 /// Boots the real app shell (RecurlyApp → MainNavigation → HomeScreen)
 /// against mocked Firebase, a fake Firestore, and temp-dir Hive boxes.
@@ -139,5 +140,56 @@ void main() {
     await tester.pump();
 
     expect(container.read(preferencesProvider).onboardingComplete, isTrue);
+  });
+
+  testWidgets('template can be re-picked after dismissing the add sheet',
+      (WidgetTester tester) async {
+    // Regression: chip taps used to route through a global provider that
+    // survived the sheet's dismissal. Re-tapping the same service then wrote
+    // an identical value, which never notified, so the form stayed empty.
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateProvider.overrideWith((ref) => Stream.value(null)),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => Center(
+                child: ElevatedButton(
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    builder: (_) => const AddSubscriptionSheet(),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Future<void> openSheetAndPickNetflix() async {
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Netflix'));
+      await tester.pumpAndSettle();
+      expect(
+        find.widgetWithText(TextFormField, 'Netflix'),
+        findsOneWidget,
+        reason: 'tapping the Netflix template must fill the name field',
+      );
+    }
+
+    await openSheetAndPickNetflix();
+
+    // Dismiss the sheet the way the system back button does.
+    Navigator.of(tester.element(find.byType(AddSubscriptionSheet))).pop();
+    await tester.pumpAndSettle();
+    expect(find.byType(AddSubscriptionSheet), findsNothing);
+
+    await openSheetAndPickNetflix();
   });
 }

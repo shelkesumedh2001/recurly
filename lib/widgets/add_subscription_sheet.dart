@@ -129,24 +129,6 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     // Initialize currency from display currency if not set (and not in edit mode)
     _selectedCurrency ??= ref.read(displayCurrencyProvider);
 
-    // Listen to selected template (only when adding new)
-    if (!_isEditMode) {
-      ref.listen<SubscriptionTemplate?>(selectedTemplateProvider, (previous, next) {
-        if (next != null) {
-          setState(() {
-            _nameController.text = next.name;
-            _selectedCategory = next.category;
-            _selectedBillingCycle = next.defaultBillingCycle;
-            // Don't pre-fill price - let user enter their plan price
-            _priceController.clear();
-            _logoUrl = next.logoUrl;
-            _templateColor = next.color;
-            _showTemplates = false;
-          });
-        }
-      });
-    }
-
     return Container(
       margin: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -221,7 +203,6 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                           _priceController.clear();
                           _logoUrl = null;
                           _templateColor = null;
-                          ref.read(selectedTemplateProvider.notifier).state = null;
                         });
                       },
                       icon: const Icon(Icons.arrow_back, size: 18),
@@ -575,9 +556,6 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
         await ref.read(subscriptionProvider.notifier).addSubscription(subscription);
       }
 
-      // Clear template selection
-      ref.read(selectedTemplateProvider.notifier).state = null;
-
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -869,14 +847,28 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     );
   }
 
+  /// Fill the form from a tapped template. Applied directly (not via a
+  /// provider) so re-picking the same service after dismissing the sheet
+  /// still works.
+  void _applyTemplate(SubscriptionTemplate template) {
+    setState(() {
+      _nameController.text = template.name;
+      _selectedCategory = template.category;
+      _selectedBillingCycle = template.defaultBillingCycle;
+      // Don't pre-fill price - let user enter their plan price
+      _priceController.clear();
+      _logoUrl = template.logoUrl;
+      _templateColor = template.color;
+      _showTemplates = false;
+    });
+  }
+
   /// Build individual template chip
   Widget _buildTemplateChip(BuildContext context, ThemeData theme, SubscriptionTemplate template) {
     return Padding(
       padding: const EdgeInsets.only(right: 12),
       child: InkWell(
-        onTap: () {
-          ref.read(selectedTemplateProvider.notifier).state = template;
-        },
+        onTap: () => _applyTemplate(template),
         borderRadius: BorderRadius.circular(12),
         child: Container(
           width: 70,
