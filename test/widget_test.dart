@@ -58,11 +58,17 @@ void main() {
 
   /// Seed the first-run onboarding flag so a test controls whether it boots
   /// into onboarding or straight into the home shell.
-  Future<void> setOnboardingComplete(bool complete) async {
-    await PreferencesService().updatePreferences(
-      PreferencesService().getPreferences().copyWith(
-            onboardingComplete: complete,
-          ),
+  ///
+  /// Must go through [WidgetTester.runAsync]: the Hive put is real disk I/O,
+  /// which never completes inside testWidgets' FakeAsync zone — awaiting it
+  /// directly hangs the test until the 10-minute timeout.
+  Future<void> setOnboardingComplete(WidgetTester tester, bool complete) async {
+    await tester.runAsync(
+      () => PreferencesService().updatePreferences(
+        PreferencesService().getPreferences().copyWith(
+              onboardingComplete: complete,
+            ),
+      ),
     );
   }
 
@@ -77,7 +83,7 @@ void main() {
 
   testWidgets('App smoke test', (WidgetTester tester) async {
     // Already-onboarded user boots straight into the home shell.
-    await setOnboardingComplete(true);
+    await setOnboardingComplete(tester, true);
 
     await tester.pumpWidget(bootApp());
     await tester.pump();
@@ -89,7 +95,7 @@ void main() {
 
   testWidgets('Fresh install boots into the onboarding theme picker',
       (WidgetTester tester) async {
-    await setOnboardingComplete(false);
+    await setOnboardingComplete(tester, false);
 
     await tester.pumpWidget(bootApp());
     await tester.pump();
@@ -102,7 +108,7 @@ void main() {
 
   testWidgets('Get Started persists onboarding completion',
       (WidgetTester tester) async {
-    await setOnboardingComplete(false);
+    await setOnboardingComplete(tester, false);
 
     // Pump the screen directly (not the full app shell) so the tap's effect
     // is observable without mounting MainNavigation's tabs/timers.
@@ -120,7 +126,17 @@ void main() {
     expect(container.read(preferencesProvider).onboardingComplete, isFalse);
 
     await tester.tap(find.text('Get Started'));
-    await tester.pump(); // let the async pref write + rebuild settle
+    // The notifier persists to Hive (real disk I/O) BEFORE flipping state,
+    // and that write only completes on the real event loop — poll for it
+    // inside runAsync, bounded so a regression fails fast instead of hanging.
+    await tester.runAsync(() async {
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (!container.read(preferencesProvider).onboardingComplete &&
+          DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+    });
+    await tester.pump();
 
     expect(container.read(preferencesProvider).onboardingComplete, isTrue);
   });
