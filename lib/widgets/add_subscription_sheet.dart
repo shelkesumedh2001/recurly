@@ -288,7 +288,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                           if (!_isFreeTrial && price <= 0) {
                             return 'Price must be greater than 0';
                           }
-                          if (price > 9999.99) {
+                          if (price > 10000000) {
                             return 'Price seems too high';
                           }
                           return null;
@@ -791,7 +791,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                 if (price <= 0) {
                   return 'Must be greater than 0';
                 }
-                if (price > 9999.99) {
+                if (price > 10000000) {
                   return 'Price seems too high';
                 }
                 return null;
