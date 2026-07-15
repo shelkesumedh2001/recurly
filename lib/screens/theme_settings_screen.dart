@@ -210,6 +210,7 @@ class ThemeSettingsScreen extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
       builder: (context) => ColorPickerSheet(
         initialColor: themeService.parseHexColor(preferences.customAccentColorHex),
         onColorSelected: (color) {

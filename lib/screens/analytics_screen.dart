@@ -367,11 +367,20 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            value,
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: color,
-              fontWeight: FontWeight.bold,
+          // Scale down to keep the amount on one line in the narrow
+          // half-width stat cards (long totals / high-denomination
+          // currencies would otherwise wrap).
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              maxLines: 1,
+              softWrap: false,
+              style: theme.textTheme.titleLarge?.copyWith(
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],

@@ -175,7 +175,10 @@ class ThemeService {
             topRight: Radius.circular(28),
           ),
         ),
-        showDragHandle: true,
+        // showDragHandle deliberately NOT set here: most sheets draw their
+        // own handle inside a floating card, and the framework handle would
+        // stack a second one above it. Sheets without a hand-rolled handle
+        // pass showDragHandle: true at the call site.
         dragHandleColor: preset.subtextColor.withValues(alpha: 0.3),
       ),
 

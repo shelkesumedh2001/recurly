@@ -3,12 +3,16 @@ import 'dart:io';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_core_platform_interface/test.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:recurly/main.dart';
 import 'package:recurly/models/subscription.dart';
 import 'package:recurly/providers/auth_providers.dart';
+import 'package:recurly/providers/preferences_providers.dart';
+import 'package:recurly/screens/main_navigation.dart';
+import 'package:recurly/screens/onboarding_screen.dart';
 import 'package:recurly/services/budget_service.dart';
 import 'package:recurly/services/credit_card_service.dart';
 import 'package:recurly/services/currency_service.dart';
@@ -17,6 +21,7 @@ import 'package:recurly/services/database_service.dart';
 import 'package:recurly/services/preferences_service.dart';
 import 'package:recurly/services/sync_service.dart';
 import 'package:recurly/services/theme_service.dart';
+import 'package:recurly/widgets/add_subscription_sheet.dart';
 
 /// Boots the real app shell (RecurlyApp → MainNavigation → HomeScreen)
 /// against mocked Firebase, a fake Firestore, and temp-dir Hive boxes.
@@ -52,20 +57,139 @@ void main() {
     await tempDir.delete(recursive: true);
   });
 
-  testWidgets('App smoke test', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      ProviderScope(
+  /// Seed the first-run onboarding flag so a test controls whether it boots
+  /// into onboarding or straight into the home shell.
+  ///
+  /// Must go through [WidgetTester.runAsync]: the Hive put is real disk I/O,
+  /// which never completes inside testWidgets' FakeAsync zone — awaiting it
+  /// directly hangs the test until the 10-minute timeout.
+  Future<void> setOnboardingComplete(WidgetTester tester, bool complete) async {
+    await tester.runAsync(
+      () => PreferencesService().updatePreferences(
+        PreferencesService().getPreferences().copyWith(
+              onboardingComplete: complete,
+            ),
+      ),
+    );
+  }
+
+  Widget bootApp() => ProviderScope(
         overrides: [
           // Signed-out session: FirebaseAuth's real stream needs platform
           // channels that don't exist in tests.
           authStateProvider.overrideWith((ref) => Stream.value(null)),
         ],
         child: const RecurlyApp(),
+      );
+
+  testWidgets('App smoke test', (WidgetTester tester) async {
+    // Already-onboarded user boots straight into the home shell.
+    await setOnboardingComplete(tester, true);
+
+    await tester.pumpWidget(bootApp());
+    await tester.pump();
+
+    // The app shell built without crashing and reached the main navigation.
+    expect(find.byType(RecurlyApp), findsOneWidget);
+    expect(find.byType(MainNavigation), findsOneWidget);
+  });
+
+  testWidgets('Fresh install boots into the onboarding theme picker',
+      (WidgetTester tester) async {
+    await setOnboardingComplete(tester, false);
+
+    await tester.pumpWidget(bootApp());
+    await tester.pump();
+
+    // Lands on the onboarding theme picker, not the home shell.
+    expect(find.byType(OnboardingScreen), findsOneWidget);
+    expect(find.text('Get Started'), findsOneWidget);
+    expect(find.byType(MainNavigation), findsNothing);
+  });
+
+  testWidgets('Get Started persists onboarding completion',
+      (WidgetTester tester) async {
+    await setOnboardingComplete(tester, false);
+
+    // Pump the screen directly (not the full app shell) so the tap's effect
+    // is observable without mounting MainNavigation's tabs/timers.
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: OnboardingScreen()),
       ),
     );
     await tester.pump();
 
-    // The app shell built without crashing.
-    expect(find.byType(RecurlyApp), findsOneWidget);
+    expect(container.read(preferencesProvider).onboardingComplete, isFalse);
+
+    await tester.tap(find.text('Get Started'));
+    // The notifier persists to Hive (real disk I/O) BEFORE flipping state,
+    // and that write only completes on the real event loop — poll for it
+    // inside runAsync, bounded so a regression fails fast instead of hanging.
+    await tester.runAsync(() async {
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (!container.read(preferencesProvider).onboardingComplete &&
+          DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+    });
+    await tester.pump();
+
+    expect(container.read(preferencesProvider).onboardingComplete, isTrue);
+  });
+
+  testWidgets('template can be re-picked after dismissing the add sheet',
+      (WidgetTester tester) async {
+    // Regression: chip taps used to route through a global provider that
+    // survived the sheet's dismissal. Re-tapping the same service then wrote
+    // an identical value, which never notified, so the form stayed empty.
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateProvider.overrideWith((ref) => Stream.value(null)),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => Center(
+                child: ElevatedButton(
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    builder: (_) => const AddSubscriptionSheet(),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Future<void> openSheetAndPickNetflix() async {
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Netflix'));
+      await tester.pumpAndSettle();
+      expect(
+        find.widgetWithText(TextFormField, 'Netflix'),
+        findsOneWidget,
+        reason: 'tapping the Netflix template must fill the name field',
+      );
+    }
+
+    await openSheetAndPickNetflix();
+
+    // Dismiss the sheet the way the system back button does.
+    Navigator.of(tester.element(find.byType(AddSubscriptionSheet))).pop();
+    await tester.pumpAndSettle();
+    expect(find.byType(AddSubscriptionSheet), findsNothing);
+
+    await openSheetAndPickNetflix();
   });
 }
