@@ -21,6 +21,7 @@ const List<ChangelogRelease> kChangelog = [
   ChangelogRelease(
     build: '1.0.2+7',
     notes: [
+      'Fixed: picking the same service again after closing the add sheet now works',
       'Track expensive subscriptions — the price limit is now much higher',
       'Bottom sheets now show a drag handle everywhere, so they’re easier to swipe away',
     ],
