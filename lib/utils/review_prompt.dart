@@ -52,5 +52,13 @@ Future<void> maybeRequestReview(
   if (!await review.isAvailable()) return;
 
   await markRequested();
-  await review.requestReview();
+  try {
+    await review.requestReview();
+  } catch (e) {
+    // `isAvailable()` swallows channel errors internally; `requestReview()`
+    // doesn't, and this runs un-awaited from a post-frame callback. The
+    // attempt is already marked spent — Play's quota makes a retry
+    // worthless anyway.
+    debugPrint('In-app review request failed: $e');
+  }
 }

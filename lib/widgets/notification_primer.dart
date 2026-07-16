@@ -38,7 +38,18 @@ Future<void> maybeShowNotificationPrimer(
   // once the primer is settled. Deleting it changes nothing but cost.
   if (prefs.notificationPrimerShown || !prefs.notificationsEnabled) return;
 
-  final hasPermission = await notificationService.hasPermission();
+  // The permission plugin talks over a platform channel, and this whole
+  // flow runs un-awaited from a button handler — a throw here would surface
+  // as an unhandled async error and, with the flag not yet set, re-fire the
+  // primer on every add. (Old main.dart had these calls inside a try/catch;
+  // keep that guarantee.) Skip quietly and leave the primer pending.
+  final bool hasPermission;
+  try {
+    hasPermission = await notificationService.hasPermission();
+  } catch (e) {
+    debugPrint('Notification primer: permission check failed: $e');
+    return;
+  }
   switch (primerDecision(prefs, hasPermission: hasPermission)) {
     case PrimerDecision.skip:
       return;
@@ -65,7 +76,13 @@ Future<void> maybeShowNotificationPrimer(
   // The reminders for this subscription were already scheduled by
   // `addSubscription`; POST_NOTIFICATIONS gates display when the alarm
   // fires, not scheduling, so a grant now is enough to make them land.
-  await notificationService.requestPermission();
+  try {
+    await notificationService.requestPermission();
+  } catch (e) {
+    // The primer is already spent; losing the grant beats crashing the add
+    // flow. Settings > Notifications remains the recovery path.
+    debugPrint('Notification primer: permission request failed: $e');
+  }
 }
 
 /// What to do about the primer right now.
