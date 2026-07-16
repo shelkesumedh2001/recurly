@@ -88,12 +88,9 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     await updatePreferences(state.copyWith(onboardingComplete: true));
   }
 
-  /// Count this cold start. Gates the review prompt away from first runs.
-  Future<void> incrementSessionCount() async {
-    await updatePreferences(
-      state.copyWith(sessionCount: state.sessionCount + 1),
-    );
-  }
+  // NOTE: sessionCount is incremented directly through PreferencesService
+  // in main(), before the provider container exists — there is deliberately
+  // no notifier method for it, so nothing can double-count a session.
 
   /// Record that Play's review sheet has been requested — once is all we
   /// get, so never spend a second attempt.

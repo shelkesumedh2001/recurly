@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -59,13 +61,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (!mounted) return;
       await showChangelogIfUpdated(context);
       if (!mounted) return;
+      // Wait for the subscription box to actually load: at first frame the
+      // count provider reports 0 while loading, which would silently defer
+      // an eligible user's one review prompt to some later session.
+      final count = await _activeSubCountOnceLoaded();
+      if (!mounted) return;
       await maybeRequestReview(
         ref.read(preferencesProvider),
-        activeSubCount: ref.read(activeSubscriptionCountProvider),
+        activeSubCount: count,
         markRequested:
             ref.read(preferencesProvider.notifier).markReviewRequested,
       );
     });
+  }
+
+  /// Completes with the active-subscription count once [subscriptionProvider]
+  /// has left its loading state (data or error — error reads as 0 and the
+  /// review gate simply stays closed).
+  Future<int> _activeSubCountOnceLoaded() {
+    if (!ref.read(subscriptionProvider).isLoading) {
+      return Future.value(ref.read(activeSubscriptionCountProvider));
+    }
+    final completer = Completer<int>();
+    late final ProviderSubscription<AsyncValue<List<Subscription>>> listener;
+    listener = ref.listenManual(subscriptionProvider, (_, next) {
+      if (next.isLoading || completer.isCompleted) return;
+      listener.close();
+      completer.complete(ref.read(activeSubscriptionCountProvider));
+    });
+    return completer.future;
   }
 
   @override
