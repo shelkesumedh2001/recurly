@@ -60,6 +60,37 @@ DateTime subtractOneCycle(
   }
 }
 
+/// The anchor (`firstBillDate`) to store for a subscription whose NEXT
+/// bill the user picked. Normally `picked - one cycle`, so `nextBillDate`
+/// resolves to exactly the picked date while the current month's
+/// already-billed charge stays visible to the budget forecast.
+///
+/// The subtraction is lossy where month-length clamping bites: picked
+/// Mar 31 steps back to Feb 28, and walking forward from Feb 28 lands on
+/// Mar 28 — three days early, silently, for exactly the end-of-month
+/// billers the next-bill field exists to serve (also Feb 29 on yearly).
+/// When the round trip doesn't reproduce the pick, store the pick itself:
+/// `nextBillDate` returns a future anchor as-is, so the date is exact.
+///
+/// The fallback is safe for the budget forecast: lossiness requires
+/// `picked.day > len(previous month)`, but a next-month pick satisfies
+/// `picked.day <= today.day <= len(current month)` (the window ends at
+/// today + one cycle, day-clamped) — so a lossy pick is always in the
+/// current month, where the charge is upcoming and nothing this month is
+/// missed. Yearly's only lossy pick is Feb 29, whose previous charge is a
+/// year old. Weekly/custom day arithmetic is always exact.
+DateTime anchorForNextBill(
+  BillingCycle cycle,
+  DateTime picked, {
+  int? customDays,
+}) {
+  final anchor = subtractOneCycle(cycle, picked, customDays: customDays);
+  if (addOneCycle(cycle, anchor, customDays: customDays) != picked) {
+    return picked;
+  }
+  return anchor;
+}
+
 DateTime _addDays(DateTime date, int days) {
   return DateTime(
     date.year,

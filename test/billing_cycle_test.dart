@@ -232,6 +232,98 @@ void main() {
     });
   });
 
+  group('anchorForNextBill', () {
+    test('clamp-free pick: anchor is one cycle back', () {
+      expect(
+        anchorForNextBill(BillingCycle.monthly, DateTime(2026, 7, 22)),
+        DateTime(2026, 6, 22),
+      );
+    });
+
+    test('lossy monthly pick falls back to the pick itself (Mar 31)', () {
+      // subtract → Feb 28, and Feb 28 + 1 month = Mar 28 ≠ Mar 31: walking
+      // forward from the clamped anchor would bill three days early.
+      expect(
+        anchorForNextBill(BillingCycle.monthly, DateTime(2026, 3, 31)),
+        DateTime(2026, 3, 31),
+      );
+    });
+
+    test('lossy monthly pick falls back to the pick itself (Jul 31)', () {
+      // June has 30 days: subtract → Jun 30 → forward → Jul 30 ≠ Jul 31.
+      expect(
+        anchorForNextBill(BillingCycle.monthly, DateTime(2026, 7, 31)),
+        DateTime(2026, 7, 31),
+      );
+    });
+
+    test('day 31 after a 31-day month is NOT lossy (Aug 31)', () {
+      // July has 31 days: subtract → Jul 31 → forward → Aug 31. Exact, so
+      // the anchor keeps the budget-forecast benefit of sitting one back.
+      expect(
+        anchorForNextBill(BillingCycle.monthly, DateTime(2026, 8, 31)),
+        DateTime(2026, 7, 31),
+      );
+    });
+
+    test('lossy yearly pick falls back to the pick itself (Feb 29)', () {
+      expect(
+        anchorForNextBill(BillingCycle.yearly, DateTime(2028, 2, 29)),
+        DateTime(2028, 2, 29),
+      );
+    });
+
+    test('weekly and custom day arithmetic are always exact', () {
+      expect(
+        anchorForNextBill(BillingCycle.weekly, DateTime(2026, 1, 4)),
+        DateTime(2025, 12, 28),
+      );
+      expect(
+        anchorForNextBill(
+          BillingCycle.custom,
+          DateTime(2026, 1, 15),
+          customDays: 14,
+        ),
+        DateTime(2026, 1, 1),
+      );
+    });
+  });
+
+  group('anchorForNextBill → nextBillDate (the anchor contract)', () {
+    test('END-OF-MONTH: the picked 31st stays the 31st', () {
+      // The bug this pins: with a bare subtract, today = Mar 5 and picked
+      // Mar 31 stored anchor Feb 28, and the sub then displayed — and
+      // scheduled reminders for — Mar 28. The card, calendar, and
+      // notifications were all silently three days early.
+      withClock(Clock.fixed(DateTime(2026, 3, 5)), () {
+        final picked = DateTime(2026, 3, 31);
+        final s = sub(
+          cycle: BillingCycle.monthly,
+          firstBillDate: anchorForNextBill(BillingCycle.monthly, picked),
+        );
+        expect(s.nextBillDate, picked);
+        // And the budget forecast still sees it as this month's upcoming
+        // charge — the fallback stores a future anchor, which must not
+        // hide the renewal from renewalsInRange.
+        expect(
+          s.renewalsInRange(DateTime(2026, 3, 1), DateTime(2026, 3, 31)),
+          [picked],
+        );
+      });
+    });
+
+    test('END-OF-MONTH: Feb 29 yearly stays Feb 29', () {
+      withClock(Clock.fixed(DateTime(2028, 2, 10)), () {
+        final picked = DateTime(2028, 2, 29);
+        final s = sub(
+          cycle: BillingCycle.yearly,
+          firstBillDate: anchorForNextBill(BillingCycle.yearly, picked),
+        );
+        expect(s.nextBillDate, picked);
+      });
+    });
+  });
+
   group('subtractOneCycle → nextBillDate (the anchor contract)', () {
     // Why the add sheet stores `picked - one cycle` as firstBillDate: it
     // makes nextBillDate land exactly on the date the user picked.
