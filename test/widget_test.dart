@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:clock/clock.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_core_platform_interface/test.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:recurly/main.dart';
+import 'package:recurly/models/enums.dart';
 import 'package:recurly/models/subscription.dart';
 import 'package:recurly/providers/auth_providers.dart';
 import 'package:recurly/providers/preferences_providers.dart';
@@ -140,6 +142,177 @@ void main() {
     await tester.pump();
 
     expect(container.read(preferencesProvider).onboardingComplete, isTrue);
+  });
+
+  /// Next-bill-date field. The anchor arithmetic it feeds is pinned in
+  /// billing_cycle_test ("the anchor contract"); what's guarded here is the
+  /// wiring — that the date can't be skipped, that a day chip fills it, and
+  /// that a stale date can't survive a cycle change. A successful save
+  /// can't be driven from here: `addSubscription` schedules notifications,
+  /// and NotificationService.initialize() needs platform channels that
+  /// don't exist on the test host. That path is in the DEV_STATUS device
+  /// batch.
+  group('add sheet — next bill date', () {
+    // Pinned early in the month on purpose. Material caps a bottom sheet
+    // at 640dp wide, so the lazy chip row only ever builds roughly the
+    // first dozen days — with the clock late in the month, every "still
+    // ahead" day would sit past the end of the built range.
+    final now = DateTime(2026, 7, 2);
+
+    Future<void> openSheet(WidgetTester tester) async {
+      // The form is taller than the default 800x600 surface, which parks
+      // SAVE off-screen where taps silently miss. Widening past 640 buys
+      // nothing — Material caps the sheet there.
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => Stream.value(null)),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => const AddSubscriptionSheet(),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('starts empty rather than defaulting to a wrong date',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        await openSheet(tester);
+
+        // The regression this replaces: the field defaulted to today and
+        // was silently accepted, putting the next bill a full cycle out.
+        expect(find.text('Select date'), findsOneWidget);
+      });
+    });
+
+    testWidgets('blocks save until the next bill date is given',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        await openSheet(tester);
+
+        await tester.tap(find.text('SAVE'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text(
+            'Pick when this bills next so reminders land on the right day',
+          ),
+          findsOneWidget,
+        );
+        // Still open — nothing was written.
+        expect(find.byType(AddSubscriptionSheet), findsOneWidget);
+      });
+    });
+
+    testWidgets('a day chip fills the date and clears the error',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        await openSheet(tester);
+        await tester.tap(find.text('SAVE'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('8'));
+        await tester.pumpAndSettle();
+
+        // The 8th is still ahead of the 2nd, so it means this month.
+        expect(find.text('Wed, Jul 8, 2026'), findsOneWidget);
+        expect(find.textContaining('Bills in 6 days'), findsOneWidget);
+        expect(
+          find.text(
+            'Pick when this bills next so reminders land on the right day',
+          ),
+          findsNothing,
+        );
+      });
+    });
+
+    testWidgets('a day already past this month resolves to next month',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        await openSheet(tester);
+
+        // The 1st has been and gone; the NEXT one is in August.
+        await tester.tap(find.text('1'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Sat, Aug 1, 2026'), findsOneWidget);
+      });
+    });
+
+    testWidgets('free trials hide the field — the trial end is the first bill',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        await openSheet(tester);
+        expect(find.text('Next bill date'), findsOneWidget);
+
+        await tester.tap(find.byType(Switch).first);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Next bill date'), findsNothing);
+      });
+    });
+
+    Future<void> switchToWeekly(WidgetTester tester) async {
+      await tester.tap(find.byType(DropdownButtonFormField<BillingCycle>));
+      await tester.pumpAndSettle();
+      // Both the closed button's label and the open menu item match, so
+      // take the menu item.
+      await tester.tap(find.text('Weekly').last);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('shrinking the cycle drops a date it can no longer reach',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        await openSheet(tester);
+
+        // Jul 10 is fine monthly (window reaches Aug 2) but unreachable
+        // weekly (which reaches only Jul 9).
+        await tester.tap(find.text('10'));
+        await tester.pumpAndSettle();
+        expect(find.text('Select date'), findsNothing);
+
+        await switchToWeekly(tester);
+
+        // Kept, it would have saved an anchor resolving to the wrong day.
+        expect(find.text('Select date'), findsOneWidget);
+      });
+    });
+
+    testWidgets('shrinking the cycle keeps a date that is still reachable',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        await openSheet(tester);
+
+        // Jul 8 sits inside the weekly window (through Jul 9) too.
+        await tester.tap(find.text('8'));
+        await tester.pumpAndSettle();
+
+        await switchToWeekly(tester);
+
+        expect(find.text('Wed, Jul 8, 2026'), findsOneWidget);
+      });
+    });
   });
 
   testWidgets('template can be re-picked after dismissing the add sheet',
