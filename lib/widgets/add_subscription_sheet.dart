@@ -18,6 +18,7 @@ import '../providers/subscription_providers.dart';
 import '../providers/template_providers.dart';
 import '../theme/app_tokens.dart';
 import '../utils/billing_cycle.dart';
+import '../utils/card_dates.dart';
 import '../utils/constants.dart';
 import 'app_toast.dart';
 
@@ -47,6 +48,12 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   /// way nobody noticed until a reminder failed to arrive a month later.
   /// Stored as `firstBillDate - one cycle` on save.
   DateTime? _nextBillDate;
+
+  /// What [_nextBillDate] was seeded with in edit mode — the bill date the
+  /// stored anchor already resolves to. When the user saves without moving
+  /// it (or anything else the anchor derives from), the stored anchor is
+  /// kept as-is; see [_keepStoredAnchor].
+  DateTime? _initialNextBillDate;
 
   /// The day-of-month chip the user tapped, kept separately because the
   /// resolved date can clamp (tap 31 in April → Apr 30) and the highlight
@@ -89,7 +96,8 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       _selectedCategory = sub.category;
       // Show what the field now means — the next bill, derived from the
       // stored anchor — rather than the anchor itself.
-      _nextBillDate = sub.nextBillDate;
+      _initialNextBillDate = sub.nextBillDate;
+      _nextBillDate = _initialNextBillDate;
       _selectedCurrency = sub.currency;
       _logoUrl = sub.logoUrl;
       _templateColor = sub.color;
@@ -490,7 +498,10 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
         // stale trial-end date reached this field. Out-of-range dates save
         // an anchor that resolves a cycle early, so refuse rather than
         // silently store the wrong day.
-        if (!_isSelectableBillDate(date)) {
+        // An untouched edit-mode date is exempt: it can sit outside the
+        // window (legacy future-dated anchors), but the stored anchor is
+        // kept rather than re-derived, so nothing wrong gets saved.
+        if (!_isSelectableBillDate(date) && !_keepStoredAnchor) {
           return 'That is more than one billing cycle away — pick the very '
               'next bill';
         }
@@ -574,7 +585,9 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                   HapticFeedback.selectionClick();
                   setState(() {
                     _pickedChipDay = day;
-                    _nextBillDate = _nextOccurrenceOfDay(day);
+                    // Clamped into short months (the 31st in February means
+                    // the 28th/29th) — always lands in the selectable window.
+                    _nextBillDate = nextOccurrenceOfDay(day, _today);
                   });
                   field.didChange(_nextBillDate);
                 },
@@ -629,6 +642,24 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     return !day.isBefore(_earliestBillDate) && !day.isAfter(_latestBillDate);
   }
 
+  /// Whether to keep the stored anchor on save instead of re-deriving it.
+  ///
+  /// True in edit mode when nothing the anchor derives from changed: same
+  /// next-bill date, cycle, and custom length, and no trial transition.
+  /// Re-anchoring an unchanged date would ratchet `firstBillDate` toward
+  /// the present on every edit — a price change on a years-old sub would
+  /// silently destroy its real start date — and would reject legacy dates
+  /// outside the one-cycle window, blocking saves that never touched the
+  /// date at all.
+  bool get _keepStoredAnchor {
+    final existing = widget.subscription;
+    if (existing == null || _isFreeTrial || existing.isFreeTrial) return false;
+    return _nextBillDate != null &&
+        _nextBillDate == _initialNextBillDate &&
+        _selectedBillingCycle == existing.billingCycle &&
+        _currentCustomDays == existing.customDays;
+  }
+
   /// Drops a chosen date that the current cycle can no longer represent —
   /// switching monthly → weekly shrinks the window, and a stale date would
   /// otherwise be saved with an anchor that resolves to the wrong day.
@@ -638,22 +669,6 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       _nextBillDate = null;
       _pickedChipDay = null;
     }
-  }
-
-  /// The next time day-of-month [day] comes around, clamped into short
-  /// months (the 31st in February means the 28th/29th). Always lands in
-  /// the selectable window.
-  DateTime _nextOccurrenceOfDay(int day) {
-    final today = _today;
-    final thisMonth = _clampedDate(today.year, today.month, day);
-    if (thisMonth.isAfter(today)) return thisMonth;
-    return _clampedDate(today.year, today.month + 1, day);
-  }
-
-  DateTime _clampedDate(int year, int month, int day) {
-    // Day 0 of the following month is the last day of this one.
-    final lastDayOfMonth = DateTime(year, month + 1, 0).day;
-    return DateTime(year, month, day > lastDayOfMonth ? lastDayOfMonth : day);
   }
 
   /// Show date picker
@@ -719,6 +734,11 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       final DateTime anchorDate;
       if (_isFreeTrial) {
         anchorDate = _trialEndDate ?? clock.now();
+      } else if (_keepStoredAnchor) {
+        // The date on screen is the one the stored anchor already resolves
+        // to — keep the anchor (and with it the sub's real start date)
+        // rather than re-deriving one a single cycle back from today.
+        anchorDate = widget.subscription!.firstBillDate;
       } else {
         anchorDate = anchorForNextBill(
           _selectedBillingCycle,
