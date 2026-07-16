@@ -299,6 +299,90 @@ void main() {
       });
     });
 
+    testWidgets('typing a shorter custom cycle does not eat the chosen date',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        await openSheet(tester);
+
+        // Pick a date, then a custom cycle, then retype the day count.
+        await tester.tap(find.text('8'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(DropdownButtonFormField<BillingCycle>));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Custom').last);
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Service Name'),
+          'Gym',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Price'),
+          '9.99',
+        );
+
+        // The old per-keystroke range check wiped the date the moment an
+        // intermediate value like "1" made the window one day wide.
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Bill every (days)'),
+          '1',
+        );
+        await tester.pump();
+
+        expect(find.text('Wed, Jul 8, 2026'), findsOneWidget);
+
+        // The validator backstop — not silent data loss — is what refuses
+        // the now-out-of-range date.
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('more than one billing cycle away'),
+          findsOneWidget,
+        );
+        expect(find.byType(AddSubscriptionSheet), findsOneWidget);
+      });
+    });
+
+    testWidgets('chip highlight follows the tapped day, not the clamped date',
+        (WidgetTester tester) async {
+      // April has 30 days: tapping "31" resolves to Apr 30. The highlight
+      // must stay on 31 — chip 30 lighting up after tapping 31 reads as a
+      // broken tap to exactly the end-of-month users this field serves.
+      await withClock(Clock.fixed(DateTime(2026, 4, 2)), () async {
+        await openSheet(tester);
+
+        // The chip row builds lazily; scroll to the end so 31 exists.
+        final chipRow = find.descendant(
+          of: find.byType(FormField<DateTime>),
+          matching: find.byType(ListView),
+        );
+        await tester.drag(chipRow, const Offset(-1200, 0));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('31'));
+        await tester.pumpAndSettle();
+
+        // Reads each chip's declared Semantics(selected:) — the same flag
+        // that drives the visual highlight — located by the chip's own
+        // semantics label so no tree-order assumptions are involved.
+        bool chipSelected(int day) {
+          final semantics = tester.widget<Semantics>(
+            find.byWidgetPredicate(
+              (w) =>
+                  w is Semantics &&
+                  w.properties.label == 'Bills on day $day of the month',
+            ),
+          );
+          return semantics.properties.selected ?? false;
+        }
+
+        // Resolved date clamps to the month's last day…
+        expect(find.text('Thu, Apr 30, 2026'), findsOneWidget);
+        // …but the selection reflects what the user asked for.
+        expect(chipSelected(31), isTrue);
+        expect(chipSelected(30), isFalse);
+      });
+    });
+
     testWidgets('switching a trial off drops the stale trial-end date',
         (WidgetTester tester) async {
       await withClock(Clock.fixed(now), () async {
