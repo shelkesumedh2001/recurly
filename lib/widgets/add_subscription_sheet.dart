@@ -557,7 +557,9 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       }
 
       if (mounted) {
-        Navigator.pop(context);
+        // Hand the saved subscription back on add (null on edit) so Home
+        // can offer the notification primer against a real bill date.
+        Navigator.pop(context, _isEditMode ? null : subscription);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(

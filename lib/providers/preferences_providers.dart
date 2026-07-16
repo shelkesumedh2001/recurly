@@ -88,6 +88,13 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     await updatePreferences(state.copyWith(onboardingComplete: true));
   }
 
+  /// Record that the notification primer has been offered, so it never
+  /// runs twice regardless of how the user answered.
+  Future<void> markNotificationPrimerShown() async {
+    if (state.notificationPrimerShown) return;
+    await updatePreferences(state.copyWith(notificationPrimerShown: true));
+  }
+
   /// Persist the Home-screen sort mode (stored as the `HomeSortMode` enum
   /// index) so the user's choice survives app restarts.
   Future<void> setHomeSortModeIndex(int index) async {

@@ -19,6 +19,7 @@ import '../utils/money.dart';
 import '../widgets/add_subscription_sheet.dart';
 import '../widgets/common/app_bottom_sheet.dart';
 import '../widgets/common/app_empty_state.dart';
+import '../widgets/notification_primer.dart';
 import '../widgets/rates_warning.dart';
 import '../widgets/subscription_card.dart';
 import '../widgets/sync_indicator.dart';
@@ -301,7 +302,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         error: (error, stack) => _buildErrorState(context, error.toString()),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddSubscriptionSheet(context),
+        onPressed: _showAddSubscriptionSheet,
         elevation: 2,
         child: const Icon(Icons.add, size: 28),
       ),
@@ -535,7 +536,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       message: 'Add anything that renews — streaming, cloud storage, '
           'gym — and Recurly reminds you before it bills.',
       actionLabel: 'Add subscription',
-      onAction: () => _showAddSubscriptionSheet(context),
+      onAction: _showAddSubscriptionSheet,
       footer: const Column(
         children: [
           _FeatureHint(
@@ -570,14 +571,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  /// Show add subscription bottom sheet
-  void _showAddSubscriptionSheet(BuildContext context) {
-    showModalBottomSheet(
+  /// Show add subscription bottom sheet. The sheet returns the saved
+  /// subscription on add (null on edit or dismiss), which is the cue to
+  /// offer reminders — the primer itself decides whether it's due.
+  /// Uses the State's own `context` (not a parameter) so the `mounted`
+  /// guard below actually covers it across the await.
+  Future<void> _showAddSubscriptionSheet() async {
+    final added = await showModalBottomSheet<Subscription>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const AddSubscriptionSheet(),
+      builder: (sheetContext) => const AddSubscriptionSheet(),
     );
+    if (added == null || !mounted) return;
+    await maybeShowNotificationPrimer(context, ref, added);
   }
 
   /// Show menu options

@@ -19,6 +19,7 @@ class AppPreferences extends HiveObject {
     this.partnerLabel = 'Partner',
     this.homeSortModeIndex = 0,
     this.onboardingComplete = false,
+    this.notificationPrimerShown = false,
   });
 
   /// Master switch for all notifications
@@ -85,6 +86,21 @@ class AppPreferences extends HiveObject {
   @HiveField(12, defaultValue: true)
   bool onboardingComplete;
 
+  /// Whether the in-app notification primer has been offered yet. The
+  /// primer runs once, right after the first subscription is saved, and
+  /// only then do we fire the Android 13+ system permission dialog — a
+  /// denial there is effectively permanent, so it must never be spent on
+  /// a user who hasn't seen what the app does.
+  ///
+  /// Constructor default is `false` so a fresh install gets the primer.
+  /// The Hive `defaultValue: true` means users whose stored record
+  /// predates this field are treated as already asked — they were, by the
+  /// old cold-start prompt — so an app UPDATE never re-prompts them. If
+  /// they denied back then, Settings > Notifications is their recovery
+  /// path (it already surfaces a permission banner).
+  @HiveField(13, defaultValue: true)
+  bool notificationPrimerShown;
+
   /// Create copy with updated fields
   AppPreferences copyWith({
     bool? notificationsEnabled,
@@ -100,6 +116,7 @@ class AppPreferences extends HiveObject {
     String? partnerLabel,
     int? homeSortModeIndex,
     bool? onboardingComplete,
+    bool? notificationPrimerShown,
   }) {
     return AppPreferences(
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
@@ -118,6 +135,8 @@ class AppPreferences extends HiveObject {
       partnerLabel: partnerLabel ?? this.partnerLabel,
       homeSortModeIndex: homeSortModeIndex ?? this.homeSortModeIndex,
       onboardingComplete: onboardingComplete ?? this.onboardingComplete,
+      notificationPrimerShown:
+          notificationPrimerShown ?? this.notificationPrimerShown,
     );
   }
 }

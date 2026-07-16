@@ -117,11 +117,11 @@ void main() async {
     final notificationService = NotificationService();
     await notificationService.initialize();
 
-    // Request notification permission (Android 13+)
-    final hasPermission = await notificationService.hasPermission();
-    if (!hasPermission) {
-      await notificationService.requestPermission();
-    }
+    // No permission request here by design. It used to run at this point —
+    // before runApp(), so the OS prompt appeared over a blank screen and
+    // startup blocked on the user's answer. `maybeShowNotificationPrimer`
+    // now asks after the first subscription is saved, where the request
+    // has context. See widgets/notification_primer.dart.
 
     // Reschedule all notifications on app start (handles app restart, date changes)
     final preferences = PreferencesService().getPreferences();
