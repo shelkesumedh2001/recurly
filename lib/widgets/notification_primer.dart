@@ -32,18 +32,21 @@ Future<void> maybeShowNotificationPrimer(
   final preferencesNotifier = ref.read(preferencesProvider.notifier);
   final notificationService = ref.read(notificationServiceProvider);
 
-  // Cheap exits first: don't reach for the platform channel when the
-  // answer is already no. Agrees with [shouldOfferPrimer], which holds the
-  // full rule set.
+  // Performance-only short-circuit. [primerDecision] below is the sole
+  // authority and returns `skip` for these prefs regardless of permission
+  // state; this line just avoids the platform-channel read on every add
+  // once the primer is settled. Deleting it changes nothing but cost.
   if (prefs.notificationPrimerShown || !prefs.notificationsEnabled) return;
 
   final hasPermission = await notificationService.hasPermission();
-  if (!shouldOfferPrimer(prefs, hasPermission: hasPermission)) {
-    // Only reachable when permission is already granted (or the platform
-    // doesn't gate it) — nothing to ask, so spend the primer instead of
-    // leaving it pending for later.
-    await preferencesNotifier.markNotificationPrimerShown();
-    return;
+  switch (primerDecision(prefs, hasPermission: hasPermission)) {
+    case PrimerDecision.skip:
+      return;
+    case PrimerDecision.retire:
+      await preferencesNotifier.markNotificationPrimerShown();
+      return;
+    case PrimerDecision.offer:
+      break;
   }
 
   if (!context.mounted) return;
@@ -65,22 +68,36 @@ Future<void> maybeShowNotificationPrimer(
   await notificationService.requestPermission();
 }
 
-/// Whether the primer is due. Pure — the caller supplies the permission
-/// state — so the rules that decide who gets asked can be pinned without a
-/// platform channel or a widget tree.
+/// What to do about the primer right now.
+///
+/// - [skip]: do nothing AND leave the flag alone. Covers both "already
+///   offered" and "reminders switched off" — the latter must stay pending
+///   so re-enabling reminders still earns a primer later.
+/// - [retire]: permission is already granted (or the platform doesn't gate
+///   it), so there is nothing to ask — spend the primer without a sheet.
+/// - [offer]: show the sheet.
+enum PrimerDecision { skip, retire, offer }
+
+/// The primer rule set, in one pure function so the whole behavior —
+/// including the skip-vs-retire distinction that decides whether the flag
+/// gets spent — can be pinned without a platform channel or a widget tree.
+/// Returning a decision rather than a bool is deliberate: a bool forced
+/// the caller to re-derive WHY it was false to choose between retiring
+/// and leaving the primer pending, and that duplicated logic is where a
+/// notifications-off user could get their pending primer silently spent.
 @visibleForTesting
-bool shouldOfferPrimer(
+PrimerDecision primerDecision(
   AppPreferences prefs, {
   required bool hasPermission,
 }) {
   // Offered once; that's the whole budget.
-  if (prefs.notificationPrimerShown) return false;
-  // Never ask the OS to back a feature the user has switched off. The flag
-  // stays unset, so turning reminders back on still earns a primer.
-  if (!prefs.notificationsEnabled) return false;
+  if (prefs.notificationPrimerShown) return PrimerDecision.skip;
+  // Never ask the OS to back a feature the user has switched off — and
+  // never spend the primer here, whatever the permission state says.
+  if (!prefs.notificationsEnabled) return PrimerDecision.skip;
   // Nothing left to ask for.
-  if (hasPermission) return false;
-  return true;
+  if (hasPermission) return PrimerDecision.retire;
+  return PrimerDecision.offer;
 }
 
 /// How the primer describes the reminder the user would actually get,
