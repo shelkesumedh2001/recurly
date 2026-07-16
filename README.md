@@ -4,7 +4,7 @@
 
 ![Platform](https://img.shields.io/badge/platform-Android-green)
 ![Flutter](https://img.shields.io/badge/Flutter-3.41-blue)
-![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-lightgrey)
+![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 ![Version](https://img.shields.io/badge/version-1.0.0%2B5-orange)
 ![Status](https://img.shields.io/badge/status-live%20on%20Play%20Store-brightgreen)
 
@@ -144,4 +144,6 @@ Pull requests are welcome. For significant changes, open an issue first to discu
 
 ## License
 
-[CC BY-NC 4.0](LICENSE) — free for personal and non-commercial use.
+[GPL-3.0](LICENSE) — free to use, study, modify, and share, commercially included; anything built from it must stay open source under the same license.
+
+Copyright (c) 2026 Sumedh Shelke
