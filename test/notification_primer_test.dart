@@ -12,10 +12,16 @@ import 'package:recurly/widgets/notification_primer.dart';
 /// The permission request used to run in `main()` before the first frame,
 /// where an Android 13+ denial is permanent — so the rules deciding when
 /// we're allowed to spend that one-shot prompt are the thing worth
-/// guarding. They live in [shouldOfferPrimer], kept pure precisely so they
+/// guarding. They live in [primerDecision], kept pure precisely so they
 /// can be pinned here without a platform channel: `hasPermission` reads
 /// `Platform.isAndroid`, which is false on the test host, so anything
 /// routed through the real service reports "granted" and passes vacuously.
+///
+/// The decision is an enum rather than a bool on purpose: the
+/// skip-vs-retire distinction is what decides whether the one-shot flag
+/// gets spent, and the truth table below pins it — most importantly that
+/// a notifications-off user is SKIPPED (flag left pending), never RETIRED,
+/// even when the OS permission happens to be granted.
 ///
 /// The end-to-end flow (real system dialog, real grant) is a device-batch
 /// case in DEV_STATUS — it can't be reached from a desktop VM.
@@ -30,38 +36,62 @@ void main() {
         createdAt: DateTime(2026, 1, 22),
       );
 
-  group('shouldOfferPrimer', () {
+  group('primerDecision', () {
     test('offers on a fresh install when permission is not yet granted', () {
       expect(
-        shouldOfferPrimer(AppPreferences(), hasPermission: false),
-        isTrue,
+        primerDecision(AppPreferences(), hasPermission: false),
+        PrimerDecision.offer,
       );
     });
 
-    test('declines once it has already been offered', () {
+    test('retires without a sheet when permission is already granted', () {
       expect(
-        shouldOfferPrimer(
+        primerDecision(AppPreferences(), hasPermission: true),
+        PrimerDecision.retire,
+      );
+    });
+
+    test('skips once it has already been offered', () {
+      expect(
+        primerDecision(
           AppPreferences(notificationPrimerShown: true),
           hasPermission: false,
         ),
-        isFalse,
+        PrimerDecision.skip,
+      );
+      expect(
+        primerDecision(
+          AppPreferences(notificationPrimerShown: true),
+          hasPermission: true,
+        ),
+        PrimerDecision.skip,
       );
     });
 
-    test('declines when reminders are switched off', () {
+    test('skips when reminders are switched off — permission not granted',
+        () {
       expect(
-        shouldOfferPrimer(
+        primerDecision(
           AppPreferences(notificationsEnabled: false),
           hasPermission: false,
         ),
-        isFalse,
+        PrimerDecision.skip,
       );
     });
 
-    test('declines when permission is already granted', () {
+    test(
+        'reminders off + permission granted is SKIP, not retire — the flag '
+        'must stay pending so re-enabling reminders still earns a primer',
+        () {
+      // The regression this pins: a bool-shaped decision made the caller
+      // re-derive why it was false, and that duplicated logic could spend
+      // the primer on a notifications-off user.
       expect(
-        shouldOfferPrimer(AppPreferences(), hasPermission: true),
-        isFalse,
+        primerDecision(
+          AppPreferences(notificationsEnabled: false),
+          hasPermission: true,
+        ),
+        PrimerDecision.skip,
       );
     });
   });
