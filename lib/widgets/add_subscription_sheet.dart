@@ -469,9 +469,22 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       // complaint on screen (and keep hiding the helper line) until the
       // next SAVE.
       autovalidateMode: AutovalidateMode.onUserInteraction,
-      validator: (_) => _nextBillDate == null
-          ? 'Pick when this bills next so reminders land on the right day'
-          : null,
+      validator: (_) {
+        final date = _nextBillDate;
+        if (date == null) {
+          return 'Pick when this bills next so reminders land on the right day';
+        }
+        // Backstop. `_dropBillDateIfOutOfRange` is called from each place
+        // that can move the window, and missing one is easy — that's how a
+        // stale trial-end date reached this field. Out-of-range dates save
+        // an anchor that resolves a cycle early, so refuse rather than
+        // silently store the wrong day.
+        if (!_isSelectableBillDate(date)) {
+          return 'That is more than one billing cycle away — pick the very '
+              'next bill';
+        }
+        return null;
+      },
       builder: (field) {
         final date = _nextBillDate;
         return Column(
@@ -848,6 +861,10 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                       // Default to 7 days from now
                       _trialEndDate = clock.now().add(const Duration(days: 7));
                     }
+                    // Switching a trial OFF un-hides the next-bill field,
+                    // which for an edited trial was seeded from the trial
+                    // end — often months out and unreachable for the cycle.
+                    _dropBillDateIfOutOfRange();
                   });
                 },
               ),
