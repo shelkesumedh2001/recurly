@@ -1,4 +1,7 @@
+import 'package:clock/clock.dart';
+
 import '../models/enums.dart';
+import 'card_dates.dart';
 
 /// Advance [date] by exactly one [BillingCycle]. Single source of truth
 /// for billing arithmetic — mirrors the semantics users see on their
@@ -85,6 +88,14 @@ DateTime anchorForNextBill(
   int? customDays,
 }) {
   final anchor = subtractOneCycle(cycle, picked, customDays: customDays);
+  // Self-protection, not just the form's job: an anchor still in the
+  // future means [picked] was more than one cycle out, and `nextBillDate`
+  // would return that future anchor as-is — a full cycle early. Storing
+  // the pick itself is exact for any future date, so a caller that skips
+  // the form's one-cycle window (an import or sync path) degrades safely.
+  final now = clock.now();
+  final today = DateTime(now.year, now.month, now.day);
+  if (anchor.isAfter(today)) return picked;
   if (addOneCycle(cycle, anchor, customDays: customDays) != picked) {
     return picked;
   }
@@ -112,7 +123,7 @@ DateTime _addMonths(DateTime date, int months) {
   final totalMonths = date.year * 12 + (date.month - 1) + months;
   final targetYear = totalMonths ~/ 12;
   final targetMonth = (totalMonths % 12) + 1;
-  final daysInTargetMonth = _daysInMonth(targetYear, targetMonth);
+  final daysInTargetMonth = daysInMonth(targetYear, targetMonth);
   final clampedDay =
       date.day > daysInTargetMonth ? daysInTargetMonth : date.day;
   return DateTime(
@@ -125,16 +136,4 @@ DateTime _addMonths(DateTime date, int months) {
     date.millisecond,
     date.microsecond,
   );
-}
-
-int _daysInMonth(int year, int month) {
-  const daysPerMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  if (month == 2 && _isLeapYear(year)) return 29;
-  return daysPerMonth[month - 1];
-}
-
-bool _isLeapYear(int year) {
-  if (year % 4 != 0) return false;
-  if (year % 100 != 0) return true;
-  return year % 400 == 0;
 }

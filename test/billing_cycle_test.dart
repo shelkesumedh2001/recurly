@@ -233,59 +233,90 @@ void main() {
   });
 
   group('anchorForNextBill', () {
+    // The function reads the clock (an anchor that would land in the
+    // future falls back to the pick itself), so every case pins today.
     test('clamp-free pick: anchor is one cycle back', () {
-      expect(
-        anchorForNextBill(BillingCycle.monthly, DateTime(2026, 7, 22)),
-        DateTime(2026, 6, 22),
-      );
+      withClock(Clock.fixed(DateTime(2026, 7, 16)), () {
+        expect(
+          anchorForNextBill(BillingCycle.monthly, DateTime(2026, 7, 22)),
+          DateTime(2026, 6, 22),
+        );
+      });
     });
 
     test('lossy monthly pick falls back to the pick itself (Mar 31)', () {
       // subtract → Feb 28, and Feb 28 + 1 month = Mar 28 ≠ Mar 31: walking
       // forward from the clamped anchor would bill three days early.
-      expect(
-        anchorForNextBill(BillingCycle.monthly, DateTime(2026, 3, 31)),
-        DateTime(2026, 3, 31),
-      );
+      withClock(Clock.fixed(DateTime(2026, 3, 5)), () {
+        expect(
+          anchorForNextBill(BillingCycle.monthly, DateTime(2026, 3, 31)),
+          DateTime(2026, 3, 31),
+        );
+      });
     });
 
     test('lossy monthly pick falls back to the pick itself (Jul 31)', () {
       // June has 30 days: subtract → Jun 30 → forward → Jul 30 ≠ Jul 31.
-      expect(
-        anchorForNextBill(BillingCycle.monthly, DateTime(2026, 7, 31)),
-        DateTime(2026, 7, 31),
-      );
+      withClock(Clock.fixed(DateTime(2026, 7, 16)), () {
+        expect(
+          anchorForNextBill(BillingCycle.monthly, DateTime(2026, 7, 31)),
+          DateTime(2026, 7, 31),
+        );
+      });
     });
 
     test('day 31 after a 31-day month is NOT lossy (Aug 31)', () {
       // July has 31 days: subtract → Jul 31 → forward → Aug 31. Exact, so
       // the anchor keeps the budget-forecast benefit of sitting one back.
-      expect(
-        anchorForNextBill(BillingCycle.monthly, DateTime(2026, 8, 31)),
-        DateTime(2026, 7, 31),
-      );
+      withClock(Clock.fixed(DateTime(2026, 8, 10)), () {
+        expect(
+          anchorForNextBill(BillingCycle.monthly, DateTime(2026, 8, 31)),
+          DateTime(2026, 7, 31),
+        );
+      });
     });
 
     test('lossy yearly pick falls back to the pick itself (Feb 29)', () {
-      expect(
-        anchorForNextBill(BillingCycle.yearly, DateTime(2028, 2, 29)),
-        DateTime(2028, 2, 29),
-      );
+      withClock(Clock.fixed(DateTime(2028, 2, 10)), () {
+        expect(
+          anchorForNextBill(BillingCycle.yearly, DateTime(2028, 2, 29)),
+          DateTime(2028, 2, 29),
+        );
+      });
     });
 
     test('weekly and custom day arithmetic are always exact', () {
-      expect(
-        anchorForNextBill(BillingCycle.weekly, DateTime(2026, 1, 4)),
-        DateTime(2025, 12, 28),
-      );
-      expect(
-        anchorForNextBill(
-          BillingCycle.custom,
-          DateTime(2026, 1, 15),
-          customDays: 14,
-        ),
-        DateTime(2026, 1, 1),
-      );
+      withClock(Clock.fixed(DateTime(2026, 1, 1)), () {
+        expect(
+          anchorForNextBill(BillingCycle.weekly, DateTime(2026, 1, 4)),
+          DateTime(2025, 12, 28),
+        );
+        expect(
+          anchorForNextBill(
+            BillingCycle.custom,
+            DateTime(2026, 1, 15),
+            customDays: 14,
+          ),
+          DateTime(2026, 1, 1),
+        );
+      });
+    });
+
+    test('a pick beyond one cycle stores the pick, not a future anchor', () {
+      // The form's window blocks these, but the function must not rely on
+      // it: `picked - one cycle` would still be in the future, and
+      // `nextBillDate` returns a future anchor as-is — a full cycle early.
+      // Storing the pick itself keeps any out-of-window caller (import,
+      // sync) exact.
+      withClock(Clock.fixed(DateTime(2026, 7, 16)), () {
+        final picked = DateTime(2026, 8, 31); // window ends Aug 16
+        expect(anchorForNextBill(BillingCycle.monthly, picked), picked);
+        final s = sub(
+          cycle: BillingCycle.monthly,
+          firstBillDate: anchorForNextBill(BillingCycle.monthly, picked),
+        );
+        expect(s.nextBillDate, picked);
+      });
     });
   });
 

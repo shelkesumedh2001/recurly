@@ -20,6 +20,7 @@ import 'package:recurly/services/credit_card_service.dart';
 import 'package:recurly/services/currency_service.dart';
 import 'package:recurly/services/custom_category_service.dart';
 import 'package:recurly/services/database_service.dart';
+import 'package:recurly/services/notification_service.dart';
 import 'package:recurly/services/preferences_service.dart';
 import 'package:recurly/services/sync_service.dart';
 import 'package:recurly/services/theme_service.dart';
@@ -449,6 +450,173 @@ void main() {
     });
   });
 
+  /// Edit mode and the stored anchor. When the user never moved the bill
+  /// date, saving must keep `firstBillDate` as stored: re-deriving it
+  /// ratchets a years-old start date to one cycle ago, and a legacy date
+  /// outside the one-cycle window would fail validation and block saves
+  /// that never touched the date. The save's Hive write lands before
+  /// notification scheduling (which needs platform channels the test host
+  /// lacks), so the persisted subscription is observable here even though
+  /// the sheet then reports the scheduling failure.
+  group('edit sheet — stored anchor', () {
+    final now = DateTime(2026, 7, 2);
+
+    /// Each edit test gets its own subscriptions box. Driving a real save
+    /// runs Hive's write chain partly inside the test's FakeAsync zone,
+    /// which dies with the test while still holding the box's internal
+    /// write lock — the NEXT test's first write on a shared box then waits
+    /// on that orphaned lock forever.
+    Future<void> seedIntoFreshBox(WidgetTester tester, Subscription sub) async {
+      await tester.runAsync(() async {
+        DatabaseService().debugSetSubscriptionsBox(
+          await Hive.openBox<Subscription>('edit_anchor_${sub.id}'),
+        );
+        await DatabaseService().addSubscription(sub);
+      });
+    }
+
+    Future<void> mountEditSheet(WidgetTester tester, Subscription sub) async {
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      // Pushed as a real modal route (not a Scaffold body): the save path
+      // ends in Navigator.pop, which must have a route to pop.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => Stream.value(null)),
+            // The real singleton's plugin calls neither complete nor fail
+            // promptly on the test host, and futures it leaves in flight
+            // hang the NEXT test's save — stub it so the save chain runs
+            // to completion inside this test.
+            notificationServiceProvider
+                .overrideWithValue(_StubNotificationService()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => AddSubscriptionSheet(subscription: sub),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    /// Tap Save and drive the save to completion. The chain interleaves
+    /// real I/O (Hive writes only complete on the real event loop, which
+    /// testWidgets' FakeAsync zone never runs on its own) with fake-zone
+    /// frames, so alternate runAsync beats with pumps until the sheet pops
+    /// — the observable end of a successful save. A plain pumpAndSettle
+    /// deadlocks here: the sheet's spinner keeps scheduling frames until
+    /// the real-loop write finishes, which pumpAndSettle never allows.
+    Future<void> saveAndAwaitWrite(
+      WidgetTester tester,
+      bool Function() persisted,
+    ) async {
+      await tester.tap(find.text('Save'));
+      var done = false;
+      for (var i = 0; i < 100 && !done; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        done = persisted() &&
+            find.byType(AddSubscriptionSheet).evaluate().isEmpty;
+      }
+      expect(done, isTrue, reason: 'save did not complete and pop the sheet');
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a price edit keeps the years-old start date',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        final sub = Subscription(
+          id: 'edit-anchor-price',
+          name: 'Oldtimer',
+          price: 9.99,
+          billingCycle: BillingCycle.monthly,
+          firstBillDate: DateTime(2021, 1, 15),
+          category: SubscriptionCategory.entertainment,
+          createdAt: DateTime(2021, 1, 15),
+        );
+        await seedIntoFreshBox(tester, sub);
+
+        await mountEditSheet(tester, sub);
+        await tester.enterText(
+          find.widgetWithText(TextFormField, '9.99'),
+          '12.99',
+        );
+        await saveAndAwaitWrite(
+          tester,
+          () => DatabaseService().getSubscriptionById(sub.id)!.price == 12.99,
+        );
+
+        // The regression this pins: the save re-derived the anchor from
+        // the (unmoved) next bill date, overwriting 2021-01-15 with
+        // 2026-06-15 — and every later edit kept ratcheting it forward.
+        final saved = DatabaseService().getSubscriptionById(sub.id)!;
+        expect(saved.price, 12.99);
+        expect(saved.firstBillDate, DateTime(2021, 1, 15));
+      });
+    });
+
+    testWidgets('an untouched out-of-window date no longer blocks a rename',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        // Legacy data: a future-dated anchor two weeks out. nextBillDate
+        // returns it as-is, and the weekly window only reaches Jul 9 — so
+        // the seeded date fails the window check unless edit mode exempts
+        // the untouched value.
+        final sub = Subscription(
+          id: 'edit-anchor-window',
+          name: 'Faraway',
+          price: 4.99,
+          billingCycle: BillingCycle.weekly,
+          firstBillDate: DateTime(2026, 7, 16),
+          category: SubscriptionCategory.entertainment,
+          createdAt: DateTime(2026, 6, 1),
+        );
+        await seedIntoFreshBox(tester, sub);
+
+        await mountEditSheet(tester, sub);
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Faraway'),
+          'Faraway Plus',
+        );
+        await saveAndAwaitWrite(
+          tester,
+          () =>
+              DatabaseService().getSubscriptionById(sub.id)!.name ==
+              'Faraway Plus',
+        );
+
+        expect(
+          find.text(
+            'That is more than one billing cycle away — pick the very '
+            'next bill',
+          ),
+          findsNothing,
+        );
+        final saved = DatabaseService().getSubscriptionById(sub.id)!;
+        expect(saved.name, 'Faraway Plus');
+        expect(saved.firstBillDate, DateTime(2026, 7, 16));
+      });
+    });
+  });
+
   testWidgets('template can be re-picked after dismissing the add sheet',
       (WidgetTester tester) async {
     // Regression: chip taps used to route through a global provider that
@@ -499,4 +667,13 @@ void main() {
 
     await openSheetAndPickNetflix();
   });
+}
+
+/// Every notification call the save path makes resolves immediately. The
+/// real service is a closed singleton (private constructor), so this
+/// implements-plus-noSuchMethod stands in for it; only Future-returning
+/// members are ever reached from the save flow.
+class _StubNotificationService implements NotificationService {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
 }
