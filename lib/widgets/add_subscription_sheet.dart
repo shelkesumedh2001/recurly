@@ -19,6 +19,7 @@ import '../providers/template_providers.dart';
 import '../theme/app_tokens.dart';
 import '../utils/billing_cycle.dart';
 import '../utils/constants.dart';
+import 'app_toast.dart';
 
 class AddSubscriptionSheet extends ConsumerStatefulWidget { // Null for add, populated for edit
 
@@ -46,6 +47,13 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   /// way nobody noticed until a reminder failed to arrive a month later.
   /// Stored as `firstBillDate - one cycle` on save.
   DateTime? _nextBillDate;
+
+  /// The day-of-month chip the user tapped, kept separately because the
+  /// resolved date can clamp (tap 31 in April → Apr 30) and the highlight
+  /// should reflect what they asked for, not the clamped day — chip 30
+  /// lighting up after tapping 31 reads as a broken tap. Null when the
+  /// date came from the picker or edit-mode seeding.
+  int? _pickedChipDay;
   String? _selectedCurrency;
   bool _isLoading = false;
   bool _showTemplates = true;
@@ -339,10 +347,11 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
                     ],
-                    // Cycle length sets the width of the selectable bill-date
-                    // window, so shortening it can strand an existing choice.
-                    onChanged: (_) =>
-                        setState(_dropBillDateIfOutOfRange),
+                    // No per-keystroke range check here: typing "10" passes
+                    // through "1", whose one-day window would wipe a chosen
+                    // date mid-edit. The date field's validator refuses an
+                    // out-of-range date at save, which is the layer that
+                    // matters.
                     validator: (value) {
                       if (_selectedBillingCycle != BillingCycle.custom) {
                         return null;
@@ -534,7 +543,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   /// time that day comes around, so tapping "22" on the 16th means this
   /// month, but tapping "3" means next month.
   Widget _buildDayOfMonthChips(ThemeData theme, FormFieldState<DateTime> field) {
-    final selectedDay = _nextBillDate?.day;
+    final selectedDay = _pickedChipDay ?? _nextBillDate?.day;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -564,6 +573,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                 onTap: () {
                   HapticFeedback.selectionClick();
                   setState(() {
+                    _pickedChipDay = day;
                     _nextBillDate = _nextOccurrenceOfDay(day);
                   });
                   field.didChange(_nextBillDate);
@@ -626,6 +636,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     final date = _nextBillDate;
     if (date != null && !_isSelectableBillDate(date)) {
       _nextBillDate = null;
+      _pickedChipDay = null;
     }
   }
 
@@ -661,6 +672,8 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     if (picked != null) {
       setState(() {
         _nextBillDate = picked;
+        // Picker choice supersedes any chip tap.
+        _pickedChipDay = null;
       });
     }
   }
@@ -698,17 +711,16 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       final newPrice = priceText.isEmpty ? 0.0 : double.parse(priceText);
 
       // The user tells us the NEXT bill date; the model stores an anchor it
-      // walks forward from. Anchoring one cycle back makes `nextBillDate`
-      // resolve to exactly the date they picked, and leaves this month's
-      // already-happened charge visible to the budget forecast (the only
-      // consumer of `renewalsInRange`). For trials the anchor is unused —
-      // `nextBillDate` runs off `trialEndDate` — so park it on the trial
-      // end, which is where billing genuinely starts.
+      // walks forward from — see [anchorForNextBill] for why that is
+      // usually `picked - one cycle` but the pick itself when clamping
+      // makes the subtraction lossy (end-of-month days). For trials the
+      // anchor is unused — `nextBillDate` runs off `trialEndDate` — so
+      // park it on the trial end, where billing genuinely starts.
       final DateTime anchorDate;
       if (_isFreeTrial) {
         anchorDate = _trialEndDate ?? clock.now();
       } else {
-        anchorDate = subtractOneCycle(
+        anchorDate = anchorForNextBill(
           _selectedBillingCycle,
           _nextBillDate!,
           customDays: customDays,
@@ -782,27 +794,23 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
         // Hand the saved subscription back on add (null on edit) so Home
         // can offer the notification primer against a real bill date.
         Navigator.pop(context, _isEditMode ? null : subscription);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _isEditMode
-                  ? '${subscription.name} updated'
-                  : '${subscription.name} added',
-            ),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
+        // Overlay toast, not ScaffoldMessenger: snackbars don't reliably
+        // auto-dismiss in this app's nested-Scaffold layout, and one stuck
+        // under the notification primer would stage the app's most
+        // important ask on top of debris.
+        showAppToast(
+          _isEditMode
+              ? '${subscription.name} updated'
+              : '${subscription.name} added',
+          duration: const Duration(seconds: 2),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        // The old error snackbar rendered in the Scaffold BEHIND this
+        // modal sheet — invisible exactly when the user needed it. The
+        // toast lives in the root overlay, above everything.
+        showAppToast("Couldn't save: $e");
       }
     } finally {
       if (mounted) {
