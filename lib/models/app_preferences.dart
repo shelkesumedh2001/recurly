@@ -20,6 +20,8 @@ class AppPreferences extends HiveObject {
     this.homeSortModeIndex = 0,
     this.onboardingComplete = false,
     this.notificationPrimerShown = false,
+    this.sessionCount = 0,
+    this.reviewRequested = false,
   });
 
   /// Master switch for all notifications
@@ -101,6 +103,23 @@ class AppPreferences extends HiveObject {
   @HiveField(13, defaultValue: true)
   bool notificationPrimerShown;
 
+  /// Cold starts so far. Gates the review prompt: asking on someone's first
+  /// run rates a first impression, not the app. Additive — `defaultValue: 0`
+  /// starts existing users at zero, so they earn the prompt over their next
+  /// couple of launches rather than getting it on the upgrade itself.
+  @HiveField(14, defaultValue: 0)
+  int sessionCount;
+
+  /// Whether the Play in-app review sheet has been requested. Play enforces
+  /// its own quota and silently no-ops past it, so tracking this ourselves
+  /// is what stops a fresh attempt being spent on every launch.
+  ///
+  /// `defaultValue: false` on purpose — unlike [notificationPrimerShown],
+  /// existing users have never been asked (the prompt didn't exist), and
+  /// long-time users with real subscriptions are exactly who should be.
+  @HiveField(15, defaultValue: false)
+  bool reviewRequested;
+
   /// Create copy with updated fields
   AppPreferences copyWith({
     bool? notificationsEnabled,
@@ -117,6 +136,8 @@ class AppPreferences extends HiveObject {
     int? homeSortModeIndex,
     bool? onboardingComplete,
     bool? notificationPrimerShown,
+    int? sessionCount,
+    bool? reviewRequested,
   }) {
     return AppPreferences(
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
@@ -137,6 +158,8 @@ class AppPreferences extends HiveObject {
       onboardingComplete: onboardingComplete ?? this.onboardingComplete,
       notificationPrimerShown:
           notificationPrimerShown ?? this.notificationPrimerShown,
+      sessionCount: sessionCount ?? this.sessionCount,
+      reviewRequested: reviewRequested ?? this.reviewRequested,
     );
   }
 }

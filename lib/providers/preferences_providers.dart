@@ -88,6 +88,20 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     await updatePreferences(state.copyWith(onboardingComplete: true));
   }
 
+  /// Count this cold start. Gates the review prompt away from first runs.
+  Future<void> incrementSessionCount() async {
+    await updatePreferences(
+      state.copyWith(sessionCount: state.sessionCount + 1),
+    );
+  }
+
+  /// Record that Play's review sheet has been requested — once is all we
+  /// get, so never spend a second attempt.
+  Future<void> markReviewRequested() async {
+    if (state.reviewRequested) return;
+    await updatePreferences(state.copyWith(reviewRequested: true));
+  }
+
   /// Record that the notification primer has been offered, so it never
   /// runs twice regardless of how the user answered.
   Future<void> markNotificationPrimerShown() async {

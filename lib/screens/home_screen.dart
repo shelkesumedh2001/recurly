@@ -16,6 +16,7 @@ import '../theme/app_tokens.dart';
 import '../utils/changelog.dart';
 import '../utils/constants.dart';
 import '../utils/money.dart';
+import '../utils/review_prompt.dart';
 import '../widgets/add_subscription_sheet.dart';
 import '../widgets/common/app_bottom_sheet.dart';
 import '../widgets/common/app_empty_state.dart';
@@ -50,9 +51,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ..listenManual(syncInitProvider, (_, __) {})
       ..listenManual(householdSyncProvider, (_, __) {})
       ..listenManual(householdCleanupProvider, (_, __) {});
-    // Show "what's new" sheet once after a version upgrade.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) showChangelogIfUpdated(context);
+    // Show "what's new" sheet once after a version upgrade, then — only
+    // once it's closed — consider asking for a review. Sequenced rather
+    // than fired together so the two never stack on each other.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await showChangelogIfUpdated(context);
+      if (!mounted) return;
+      await maybeRequestReview(
+        ref.read(preferencesProvider),
+        activeSubCount: ref.read(activeSubscriptionCountProvider),
+        markRequested:
+            ref.read(preferencesProvider.notifier).markReviewRequested,
+      );
     });
   }
 
