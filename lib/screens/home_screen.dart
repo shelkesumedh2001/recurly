@@ -89,7 +89,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       listener.close();
       completer.complete(ref.read(activeSubscriptionCountProvider));
     });
-    return completer.future;
+    // Bounded: if this screen is disposed while the box is still loading,
+    // Riverpod closes the manual listener and the completer would never
+    // complete — stranding the awaiting closure (and its ref/context)
+    // forever. On timeout the count reads 0, the review gate simply stays
+    // closed this session, and nothing was marked spent.
+    return completer.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () {
+        listener.close();
+        return 0;
+      },
+    );
   }
 
   @override
