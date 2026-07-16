@@ -76,6 +76,7 @@ backup_ui_v1/
 # Internal working docs — local only, never push
 AUDIT_REPORT.md
 DEV_STATUS.md
+GROWTH_REVIEW.txt
 PROJECT_SPECIFICATION.md
 PROJECT_STATE.md
 bugFixing.md
