@@ -71,6 +71,18 @@ void main() async {
   // Initialize preferences service - REQUIRED
   await PreferencesService().initialize();
 
+  // Count this cold start, so the review prompt can stay off first runs.
+  // Best-effort: a failed counter must never block startup.
+  try {
+    final prefsService = PreferencesService();
+    final prefs = prefsService.getPreferences();
+    await prefsService.updatePreferences(
+      prefs.copyWith(sessionCount: prefs.sessionCount + 1),
+    );
+  } catch (e) {
+    debugPrint('Failed to record session: $e');
+  }
+
   // Initialize optional services (failures logged but don't block app)
   try {
     await ThemeService().initialize();
