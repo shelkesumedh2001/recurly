@@ -299,6 +299,56 @@ void main() {
       });
     });
 
+    testWidgets('switching a trial off drops the stale trial-end date',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        // Editing a trial seeds the field from nextBillDate, which for a
+        // trial IS the trial end — potentially months out, far outside the
+        // window a monthly sub can represent. Switching the trial off
+        // reveals that field, and a stale value there would save an anchor
+        // resolving a whole cycle early.
+        final trialSub = Subscription(
+          id: 't1',
+          name: 'Trial',
+          price: 0,
+          billingCycle: BillingCycle.monthly,
+          firstBillDate: DateTime(2026, 7, 1),
+          category: SubscriptionCategory.entertainment,
+          createdAt: DateTime(2026, 7, 1),
+          isFreeTrial: true,
+          trialEndDate: DateTime(2026, 12, 1),
+          priceAfterTrial: 9.99,
+        );
+
+        tester.view.physicalSize = const Size(800, 3000);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authStateProvider.overrideWith((ref) => Stream.value(null)),
+            ],
+            child: MaterialApp(
+              home: Scaffold(
+                body: AddSubscriptionSheet(subscription: trialSub),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Next bill date'), findsNothing);
+
+        await tester.tap(find.byType(Switch).first);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Next bill date'), findsOneWidget);
+        expect(find.text('Select date'), findsOneWidget);
+        expect(find.textContaining('Dec 1, 2026'), findsNothing);
+      });
+    });
+
     testWidgets('shrinking the cycle keeps a date that is still reachable',
         (WidgetTester tester) async {
       await withClock(Clock.fixed(now), () async {
