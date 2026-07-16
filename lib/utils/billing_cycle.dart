@@ -29,6 +29,37 @@ DateTime addOneCycle(BillingCycle cycle, DateTime date, {int? customDays}) {
   }
 }
 
+/// Step [date] back by exactly one [BillingCycle] — the inverse of
+/// [addOneCycle], sharing its clamping semantics.
+///
+/// Used to derive a subscription's stored anchor (`firstBillDate`) from the
+/// next bill date the user actually knows: anchoring one cycle back means
+/// `nextBillDate` lands exactly on the date they picked, and the current
+/// month's budget forecast still sees the charge that already happened.
+///
+/// Not a perfect inverse where month-length clamping bites: Mar 31 back one
+/// month is Feb 28, and forward again is Mar 28. That asymmetry is inherent
+/// to calendar months and matches [addOneCycle]'s existing behaviour.
+DateTime subtractOneCycle(
+  BillingCycle cycle,
+  DateTime date, {
+  int? customDays,
+}) {
+  switch (cycle) {
+    case BillingCycle.monthly:
+      return _addMonths(date, -1);
+    case BillingCycle.yearly:
+      return _addMonths(date, -12);
+    case BillingCycle.weekly:
+      return _addDays(date, -7);
+    case BillingCycle.custom:
+      // Mirrors addOneCycle's guard: a non-positive step would make the
+      // anchor meaningless (and hang the projection loops that walk it).
+      final days = (customDays == null || customDays <= 0) ? 30 : customDays;
+      return _addDays(date, -days);
+  }
+}
+
 DateTime _addDays(DateTime date, int days) {
   return DateTime(
     date.year,
@@ -43,8 +74,13 @@ DateTime _addDays(DateTime date, int days) {
 }
 
 DateTime _addMonths(DateTime date, int months) {
-  final targetYear = date.year + (date.month + months - 1) ~/ 12;
-  final targetMonth = ((date.month + months - 1) % 12) + 1;
+  // Absolute month count, so negative [months] lands in the right year.
+  // The old `year + (month + months - 1) ~/ 12` form broke stepping back
+  // across January: Dart's `%` returns non-negative, so Jan - 1 produced
+  // December of the *same* year. Identical results for positive months.
+  final totalMonths = date.year * 12 + (date.month - 1) + months;
+  final targetYear = totalMonths ~/ 12;
+  final targetMonth = (totalMonths % 12) + 1;
   final daysInTargetMonth = _daysInMonth(targetYear, targetMonth);
   final clampedDay =
       date.day > daysInTargetMonth ? daysInTargetMonth : date.day;
