@@ -210,7 +210,7 @@ void main() {
       await withClock(Clock.fixed(now), () async {
         await openSheet(tester);
 
-        await tester.tap(find.text('SAVE'));
+        await tester.tap(find.text('Save'));
         await tester.pumpAndSettle();
 
         expect(
@@ -228,7 +228,7 @@ void main() {
         (WidgetTester tester) async {
       await withClock(Clock.fixed(now), () async {
         await openSheet(tester);
-        await tester.tap(find.text('SAVE'));
+        await tester.tap(find.text('Save'));
         await tester.pumpAndSettle();
 
         await tester.tap(find.text('8'));

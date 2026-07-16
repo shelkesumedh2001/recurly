@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/exchange_rate.dart';
@@ -489,6 +490,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             label: '${mode.displayName} spend view',
             child: InkWell(
               onTap: () {
+                HapticFeedback.selectionClick();
                 ref.read(spendViewModeProvider.notifier).state = mode;
               },
               borderRadius: BorderRadius.circular(AppRadius.sm - 2),
