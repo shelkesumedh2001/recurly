@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -445,7 +447,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                             strokeWidth: 2,
                           ),
                         )
-                      : const Text('SAVE'),
+                      : const Text('Save'),
                   ),
                   const SizedBox(height: 8),
                 ],
@@ -560,6 +562,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                 day: day,
                 isSelected: isSelected,
                 onTap: () {
+                  HapticFeedback.selectionClick();
                   setState(() {
                     _nextBillDate = _nextOccurrenceOfDay(day);
                   });
@@ -667,6 +670,11 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+
+    // Only once the form is known good — a buzz on a rejected tap reads as
+    // confirmation of something that didn't happen. Not awaited: the save
+    // shouldn't wait on the vibrator.
+    unawaited(HapticFeedback.mediumImpact());
 
     setState(() {
       _isLoading = true;
@@ -855,6 +863,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
               Switch.adaptive(
                 value: _isFreeTrial,
                 onChanged: (value) {
+                  HapticFeedback.selectionClick();
                   setState(() {
                     _isFreeTrial = value;
                     if (value && _trialEndDate == null) {
@@ -1071,6 +1080,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   /// provider) so re-picking the same service after dismissing the sheet
   /// still works.
   void _applyTemplate(SubscriptionTemplate template) {
+    HapticFeedback.selectionClick();
     setState(() {
       _nameController.text = template.name;
       _selectedCategory = template.category;
@@ -1080,6 +1090,10 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       _logoUrl = template.logoUrl;
       _templateColor = template.color;
       _showTemplates = false;
+      // A template carries its own cycle, so the bill-date window may have
+      // just moved. Every template ships monthly today, but this is one of
+      // the places that can strand a chosen date.
+      _dropBillDateIfOutOfRange();
     });
   }
 
