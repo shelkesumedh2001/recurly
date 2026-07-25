@@ -88,6 +88,24 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     await updatePreferences(state.copyWith(onboardingComplete: true));
   }
 
+  // NOTE: sessionCount is incremented directly through PreferencesService
+  // in main(), before the provider container exists — there is deliberately
+  // no notifier method for it, so nothing can double-count a session.
+
+  /// Record that Play's review sheet has been requested — once is all we
+  /// get, so never spend a second attempt.
+  Future<void> markReviewRequested() async {
+    if (state.reviewRequested) return;
+    await updatePreferences(state.copyWith(reviewRequested: true));
+  }
+
+  /// Record that the notification primer has been offered, so it never
+  /// runs twice regardless of how the user answered.
+  Future<void> markNotificationPrimerShown() async {
+    if (state.notificationPrimerShown) return;
+    await updatePreferences(state.copyWith(notificationPrimerShown: true));
+  }
+
   /// Persist the Home-screen sort mode (stored as the `HomeSortMode` enum
   /// index) so the user's choice survives app restarts.
   Future<void> setHomeSortModeIndex(int index) async {

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Standard confirmation dialog. Returns true when the user confirms.
 ///
-/// [destructive] styles the confirm button with the error color — use it
-/// for delete/remove/leave actions.
+/// [destructive] styles the confirm button with the error color — and gives
+/// confirming a heavier haptic than an ordinary tap. Use it for
+/// delete/remove/leave actions.
 Future<bool> showConfirmDialog(
   BuildContext context, {
   required String title,
@@ -25,7 +27,12 @@ Future<bool> showConfirmDialog(
             child: Text(cancelLabel),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: () {
+              // Confirming something irreversible should feel different
+              // from confirming anything else.
+              if (destructive) HapticFeedback.heavyImpact();
+              Navigator.pop(dialogContext, true);
+            },
             style: destructive
                 ? FilledButton.styleFrom(
                     backgroundColor: theme.colorScheme.error,

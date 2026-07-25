@@ -9,7 +9,7 @@ import 'constants.dart';
 /// each release, and a matching [ChangelogRelease] added to [kChangelog]
 /// (newest first). The sheet auto-shows once per upgrade: never on first
 /// install, never on downgrade (mirrors Minus's `decideChangelog` pattern).
-const String kAppBuild = '1.0.2+7';
+const String kAppBuild = '1.0.3+8';
 
 class ChangelogRelease {
   const ChangelogRelease({required this.build, required this.notes});
@@ -18,6 +18,17 @@ class ChangelogRelease {
 }
 
 const List<ChangelogRelease> kChangelog = [
+  ChangelogRelease(
+    build: '1.0.3+8',
+    notes: [
+      'Adding a subscription now asks for the next bill date — pick the day it actually bills, no more guessing when you started',
+      'Quick day-of-month chips when choosing the date',
+      'Notification permission is now asked after your first subscription, not at launch',
+      'Subtle haptics on chips, toggles, and saves',
+      'Fixed: editing a subscription no longer shifts its bill dates',
+      'Fixed: end-of-month billing dates stay on the right day',
+    ],
+  ),
   ChangelogRelease(
     build: '1.0.2+7',
     notes: [

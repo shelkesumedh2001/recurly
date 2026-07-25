@@ -263,7 +263,11 @@ class ExportService {
       'Category',
       'Next Renewal',
       'Days Until Renewal',
-      'First Bill Date',
+      // `firstBillDate` is the billing anchor: the true first bill for
+      // legacy data, but the last bill before tracking began for subs
+      // added via the next-bill form — "first known" is the honest common
+      // label, "First Bill Date" was not.
+      'First Known Bill',
       'Notes',
       'Price History',
     ]);

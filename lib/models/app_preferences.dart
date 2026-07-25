@@ -19,6 +19,9 @@ class AppPreferences extends HiveObject {
     this.partnerLabel = 'Partner',
     this.homeSortModeIndex = 0,
     this.onboardingComplete = false,
+    this.notificationPrimerShown = false,
+    this.sessionCount = 0,
+    this.reviewRequested = false,
   });
 
   /// Master switch for all notifications
@@ -85,6 +88,38 @@ class AppPreferences extends HiveObject {
   @HiveField(12, defaultValue: true)
   bool onboardingComplete;
 
+  /// Whether the in-app notification primer has been offered yet. The
+  /// primer runs once, right after the first subscription is saved, and
+  /// only then do we fire the Android 13+ system permission dialog — a
+  /// denial there is effectively permanent, so it must never be spent on
+  /// a user who hasn't seen what the app does.
+  ///
+  /// Constructor default is `false` so a fresh install gets the primer.
+  /// The Hive `defaultValue: true` means users whose stored record
+  /// predates this field are treated as already asked — they were, by the
+  /// old cold-start prompt — so an app UPDATE never re-prompts them. If
+  /// they denied back then, Settings > Notifications is their recovery
+  /// path (it already surfaces a permission banner).
+  @HiveField(13, defaultValue: true)
+  bool notificationPrimerShown;
+
+  /// Cold starts so far. Gates the review prompt: asking on someone's first
+  /// run rates a first impression, not the app. Additive — `defaultValue: 0`
+  /// starts existing users at zero, so they earn the prompt over their next
+  /// couple of launches rather than getting it on the upgrade itself.
+  @HiveField(14, defaultValue: 0)
+  int sessionCount;
+
+  /// Whether the Play in-app review sheet has been requested. Play enforces
+  /// its own quota and silently no-ops past it, so tracking this ourselves
+  /// is what stops a fresh attempt being spent on every launch.
+  ///
+  /// `defaultValue: false` on purpose — unlike [notificationPrimerShown],
+  /// existing users have never been asked (the prompt didn't exist), and
+  /// long-time users with real subscriptions are exactly who should be.
+  @HiveField(15, defaultValue: false)
+  bool reviewRequested;
+
   /// Create copy with updated fields
   AppPreferences copyWith({
     bool? notificationsEnabled,
@@ -100,6 +135,9 @@ class AppPreferences extends HiveObject {
     String? partnerLabel,
     int? homeSortModeIndex,
     bool? onboardingComplete,
+    bool? notificationPrimerShown,
+    int? sessionCount,
+    bool? reviewRequested,
   }) {
     return AppPreferences(
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
@@ -118,6 +156,10 @@ class AppPreferences extends HiveObject {
       partnerLabel: partnerLabel ?? this.partnerLabel,
       homeSortModeIndex: homeSortModeIndex ?? this.homeSortModeIndex,
       onboardingComplete: onboardingComplete ?? this.onboardingComplete,
+      notificationPrimerShown:
+          notificationPrimerShown ?? this.notificationPrimerShown,
+      sessionCount: sessionCount ?? this.sessionCount,
+      reviewRequested: reviewRequested ?? this.reviewRequested,
     );
   }
 }

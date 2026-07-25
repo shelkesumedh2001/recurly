@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,7 +16,11 @@ import '../providers/credit_card_providers.dart';
 import '../providers/currency_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../providers/template_providers.dart';
+import '../theme/app_tokens.dart';
+import '../utils/billing_cycle.dart';
+import '../utils/card_dates.dart';
 import '../utils/constants.dart';
+import 'app_toast.dart';
 
 class AddSubscriptionSheet extends ConsumerStatefulWidget { // Null for add, populated for edit
 
@@ -35,7 +41,26 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
 
   BillingCycle _selectedBillingCycle = BillingCycle.monthly;
   SubscriptionCategory _selectedCategory = SubscriptionCategory.entertainment;
-  DateTime _firstBillDate = clock.now();
+  /// The NEXT bill date, which is what users actually know ("it bills on
+  /// the 22nd"). Deliberately null until they say so: this used to default
+  /// to today and be silently accepted, which made `nextBillDate` land one
+  /// cycle from install — wrong by ~two weeks on average, and wrong in a
+  /// way nobody noticed until a reminder failed to arrive a month later.
+  /// Stored as `firstBillDate - one cycle` on save.
+  DateTime? _nextBillDate;
+
+  /// What [_nextBillDate] was seeded with in edit mode — the bill date the
+  /// stored anchor already resolves to. When the user saves without moving
+  /// it (or anything else the anchor derives from), the stored anchor is
+  /// kept as-is; see [_keepStoredAnchor].
+  DateTime? _initialNextBillDate;
+
+  /// The day-of-month chip the user tapped, kept separately because the
+  /// resolved date can clamp (tap 31 in April → Apr 30) and the highlight
+  /// should reflect what they asked for, not the clamped day — chip 30
+  /// lighting up after tapping 31 reads as a broken tap. Null when the
+  /// date came from the picker or edit-mode seeding.
+  int? _pickedChipDay;
   String? _selectedCurrency;
   bool _isLoading = false;
   bool _showTemplates = true;
@@ -69,7 +94,10 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       _priceController.text = sub.price.toString();
       _selectedBillingCycle = sub.billingCycle;
       _selectedCategory = sub.category;
-      _firstBillDate = sub.firstBillDate;
+      // Show what the field now means — the next bill, derived from the
+      // stored anchor — rather than the anchor itself.
+      _initialNextBillDate = sub.nextBillDate;
+      _nextBillDate = _initialNextBillDate;
       _selectedCurrency = sub.currency;
       _logoUrl = sub.logoUrl;
       _templateColor = sub.color;
@@ -303,6 +331,10 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                     if (value != null) {
                       setState(() {
                         _selectedBillingCycle = value;
+                        // The selectable window is one cycle wide, so it
+                        // just moved — a date chosen under the old cycle
+                        // may no longer be representable.
+                        _dropBillDateIfOutOfRange();
                       });
                     }
                   },
@@ -323,6 +355,11 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
                     ],
+                    // No per-keystroke range check here: typing "10" passes
+                    // through "1", whose one-day window would wipe a chosen
+                    // date mid-edit. The date field's validator refuses an
+                    // out-of-range date at save, which is the layer that
+                    // matters.
                     validator: (value) {
                       if (_selectedBillingCycle != BillingCycle.custom) {
                         return null;
@@ -398,23 +435,14 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                   const SizedBox(height: AppConstants.spacing16),
                 ],
 
-                // First Bill Date
-                InkWell(
-                  onTap: () => _selectDate(context),
-                  borderRadius: BorderRadius.circular(AppConstants.radiusSmall),
-                  child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Start Date',
-                      helperText: 'When did this subscription start?',
-                      prefixIcon: Icon(Icons.calendar_today),
-                    ),
-                    child: Text(
-                      DateFormat('MMM dd, yyyy').format(_firstBillDate),
-                      style: theme.textTheme.bodyLarge,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppConstants.spacing16),
+                // Next bill date. Hidden for free trials: billing there
+                // starts when the trial ends, so the trial section below
+                // already carries the first charge date and this field
+                // would be a second, contradictory answer.
+                if (!_isFreeTrial) ...[
+                  _buildNextBillDateField(context, theme),
+                  const SizedBox(height: AppConstants.spacing16),
+                ],
 
                 // Free Trial Section
                 _buildTrialSection(context, theme),
@@ -436,7 +464,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                             strokeWidth: 2,
                           ),
                         )
-                      : const Text('SAVE'),
+                      : const Text('Save'),
                   ),
                   const SizedBox(height: 8),
                 ],
@@ -448,20 +476,219 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     );
   }
 
+  /// The next-bill-date field: quick day-of-month chips for monthly subs
+  /// (how people actually hold this — "it bills on the 22nd"), plus a
+  /// picker for everything else. A FormField so "required" runs through
+  /// the form's own validation rather than a bespoke check at save time.
+  Widget _buildNextBillDateField(BuildContext context, ThemeData theme) {
+    return FormField<DateTime>(
+      initialValue: _nextBillDate,
+      // Without this the error survives the fix: didChange doesn't
+      // re-validate on its own, so picking a date would leave the
+      // complaint on screen (and keep hiding the helper line) until the
+      // next SAVE.
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      validator: (_) {
+        final date = _nextBillDate;
+        if (date == null) {
+          return 'Pick when this bills next so reminders land on the right day';
+        }
+        // Backstop. `_dropBillDateIfOutOfRange` is called from each place
+        // that can move the window, and missing one is easy — that's how a
+        // stale trial-end date reached this field. Out-of-range dates save
+        // an anchor that resolves a cycle early, so refuse rather than
+        // silently store the wrong day.
+        // An untouched edit-mode date is exempt: it can sit outside the
+        // window (legacy future-dated anchors), but the stored anchor is
+        // kept rather than re-derived, so nothing wrong gets saved.
+        if (!_isSelectableBillDate(date) && !_keepStoredAnchor) {
+          return 'That is more than one billing cycle away — pick the very '
+              'next bill';
+        }
+        return null;
+      },
+      builder: (field) {
+        final date = _nextBillDate;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              onTap: () async {
+                await _selectDate(context);
+                field.didChange(_nextBillDate);
+              },
+              borderRadius: BorderRadius.circular(AppConstants.radiusSmall),
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: 'Next bill date',
+                  helperText: date == null
+                      ? 'The day the money actually leaves'
+                      : '${_relativeBillDescription(date)} · repeats '
+                          '${_selectedBillingCycle.displayName.toLowerCase()}',
+                  prefixIcon: const Icon(Icons.event_outlined),
+                  errorText: field.errorText,
+                ),
+                child: Text(
+                  date == null
+                      ? 'Select date'
+                      : DateFormat('EEE, MMM d, yyyy').format(date),
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: date == null
+                        ? theme.colorScheme.onSurface.withValues(alpha: 0.5)
+                        : null,
+                  ),
+                ),
+              ),
+            ),
+            if (_selectedBillingCycle == BillingCycle.monthly) ...[
+              const SizedBox(height: 10),
+              _buildDayOfMonthChips(theme, field),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  /// One-tap day-of-month picker for monthly subs. Resolves to the next
+  /// time that day comes around, so tapping "22" on the 16th means this
+  /// month, but tapping "3" means next month.
+  Widget _buildDayOfMonthChips(ThemeData theme, FormFieldState<DateTime> field) {
+    final selectedDay = _pickedChipDay ?? _nextBillDate?.day;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 6),
+          child: Text(
+            'BILLS ON THE',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 38,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: 31,
+            separatorBuilder: (_, __) => const SizedBox(width: 6),
+            itemBuilder: (context, index) {
+              final day = index + 1;
+              final isSelected = selectedDay == day;
+              return _DayChip(
+                day: day,
+                isSelected: isSelected,
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    _pickedChipDay = day;
+                    // Clamped into short months (the 31st in February means
+                    // the 28th/29th) — always lands in the selectable window.
+                    _nextBillDate = nextOccurrenceOfDay(day, _today);
+                  });
+                  field.didChange(_nextBillDate);
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// "in 6 days" / "tomorrow" — turns an abstract date into the thing the
+  /// user is checking for.
+  String _relativeBillDescription(DateTime date) {
+    final days = DateTime(date.year, date.month, date.day)
+        .difference(_today)
+        .inDays;
+    if (days <= 1) return 'Bills tomorrow';
+    return 'Bills in $days days';
+  }
+
+  /// Custom-cycle length as currently typed, or null when not applicable.
+  int? get _currentCustomDays => _selectedBillingCycle == BillingCycle.custom
+      ? int.tryParse(_customDaysController.text.trim())
+      : null;
+
+  DateTime get _today {
+    final now = clock.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  /// The selectable window for a next bill date: from tomorrow through one
+  /// full cycle out. This isn't cosmetic — it's exactly the set of dates
+  /// the anchor maths can represent.
+  ///
+  /// `nextBillDate` walks the anchor forward until it's strictly after
+  /// today, so anchoring at `picked - one cycle` only reproduces `picked`
+  /// while `picked - one cycle <= today` — i.e. `picked <= today + one
+  /// cycle`. Past that, the anchor is itself still in the future and gets
+  /// returned as-is, landing a cycle early. Below tomorrow, the walk
+  /// overshoots past today. Both bounds are pinned in billing_cycle_test.
+  DateTime get _earliestBillDate => _today.add(const Duration(days: 1));
+
+  DateTime get _latestBillDate => addOneCycle(
+        _selectedBillingCycle,
+        _today,
+        customDays: _currentCustomDays,
+      );
+
+  bool _isSelectableBillDate(DateTime date) {
+    final day = DateTime(date.year, date.month, date.day);
+    return !day.isBefore(_earliestBillDate) && !day.isAfter(_latestBillDate);
+  }
+
+  /// Whether to keep the stored anchor on save instead of re-deriving it.
+  ///
+  /// True in edit mode when nothing the anchor derives from changed: same
+  /// next-bill date, cycle, and custom length, and no trial transition.
+  /// Re-anchoring an unchanged date would ratchet `firstBillDate` toward
+  /// the present on every edit — a price change on a years-old sub would
+  /// silently destroy its real start date — and would reject legacy dates
+  /// outside the one-cycle window, blocking saves that never touched the
+  /// date at all.
+  bool get _keepStoredAnchor {
+    final existing = widget.subscription;
+    if (existing == null || _isFreeTrial || existing.isFreeTrial) return false;
+    return _nextBillDate != null &&
+        _nextBillDate == _initialNextBillDate &&
+        _selectedBillingCycle == existing.billingCycle &&
+        _currentCustomDays == existing.customDays;
+  }
+
+  /// Drops a chosen date that the current cycle can no longer represent —
+  /// switching monthly → weekly shrinks the window, and a stale date would
+  /// otherwise be saved with an anchor that resolves to the wrong day.
+  void _dropBillDateIfOutOfRange() {
+    final date = _nextBillDate;
+    if (date != null && !_isSelectableBillDate(date)) {
+      _nextBillDate = null;
+      _pickedChipDay = null;
+    }
+  }
+
   /// Show date picker
   Future<void> _selectDate(BuildContext context) async {
-    final now = clock.now();
+    final current = _nextBillDate;
     final picked = await showDatePicker(
       context: context,
-      initialDate: _firstBillDate.isAfter(now) ? now : _firstBillDate,
-      firstDate: DateTime(2020),
-      lastDate: now.add(const Duration(days: 30)),
-      helpText: 'When did this subscription start?',
+      initialDate: current != null && _isSelectableBillDate(current)
+          ? current
+          : _earliestBillDate,
+      firstDate: _earliestBillDate,
+      lastDate: _latestBillDate,
+      helpText: 'When does it bill next?',
     );
 
     if (picked != null) {
       setState(() {
-        _firstBillDate = picked;
+        _nextBillDate = picked;
+        // Picker choice supersedes any chip tap.
+        _pickedChipDay = null;
       });
     }
   }
@@ -471,6 +698,11 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+
+    // Only once the form is known good — a buzz on a rejected tap reads as
+    // confirmation of something that didn't happen. Not awaited: the save
+    // shouldn't wait on the vibrator.
+    unawaited(HapticFeedback.mediumImpact());
 
     setState(() {
       _isLoading = true;
@@ -492,6 +724,28 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       // Trial subs may have a blank price (interpreted as $0 during trial).
       final priceText = _priceController.text.trim();
       final newPrice = priceText.isEmpty ? 0.0 : double.parse(priceText);
+
+      // The user tells us the NEXT bill date; the model stores an anchor it
+      // walks forward from — see [anchorForNextBill] for why that is
+      // usually `picked - one cycle` but the pick itself when clamping
+      // makes the subtraction lossy (end-of-month days). For trials the
+      // anchor is unused — `nextBillDate` runs off `trialEndDate` — so
+      // park it on the trial end, where billing genuinely starts.
+      final DateTime anchorDate;
+      if (_isFreeTrial) {
+        anchorDate = _trialEndDate ?? clock.now();
+      } else if (_keepStoredAnchor) {
+        // The date on screen is the one the stored anchor already resolves
+        // to — keep the anchor (and with it the sub's real start date)
+        // rather than re-deriving one a single cycle back from today.
+        anchorDate = widget.subscription!.firstBillDate;
+      } else {
+        anchorDate = anchorForNextBill(
+          _selectedBillingCycle,
+          _nextBillDate!,
+          customDays: customDays,
+        );
+      }
 
       late final Subscription subscription;
       if (_isEditMode) {
@@ -515,7 +769,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           price: newPrice,
           currency: _selectedCurrency,
           billingCycle: _selectedBillingCycle,
-          firstBillDate: _firstBillDate,
+          firstBillDate: anchorDate,
           category: _selectedCategory,
           logoUrl: _logoUrl,
           color: _templateColor,
@@ -537,7 +791,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           price: newPrice,
           currency: _selectedCurrency!,
           billingCycle: _selectedBillingCycle,
-          firstBillDate: _firstBillDate,
+          firstBillDate: anchorDate,
           category: _selectedCategory,
           logoUrl: _logoUrl,
           color: _templateColor,
@@ -557,28 +811,26 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       }
 
       if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _isEditMode
-                  ? '${subscription.name} updated'
-                  : '${subscription.name} added',
-            ),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
+        // Hand the saved subscription back on add (null on edit) so Home
+        // can offer the notification primer against a real bill date.
+        Navigator.pop(context, _isEditMode ? null : subscription);
+        // Overlay toast, not ScaffoldMessenger: snackbars don't reliably
+        // auto-dismiss in this app's nested-Scaffold layout, and one stuck
+        // under the notification primer would stage the app's most
+        // important ask on top of debris.
+        showAppToast(
+          _isEditMode
+              ? '${subscription.name} updated'
+              : '${subscription.name} added',
+          duration: const Duration(seconds: 2),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        // The old error snackbar rendered in the Scaffold BEHIND this
+        // modal sheet — invisible exactly when the user needed it. The
+        // toast lives in the root overlay, above everything.
+        showAppToast("Couldn't save: $e");
       }
     } finally {
       if (mounted) {
@@ -639,12 +891,17 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
               Switch.adaptive(
                 value: _isFreeTrial,
                 onChanged: (value) {
+                  HapticFeedback.selectionClick();
                   setState(() {
                     _isFreeTrial = value;
                     if (value && _trialEndDate == null) {
                       // Default to 7 days from now
                       _trialEndDate = clock.now().add(const Duration(days: 7));
                     }
+                    // Switching a trial OFF un-hides the next-bill field,
+                    // which for an edited trial was seeded from the trial
+                    // end — often months out and unreachable for the cycle.
+                    _dropBillDateIfOutOfRange();
                   });
                 },
               ),
@@ -851,6 +1108,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   /// provider) so re-picking the same service after dismissing the sheet
   /// still works.
   void _applyTemplate(SubscriptionTemplate template) {
+    HapticFeedback.selectionClick();
     setState(() {
       _nameController.text = template.name;
       _selectedCategory = template.category;
@@ -860,6 +1118,10 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       _logoUrl = template.logoUrl;
       _templateColor = template.color;
       _showTemplates = false;
+      // A template carries its own cycle, so the bill-date window may have
+      // just moved. Every template ships monthly today, but this is one of
+      // the places that can strand a chosen date.
+      _dropBillDateIfOutOfRange();
     });
   }
 
@@ -1037,6 +1299,60 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           },
         );
       },
+    );
+  }
+}
+
+/// A single day-of-month chip in the "bills on the" row.
+class _DayChip extends StatelessWidget {
+  const _DayChip({
+    required this.day,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final int day;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: 'Bills on day $day of the month',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        child: AnimatedContainer(
+          duration: AppMotion.of(context, AppMotion.fast),
+          curve: AppMotion.curve,
+          width: 38,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            border: Border.all(
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outline.withValues(alpha: 0.12),
+            ),
+          ),
+          child: Text(
+            '$day',
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected
+                  ? theme.colorScheme.onPrimary
+                  : theme.colorScheme.onSurface.withValues(alpha: 0.75),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

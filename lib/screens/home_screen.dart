@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/exchange_rate.dart';
@@ -16,9 +19,11 @@ import '../theme/app_tokens.dart';
 import '../utils/changelog.dart';
 import '../utils/constants.dart';
 import '../utils/money.dart';
+import '../utils/review_prompt.dart';
 import '../widgets/add_subscription_sheet.dart';
 import '../widgets/common/app_bottom_sheet.dart';
 import '../widgets/common/app_empty_state.dart';
+import '../widgets/notification_primer.dart';
 import '../widgets/rates_warning.dart';
 import '../widgets/subscription_card.dart';
 import '../widgets/sync_indicator.dart';
@@ -49,10 +54,53 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ..listenManual(syncInitProvider, (_, __) {})
       ..listenManual(householdSyncProvider, (_, __) {})
       ..listenManual(householdCleanupProvider, (_, __) {});
-    // Show "what's new" sheet once after a version upgrade.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) showChangelogIfUpdated(context);
+    // Show "what's new" sheet once after a version upgrade, then — only
+    // once it's closed — consider asking for a review. Sequenced rather
+    // than fired together so the two never stack on each other.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await showChangelogIfUpdated(context);
+      if (!mounted) return;
+      // Wait for the subscription box to actually load: at first frame the
+      // count provider reports 0 while loading, which would silently defer
+      // an eligible user's one review prompt to some later session.
+      final count = await _activeSubCountOnceLoaded();
+      if (!mounted) return;
+      await maybeRequestReview(
+        ref.read(preferencesProvider),
+        activeSubCount: count,
+        markRequested:
+            ref.read(preferencesProvider.notifier).markReviewRequested,
+      );
     });
+  }
+
+  /// Completes with the active-subscription count once [subscriptionProvider]
+  /// has left its loading state (data or error — error reads as 0 and the
+  /// review gate simply stays closed).
+  Future<int> _activeSubCountOnceLoaded() {
+    if (!ref.read(subscriptionProvider).isLoading) {
+      return Future.value(ref.read(activeSubscriptionCountProvider));
+    }
+    final completer = Completer<int>();
+    late final ProviderSubscription<AsyncValue<List<Subscription>>> listener;
+    listener = ref.listenManual(subscriptionProvider, (_, next) {
+      if (next.isLoading || completer.isCompleted) return;
+      listener.close();
+      completer.complete(ref.read(activeSubscriptionCountProvider));
+    });
+    // Bounded: if this screen is disposed while the box is still loading,
+    // Riverpod closes the manual listener and the completer would never
+    // complete — stranding the awaiting closure (and its ref/context)
+    // forever. On timeout the count reads 0, the review gate simply stays
+    // closed this session, and nothing was marked spent.
+    return completer.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () {
+        listener.close();
+        return 0;
+      },
+    );
   }
 
   @override
@@ -301,7 +349,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         error: (error, stack) => _buildErrorState(context, error.toString()),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddSubscriptionSheet(context),
+        onPressed: _showAddSubscriptionSheet,
         elevation: 2,
         child: const Icon(Icons.add, size: 28),
       ),
@@ -477,6 +525,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             label: '${mode.displayName} spend view',
             child: InkWell(
               onTap: () {
+                HapticFeedback.selectionClick();
                 ref.read(spendViewModeProvider.notifier).state = mode;
               },
               borderRadius: BorderRadius.circular(AppRadius.sm - 2),
@@ -535,7 +584,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       message: 'Add anything that renews — streaming, cloud storage, '
           'gym — and Recurly reminds you before it bills.',
       actionLabel: 'Add subscription',
-      onAction: () => _showAddSubscriptionSheet(context),
+      onAction: _showAddSubscriptionSheet,
       footer: const Column(
         children: [
           _FeatureHint(
@@ -570,14 +619,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  /// Show add subscription bottom sheet
-  void _showAddSubscriptionSheet(BuildContext context) {
-    showModalBottomSheet(
+  /// Show add subscription bottom sheet. The sheet returns the saved
+  /// subscription on add (null on edit or dismiss), which is the cue to
+  /// offer reminders — the primer itself decides whether it's due.
+  /// Uses the State's own `context` (not a parameter) so the `mounted`
+  /// guard below actually covers it across the await.
+  Future<void> _showAddSubscriptionSheet() async {
+    final added = await showModalBottomSheet<Subscription>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const AddSubscriptionSheet(),
+      builder: (sheetContext) => const AddSubscriptionSheet(),
     );
+    if (added == null || !mounted) return;
+    await maybeShowNotificationPrimer(context, ref, added);
   }
 
   /// Show menu options
