@@ -71,6 +71,18 @@ void main() async {
   // Initialize preferences service - REQUIRED
   await PreferencesService().initialize();
 
+  // Count this cold start, so the review prompt can stay off first runs.
+  // Best-effort: a failed counter must never block startup.
+  try {
+    final prefsService = PreferencesService();
+    final prefs = prefsService.getPreferences();
+    await prefsService.updatePreferences(
+      prefs.copyWith(sessionCount: prefs.sessionCount + 1),
+    );
+  } catch (e) {
+    debugPrint('Failed to record session: $e');
+  }
+
   // Initialize optional services (failures logged but don't block app)
   try {
     await ThemeService().initialize();
@@ -117,11 +129,11 @@ void main() async {
     final notificationService = NotificationService();
     await notificationService.initialize();
 
-    // Request notification permission (Android 13+)
-    final hasPermission = await notificationService.hasPermission();
-    if (!hasPermission) {
-      await notificationService.requestPermission();
-    }
+    // No permission request here by design. It used to run at this point —
+    // before runApp(), so the OS prompt appeared over a blank screen and
+    // startup blocked on the user's answer. `maybeShowNotificationPrimer`
+    // now asks after the first subscription is saved, where the request
+    // has context. See widgets/notification_primer.dart.
 
     // Reschedule all notifications on app start (handles app restart, date changes)
     final preferences = PreferencesService().getPreferences();

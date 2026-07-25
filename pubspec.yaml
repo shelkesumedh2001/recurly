@@ -1,7 +1,7 @@
 name: recurly
 description: A beautiful subscription tracking app with Material You design
 publish_to: 'none'
-version: 1.0.2+7
+version: 1.0.3+8
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -63,6 +63,7 @@ dependencies:
   url_launcher: ^6.3.2
   flutter_displaymode: ^0.7.0
   file_picker: ^11.0.2
+  in_app_review: ^2.0.12
 
 dev_dependencies:
   flutter_test:

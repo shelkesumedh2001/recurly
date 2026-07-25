@@ -121,4 +121,4 @@ For cloud sync to work you need a Firebase project with `google-services.json` i
 - For internal architectural detail and outstanding work: `PROJECT_STATE.md` and `DEV_STATUS.md`
 - For the full setup procedure (prerequisites, Firebase, release signing): `SETUP_GUIDE.md`
 - Public-facing overview: `README.md`
-- License: `LICENSE` (CC BY-NC 4.0 — personal and non-commercial use)
+- License: `LICENSE` (GPL-3.0 — free software; derivatives must stay open source)

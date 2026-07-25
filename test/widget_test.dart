@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:clock/clock.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_core_platform_interface/test.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:recurly/main.dart';
+import 'package:recurly/models/enums.dart';
 import 'package:recurly/models/subscription.dart';
 import 'package:recurly/providers/auth_providers.dart';
 import 'package:recurly/providers/preferences_providers.dart';
@@ -18,6 +20,7 @@ import 'package:recurly/services/credit_card_service.dart';
 import 'package:recurly/services/currency_service.dart';
 import 'package:recurly/services/custom_category_service.dart';
 import 'package:recurly/services/database_service.dart';
+import 'package:recurly/services/notification_service.dart';
 import 'package:recurly/services/preferences_service.dart';
 import 'package:recurly/services/sync_service.dart';
 import 'package:recurly/services/theme_service.dart';
@@ -142,6 +145,478 @@ void main() {
     expect(container.read(preferencesProvider).onboardingComplete, isTrue);
   });
 
+  /// Next-bill-date field. The anchor arithmetic it feeds is pinned in
+  /// billing_cycle_test ("the anchor contract"); what's guarded here is the
+  /// wiring — that the date can't be skipped, that a day chip fills it, and
+  /// that a stale date can't survive a cycle change. A successful save
+  /// can't be driven from here: `addSubscription` schedules notifications,
+  /// and NotificationService.initialize() needs platform channels that
+  /// don't exist on the test host. That path is in the DEV_STATUS device
+  /// batch.
+  group('add sheet — next bill date', () {
+    // Pinned early in the month on purpose. Material caps a bottom sheet
+    // at 640dp wide, so the lazy chip row only ever builds roughly the
+    // first dozen days — with the clock late in the month, every "still
+    // ahead" day would sit past the end of the built range.
+    final now = DateTime(2026, 7, 2);
+
+    Future<void> openSheet(WidgetTester tester) async {
+      // The form is taller than the default 800x600 surface, which parks
+      // SAVE off-screen where taps silently miss. Widening past 640 buys
+      // nothing — Material caps the sheet there.
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => Stream.value(null)),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => const AddSubscriptionSheet(),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('starts empty rather than defaulting to a wrong date',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        await openSheet(tester);
+
+        // The regression this replaces: the field defaulted to today and
+        // was silently accepted, putting the next bill a full cycle out.
+        expect(find.text('Select date'), findsOneWidget);
+      });
+    });
+
+    testWidgets('blocks save until the next bill date is given',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        await openSheet(tester);
+
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text(
+            'Pick when this bills next so reminders land on the right day',
+          ),
+          findsOneWidget,
+        );
+        // Still open — nothing was written.
+        expect(find.byType(AddSubscriptionSheet), findsOneWidget);
+      });
+    });
+
+    testWidgets('a day chip fills the date and clears the error',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        await openSheet(tester);
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('8'));
+        await tester.pumpAndSettle();
+
+        // The 8th is still ahead of the 2nd, so it means this month.
+        expect(find.text('Wed, Jul 8, 2026'), findsOneWidget);
+        expect(find.textContaining('Bills in 6 days'), findsOneWidget);
+        expect(
+          find.text(
+            'Pick when this bills next so reminders land on the right day',
+          ),
+          findsNothing,
+        );
+      });
+    });
+
+    testWidgets('a day already past this month resolves to next month',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        await openSheet(tester);
+
+        // The 1st has been and gone; the NEXT one is in August.
+        await tester.tap(find.text('1'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Sat, Aug 1, 2026'), findsOneWidget);
+      });
+    });
+
+    testWidgets('free trials hide the field — the trial end is the first bill',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        await openSheet(tester);
+        expect(find.text('Next bill date'), findsOneWidget);
+
+        await tester.tap(find.byType(Switch).first);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Next bill date'), findsNothing);
+      });
+    });
+
+    Future<void> switchToWeekly(WidgetTester tester) async {
+      await tester.tap(find.byType(DropdownButtonFormField<BillingCycle>));
+      await tester.pumpAndSettle();
+      // Both the closed button's label and the open menu item match, so
+      // take the menu item.
+      await tester.tap(find.text('Weekly').last);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('shrinking the cycle drops a date it can no longer reach',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        await openSheet(tester);
+
+        // Jul 10 is fine monthly (window reaches Aug 2) but unreachable
+        // weekly (which reaches only Jul 9).
+        await tester.tap(find.text('10'));
+        await tester.pumpAndSettle();
+        expect(find.text('Select date'), findsNothing);
+
+        await switchToWeekly(tester);
+
+        // Kept, it would have saved an anchor resolving to the wrong day.
+        expect(find.text('Select date'), findsOneWidget);
+      });
+    });
+
+    testWidgets('typing a shorter custom cycle does not eat the chosen date',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        await openSheet(tester);
+
+        // Pick a date, then a custom cycle, then retype the day count.
+        await tester.tap(find.text('8'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(DropdownButtonFormField<BillingCycle>));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Custom').last);
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Service Name'),
+          'Gym',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Price'),
+          '9.99',
+        );
+
+        // The old per-keystroke range check wiped the date the moment an
+        // intermediate value like "1" made the window one day wide.
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Bill every (days)'),
+          '1',
+        );
+        await tester.pump();
+
+        expect(find.text('Wed, Jul 8, 2026'), findsOneWidget);
+
+        // The validator backstop — not silent data loss — is what refuses
+        // the now-out-of-range date.
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('more than one billing cycle away'),
+          findsOneWidget,
+        );
+        expect(find.byType(AddSubscriptionSheet), findsOneWidget);
+      });
+    });
+
+    testWidgets('chip highlight follows the tapped day, not the clamped date',
+        (WidgetTester tester) async {
+      // April has 30 days: tapping "31" resolves to Apr 30. The highlight
+      // must stay on 31 — chip 30 lighting up after tapping 31 reads as a
+      // broken tap to exactly the end-of-month users this field serves.
+      await withClock(Clock.fixed(DateTime(2026, 4, 2)), () async {
+        await openSheet(tester);
+
+        // The chip row builds lazily; scroll to the end so 31 exists.
+        final chipRow = find.descendant(
+          of: find.byType(FormField<DateTime>),
+          matching: find.byType(ListView),
+        );
+        await tester.drag(chipRow, const Offset(-1200, 0));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('31'));
+        await tester.pumpAndSettle();
+
+        // Reads each chip's declared Semantics(selected:) — the same flag
+        // that drives the visual highlight — located by the chip's own
+        // semantics label so no tree-order assumptions are involved.
+        bool chipSelected(int day) {
+          final semantics = tester.widget<Semantics>(
+            find.byWidgetPredicate(
+              (w) =>
+                  w is Semantics &&
+                  w.properties.label == 'Bills on day $day of the month',
+            ),
+          );
+          return semantics.properties.selected ?? false;
+        }
+
+        // Resolved date clamps to the month's last day…
+        expect(find.text('Thu, Apr 30, 2026'), findsOneWidget);
+        // …but the selection reflects what the user asked for.
+        expect(chipSelected(31), isTrue);
+        expect(chipSelected(30), isFalse);
+      });
+    });
+
+    testWidgets('switching a trial off drops the stale trial-end date',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        // Editing a trial seeds the field from nextBillDate, which for a
+        // trial IS the trial end — potentially months out, far outside the
+        // window a monthly sub can represent. Switching the trial off
+        // reveals that field, and a stale value there would save an anchor
+        // resolving a whole cycle early.
+        final trialSub = Subscription(
+          id: 't1',
+          name: 'Trial',
+          price: 0,
+          billingCycle: BillingCycle.monthly,
+          firstBillDate: DateTime(2026, 7, 1),
+          category: SubscriptionCategory.entertainment,
+          createdAt: DateTime(2026, 7, 1),
+          isFreeTrial: true,
+          trialEndDate: DateTime(2026, 12, 1),
+          priceAfterTrial: 9.99,
+        );
+
+        tester.view.physicalSize = const Size(800, 3000);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authStateProvider.overrideWith((ref) => Stream.value(null)),
+            ],
+            child: MaterialApp(
+              home: Scaffold(
+                body: AddSubscriptionSheet(subscription: trialSub),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Next bill date'), findsNothing);
+
+        await tester.tap(find.byType(Switch).first);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Next bill date'), findsOneWidget);
+        expect(find.text('Select date'), findsOneWidget);
+        expect(find.textContaining('Dec 1, 2026'), findsNothing);
+      });
+    });
+
+    testWidgets('shrinking the cycle keeps a date that is still reachable',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        await openSheet(tester);
+
+        // Jul 8 sits inside the weekly window (through Jul 9) too.
+        await tester.tap(find.text('8'));
+        await tester.pumpAndSettle();
+
+        await switchToWeekly(tester);
+
+        expect(find.text('Wed, Jul 8, 2026'), findsOneWidget);
+      });
+    });
+  });
+
+  /// Edit mode and the stored anchor. When the user never moved the bill
+  /// date, saving must keep `firstBillDate` as stored: re-deriving it
+  /// ratchets a years-old start date to one cycle ago, and a legacy date
+  /// outside the one-cycle window would fail validation and block saves
+  /// that never touched the date. The save's Hive write lands before
+  /// notification scheduling (which needs platform channels the test host
+  /// lacks), so the persisted subscription is observable here even though
+  /// the sheet then reports the scheduling failure.
+  group('edit sheet — stored anchor', () {
+    final now = DateTime(2026, 7, 2);
+
+    /// Each edit test gets its own subscriptions box. Driving a real save
+    /// runs Hive's write chain partly inside the test's FakeAsync zone,
+    /// which dies with the test while still holding the box's internal
+    /// write lock — the NEXT test's first write on a shared box then waits
+    /// on that orphaned lock forever.
+    Future<void> seedIntoFreshBox(WidgetTester tester, Subscription sub) async {
+      await tester.runAsync(() async {
+        DatabaseService().debugSetSubscriptionsBox(
+          await Hive.openBox<Subscription>('edit_anchor_${sub.id}'),
+        );
+        await DatabaseService().addSubscription(sub);
+      });
+    }
+
+    Future<void> mountEditSheet(WidgetTester tester, Subscription sub) async {
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      // Pushed as a real modal route (not a Scaffold body): the save path
+      // ends in Navigator.pop, which must have a route to pop.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => Stream.value(null)),
+            // The real singleton's plugin calls neither complete nor fail
+            // promptly on the test host, and futures it leaves in flight
+            // hang the NEXT test's save — stub it so the save chain runs
+            // to completion inside this test.
+            notificationServiceProvider
+                .overrideWithValue(_StubNotificationService()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => AddSubscriptionSheet(subscription: sub),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    /// Tap Save and drive the save to completion. The chain interleaves
+    /// real I/O (Hive writes only complete on the real event loop, which
+    /// testWidgets' FakeAsync zone never runs on its own) with fake-zone
+    /// frames, so alternate runAsync beats with pumps until the sheet pops
+    /// — the observable end of a successful save. A plain pumpAndSettle
+    /// deadlocks here: the sheet's spinner keeps scheduling frames until
+    /// the real-loop write finishes, which pumpAndSettle never allows.
+    Future<void> saveAndAwaitWrite(
+      WidgetTester tester,
+      bool Function() persisted,
+    ) async {
+      await tester.tap(find.text('Save'));
+      var done = false;
+      for (var i = 0; i < 100 && !done; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        done = persisted() &&
+            find.byType(AddSubscriptionSheet).evaluate().isEmpty;
+      }
+      expect(done, isTrue, reason: 'save did not complete and pop the sheet');
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a price edit keeps the years-old start date',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        final sub = Subscription(
+          id: 'edit-anchor-price',
+          name: 'Oldtimer',
+          price: 9.99,
+          billingCycle: BillingCycle.monthly,
+          firstBillDate: DateTime(2021, 1, 15),
+          category: SubscriptionCategory.entertainment,
+          createdAt: DateTime(2021, 1, 15),
+        );
+        await seedIntoFreshBox(tester, sub);
+
+        await mountEditSheet(tester, sub);
+        await tester.enterText(
+          find.widgetWithText(TextFormField, '9.99'),
+          '12.99',
+        );
+        await saveAndAwaitWrite(
+          tester,
+          () => DatabaseService().getSubscriptionById(sub.id)!.price == 12.99,
+        );
+
+        // The regression this pins: the save re-derived the anchor from
+        // the (unmoved) next bill date, overwriting 2021-01-15 with
+        // 2026-06-15 — and every later edit kept ratcheting it forward.
+        final saved = DatabaseService().getSubscriptionById(sub.id)!;
+        expect(saved.price, 12.99);
+        expect(saved.firstBillDate, DateTime(2021, 1, 15));
+      });
+    });
+
+    testWidgets('an untouched out-of-window date no longer blocks a rename',
+        (WidgetTester tester) async {
+      await withClock(Clock.fixed(now), () async {
+        // Legacy data: a future-dated anchor two weeks out. nextBillDate
+        // returns it as-is, and the weekly window only reaches Jul 9 — so
+        // the seeded date fails the window check unless edit mode exempts
+        // the untouched value.
+        final sub = Subscription(
+          id: 'edit-anchor-window',
+          name: 'Faraway',
+          price: 4.99,
+          billingCycle: BillingCycle.weekly,
+          firstBillDate: DateTime(2026, 7, 16),
+          category: SubscriptionCategory.entertainment,
+          createdAt: DateTime(2026, 6, 1),
+        );
+        await seedIntoFreshBox(tester, sub);
+
+        await mountEditSheet(tester, sub);
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Faraway'),
+          'Faraway Plus',
+        );
+        await saveAndAwaitWrite(
+          tester,
+          () =>
+              DatabaseService().getSubscriptionById(sub.id)!.name ==
+              'Faraway Plus',
+        );
+
+        expect(
+          find.text(
+            'That is more than one billing cycle away — pick the very '
+            'next bill',
+          ),
+          findsNothing,
+        );
+        final saved = DatabaseService().getSubscriptionById(sub.id)!;
+        expect(saved.name, 'Faraway Plus');
+        expect(saved.firstBillDate, DateTime(2026, 7, 16));
+      });
+    });
+  });
+
   testWidgets('template can be re-picked after dismissing the add sheet',
       (WidgetTester tester) async {
     // Regression: chip taps used to route through a global provider that
@@ -192,4 +667,13 @@ void main() {
 
     await openSheetAndPickNetflix();
   });
+}
+
+/// Every notification call the save path makes resolves immediately. The
+/// real service is a closed singleton (private constructor), so this
+/// implements-plus-noSuchMethod stands in for it; only Future-returning
+/// members are ever reached from the save flow.
+class _StubNotificationService implements NotificationService {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
 }
