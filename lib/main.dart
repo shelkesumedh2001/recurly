@@ -10,7 +10,6 @@ import 'providers/preferences_providers.dart';
 import 'providers/theme_providers.dart';
 import 'screens/main_navigation.dart';
 import 'screens/onboarding_screen.dart';
-import 'services/auth_service.dart';
 import 'services/budget_service.dart';
 import 'services/credit_card_service.dart';
 import 'services/currency_service.dart';
@@ -19,7 +18,6 @@ import 'services/database_service.dart';
 import 'services/home_widget_service.dart';
 import 'services/notification_service.dart';
 import 'services/preferences_service.dart';
-import 'services/sync_service.dart';
 import 'services/theme_service.dart';
 import 'utils/constants.dart';
 
@@ -149,27 +147,14 @@ void main() async {
     debugPrint('Failed to initialize notification service: $e');
   }
 
-  // Initialize sync for signed-in users
-  try {
-    final authService = AuthService();
-    final user = authService.currentUser;
-    if (user != null) {
-      final profile = await authService.getUserProfile(user.uid);
-      if (profile != null) {
-        // Sync for all signed-in users
-        await SyncService().initialize(user.uid);
-        debugPrint('Sync service initialized for ${user.uid}');
-
-        // Household sync if in a household
-        if (profile.householdId != null) {
-          await SyncService().initializeHouseholdSync(user.uid, profile.householdId!);
-          debugPrint('Household sync initialized');
-        }
-      }
-    }
-  } catch (e) {
-    debugPrint('Failed to initialize sync service: $e');
-  }
+  // No sync here by design. It used to run at this point — a profile fetch,
+  // a full two-way Firestore sync, and household-listener setup, all awaited
+  // before runApp(), which held signed-in users on the splash screen for as
+  // long as the network took (seconds), and then syncInitProvider ran the
+  // same sync again once the UI was up. The app is offline-first: Hive
+  // already has the data, so the UI renders immediately and
+  // syncInitProvider/householdSyncProvider (held alive from HomeScreen's
+  // initState) run the one and only sync in the background.
 
   // Run app with Riverpod
   runApp(

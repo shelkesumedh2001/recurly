@@ -9,7 +9,7 @@ import 'constants.dart';
 /// each release, and a matching [ChangelogRelease] added to [kChangelog]
 /// (newest first). The sheet auto-shows once per upgrade: never on first
 /// install, never on downgrade (mirrors Minus's `decideChangelog` pattern).
-const String kAppBuild = '1.0.3+8';
+const String kAppBuild = '1.0.4+9';
 
 class ChangelogRelease {
   const ChangelogRelease({required this.build, required this.notes});
@@ -18,6 +18,12 @@ class ChangelogRelease {
 }
 
 const List<ChangelogRelease> kChangelog = [
+  ChangelogRelease(
+    build: '1.0.4+9',
+    notes: [
+      'Much faster app start when signed in — the app no longer waits for cloud sync before showing your subscriptions',
+    ],
+  ),
   ChangelogRelease(
     build: '1.0.3+8',
     notes: [
