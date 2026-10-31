@@ -89,15 +89,6 @@ final topCategoryProvider = Provider<MapEntry<SubscriptionCategory, double>?>((r
   return sortedEntries.first;
 });
 
-/// Data class for monthly spending projection
-class MonthlySpendingData {
-  MonthlySpendingData(this.month, this.year, this.amount);
-
-  final int month; // 1-12
-  final int year;
-  final double amount;
-}
-
 /// Data class for subscription count over time
 class SubscriptionCountData {
   SubscriptionCountData(this.month, this.year, this.count);
@@ -206,54 +197,17 @@ final totalPriceChangeImpactProvider = Provider<double?>((ref) {
   );
 });
 
-/// Provider for projected monthly spending for the next 12 months
-/// (each subscription's amount converted to the display currency).
-final spendingTrendProvider = Provider<List<MonthlySpendingData>>((ref) {
+/// Bills per month: the past 12 months (incl. this one) and an estimate for
+/// the next 6, split by category, in the display currency. Active subs
+/// only — archived subs have no recorded end date to stop their history at.
+final spendTimelineProvider = Provider<List<MonthSpend>>((ref) {
   final subscriptionsAsync = ref.watch(subscriptionProvider);
   final displayCurrency = ref.watch(displayCurrencyProvider);
   final rates = ref.watch(exchangeRatesProvider).value;
   final currencyService = ref.watch(currencyServiceProvider);
 
   return subscriptionsAsync.when(
-    data: (subscriptions) {
-      final now = clock.now();
-      final List<MonthlySpendingData> trendData = [];
-
-      // Calculate for next 6 months
-      for (int i = 0; i < 6; i++) {
-        final targetDate = DateTime(now.year, now.month + i, 1);
-        double monthlyTotal = 0;
-
-        for (final sub in subscriptions) {
-          final amount = _calculateMonthlyAmount(sub, targetDate);
-          monthlyTotal += currencyService.convert(
-            amount: amount,
-            from: sub.currency,
-            to: displayCurrency,
-            rates: rates,
-          );
-        }
-        trendData.add(MonthlySpendingData(targetDate.month, targetDate.year, roundMoney(monthlyTotal)));
-      }
-
-      return trendData;
-    },
-    loading: () => [],
-    error: (_, __) => [],
-  );
-});
-
-/// Actual bills per month for the past 12 months (incl. this month), split
-/// by category and converted to the display currency. Active subs only —
-/// archived subs have no recorded end date to stop their history at.
-final spendHistoryProvider = Provider<List<MonthSpend>>((ref) {
-  final subscriptionsAsync = ref.watch(subscriptionProvider);
-  final displayCurrency = ref.watch(displayCurrencyProvider);
-  final rates = ref.watch(exchangeRatesProvider).value;
-  final currencyService = ref.watch(currencyServiceProvider);
-
-  return subscriptionsAsync.when(
-    data: (subscriptions) => computeSpendHistory(
+    data: (subscriptions) => computeSpendTimeline(
       subscriptions: subscriptions,
       now: clock.now(),
       convert: (amount, from) => currencyService.convert(
@@ -267,121 +221,6 @@ final spendHistoryProvider = Provider<List<MonthSpend>>((ref) {
     error: (_, __) => [],
   );
 });
-
-/// Calculate how much a subscription will cost in a specific month
-double _calculateMonthlyAmount(Subscription sub, DateTime targetMonth) {
-  final firstDayOfMonth = DateTime(targetMonth.year, targetMonth.month, 1);
-  final lastDayOfMonth = DateTime(targetMonth.year, targetMonth.month + 1, 0);
-
-  switch (sub.billingCycle) {
-    case BillingCycle.monthly:
-      // Monthly subscriptions bill once per month
-      return sub.price;
-
-    case BillingCycle.yearly:
-      // Yearly subscriptions: check if anniversary falls in this month
-      if (_willBillInMonth(sub, targetMonth)) {
-        return sub.price;
-      }
-      return 0;
-
-    case BillingCycle.weekly:
-      // Weekly subscriptions: count how many times it bills in this month
-      var currentBillDate = sub.firstBillDate;
-
-      // Fast forward to near the target month
-      final daysDiff = targetMonth.difference(currentBillDate).inDays;
-      if (daysDiff > 0) {
-        final weeksPassed = daysDiff ~/ 7;
-        currentBillDate = currentBillDate.add(Duration(days: weeksPassed * 7));
-      }
-
-      // Go back a bit to ensure we don't miss any
-      currentBillDate = currentBillDate.subtract(const Duration(days: 28));
-
-      // Count billings in this month
-      int billingCount = 0;
-      for (int i = 0; i < 6; i++) {
-        if (currentBillDate.isAfter(firstDayOfMonth.subtract(const Duration(days: 1))) &&
-            currentBillDate.isBefore(lastDayOfMonth.add(const Duration(days: 1)))) {
-          billingCount++;
-        }
-        currentBillDate = currentBillDate.add(const Duration(days: 7));
-      }
-
-      return sub.price * billingCount;
-
-    case BillingCycle.custom:
-      // Use monthlyEquivalent which already factors in customDays
-      // (30.44 / customDays per-month rate). Approximation: doesn't
-      // simulate per-month spikes, but accurate on average.
-      return sub.monthlyEquivalent;
-  }
-}
-
-/// Helper to check if a subscription bills in a specific month
-bool _willBillInMonth(Subscription sub, DateTime targetMonth) {
-  // Calculate the first and last day of the target month
-  final firstDayOfMonth = DateTime(targetMonth.year, targetMonth.month, 1);
-  final lastDayOfMonth = DateTime(targetMonth.year, targetMonth.month + 1, 0);
-
-  switch (sub.billingCycle) {
-    case BillingCycle.monthly:
-      // Monthly subscriptions always bill every month
-      return true;
-
-    case BillingCycle.yearly:
-      // Yearly subscriptions bill once per year on the same month/day
-      // Check if the billing anniversary falls in this target month
-      var billingDate = DateTime(
-        targetMonth.year,
-        sub.firstBillDate.month,
-        sub.firstBillDate.day,
-      );
-
-      // If the billing date is before the subscription started, try next year
-      if (billingDate.isBefore(sub.firstBillDate)) {
-        billingDate = DateTime(
-          targetMonth.year + 1,
-          sub.firstBillDate.month,
-          sub.firstBillDate.day,
-        );
-      }
-
-      // Check if this billing date falls within the target month
-      return billingDate.isAfter(firstDayOfMonth.subtract(const Duration(days: 1))) &&
-          billingDate.isBefore(lastDayOfMonth.add(const Duration(days: 1)));
-
-    case BillingCycle.weekly:
-      // Weekly subscriptions: check if any billing date falls in target month
-      // Start from the first bill date
-      var currentBillDate = sub.firstBillDate;
-
-      // Fast forward to target month (approximately)
-      final daysDiff = targetMonth.difference(currentBillDate).inDays;
-      if (daysDiff > 0) {
-        final weeksPassed = daysDiff ~/ 7;
-        currentBillDate = currentBillDate.add(Duration(days: weeksPassed * 7));
-      }
-
-      // Check if any weekly billing falls in the target month
-      // (Go back a few weeks to be safe, then check forward)
-      currentBillDate = currentBillDate.subtract(const Duration(days: 28));
-
-      for (int i = 0; i < 6; i++) { // Check 6 weeks worth
-        if (currentBillDate.isAfter(firstDayOfMonth.subtract(const Duration(days: 1))) &&
-            currentBillDate.isBefore(lastDayOfMonth.add(const Duration(days: 1)))) {
-          return true; // At least one billing falls in this month
-        }
-        currentBillDate = currentBillDate.add(const Duration(days: 7));
-      }
-      return false;
-
-    case BillingCycle.custom:
-      // Custom is treated as monthly for now
-      return true;
-  }
-}
 
 // ============================================================
 // Feature 4: Monthly Comparison

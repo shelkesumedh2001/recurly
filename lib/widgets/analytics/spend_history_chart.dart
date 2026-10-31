@@ -10,11 +10,20 @@ import '../../theme/app_tokens.dart';
 import '../../utils/spend_history.dart';
 import '../../utils/stagger.dart';
 
-/// What you were actually billed each month over the past year.
+/// Fill opacity for estimated (future) bars. Billed bars are solid.
+const double _kEstimateFill = 0.28;
+
+/// Dash pattern for the outline of estimated bars and their key swatch.
+const List<int> _kEstimateDash = [3, 2];
+
+/// Spend over time: the past year as billed, then an estimate for the
+/// coming months.
 ///
-/// "All" stacks the months by category; picking a category filters the bars
-/// to just that category. Colours follow the category (same as the donut),
-/// so filtering never repaints anything.
+/// Past bars are solid (facts). Future bars are faint with a dashed outline
+/// and sit after a gap, because they only reflect today's subscriptions and
+/// will move as subs are added or cancelled. "All" stacks by category;
+/// a category chip filters to it. Colours follow the category (same as the
+/// donut), so filtering never repaints anything.
 class SpendHistoryChart extends ConsumerStatefulWidget {
   const SpendHistoryChart({super.key});
 
@@ -55,25 +64,24 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = AppTokens.of(context);
-    final history = ref.watch(spendHistoryProvider);
+    final timeline = ref.watch(spendTimelineProvider);
     final currencyService = ref.watch(currencyServiceProvider);
     final displayCurrency = ref.watch(displayCurrencyProvider);
     String money(double v) => currencyService.formatAmount(v, displayCurrency);
+    final muted = theme.colorScheme.onSurface.withValues(alpha: 0.6);
 
-    // Categories that billed anything in the window, in fixed enum order.
+    // Categories with any bill in the window, in fixed enum order.
     final present = SubscriptionCategory.values
-        .where((c) => history.any((m) => (m.byCategory[c] ?? 0) > 0))
+        .where((c) => timeline.any((m) => (m.byCategory[c] ?? 0) > 0))
         .toList();
 
-    if (history.isEmpty || present.isEmpty) {
+    if (timeline.isEmpty || present.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: Center(
           child: Text(
-            'No bills in the past year yet',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
+            'No bills to show yet',
+            style: theme.textTheme.bodyMedium?.copyWith(color: muted),
           ),
         ),
       );
@@ -83,16 +91,37 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
     final filter = present.contains(_filter) ? _filter : null;
     final stacked = filter == null && present.length > 1;
 
-    final amounts = [for (final m in history) m.amountFor(filter)];
-    final windowTotal = amounts.fold<double>(0, (a, b) => a + b);
-    final firstActive = amounts.indexWhere((a) => a > 0);
-    final activeMonths = firstActive < 0 ? 1 : amounts.length - firstActive;
-    final average = windowTotal / activeMonths;
-    final maxAmount = amounts.fold<double>(0, (a, b) => a > b ? a : b);
-    final maxY = maxAmount > 0 ? maxAmount * 1.2 : 1.0;
+    final billed = timeline.where((m) => !m.isEstimate).toList();
+    final estimated = timeline.where((m) => m.isEstimate).toList();
 
-    final surface = theme.colorScheme.surfaceContainer;
-    final muted = theme.colorScheme.onSurface.withValues(alpha: 0.6);
+    // Facts: billed total and average over the months with any bills.
+    final billedAmounts = [for (final m in billed) m.amountFor(filter)];
+    final billedTotal = billedAmounts.fold<double>(0, (a, b) => a + b);
+    final firstActive = billedAmounts.indexWhere((a) => a > 0);
+    final activeMonths =
+        firstActive < 0 ? 1 : billedAmounts.length - firstActive;
+    final billedAverage = billedTotal / activeMonths;
+
+    // Estimate: kept visibly separate from the facts.
+    final estimateTotal =
+        estimated.fold<double>(0, (a, m) => a + m.amountFor(filter));
+
+    final spikes = findSpikes(timeline, filter: filter);
+
+    // Bar slots: billed months, one empty slot as the "today" gap, then the
+    // estimated months. A null slot is the gap.
+    final slots = <MonthSpend?>[
+      ...billed,
+      if (estimated.isNotEmpty) null,
+      ...estimated,
+    ];
+    final currentSlot = slots.indexWhere((m) => m?.isCurrentMonth ?? false);
+
+    final maxAmount = timeline.fold<double>(
+      0,
+      (a, m) => m.amountFor(filter) > a ? m.amountFor(filter) : a,
+    );
+    final maxY = maxAmount > 0 ? maxAmount * 1.2 : 1.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -119,9 +148,9 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
         ),
         const SizedBox(height: 16),
 
-        // Headline numbers for the current filter.
+        // Headline: the fact.
         Text(
-          money(windowTotal),
+          money(billedTotal),
           style: theme.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w700,
             fontFeatures: kTabularFigures,
@@ -129,10 +158,48 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
         ),
         const SizedBox(height: 2),
         Text(
-          'Past 12 months · ${money(average)} a month on average',
+          'Billed in the past ${billed.length} months · '
+          '${money(billedAverage)} a month on average',
           style: theme.textTheme.bodySmall?.copyWith(color: muted),
         ),
-        const SizedBox(height: 20),
+        if (estimated.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          // The estimate, worded as one.
+          Text(
+            'Next ${estimated.length} months: about ${money(estimateTotal)} '
+            'if your subscriptions stay as they are',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: muted,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+        const SizedBox(height: 16),
+
+        // Key for billed vs estimate.
+        Row(
+          children: [
+            _KeySwatch(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Billed',
+              style: theme.textTheme.labelSmall?.copyWith(color: muted),
+            ),
+            const SizedBox(width: 16),
+            _KeySwatch(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              estimate: true,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Estimate',
+              style: theme.textTheme.labelSmall?.copyWith(color: muted),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
 
         AnimatedBuilder(
           animation: _controller,
@@ -159,14 +226,11 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
                     tooltipBorder: BorderSide(
                       color: theme.colorScheme.outline.withValues(alpha: 0.2),
                     ),
-                    getTooltipItem: (group, groupIndex, rod, rodIndex) =>
-                        _tooltip(
-                      theme,
-                      history[groupIndex],
-                      filter,
-                      stacked,
-                      money,
-                    ),
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                      final m = slots[groupIndex];
+                      if (m == null) return null;
+                      return _tooltip(theme, m, filter, stacked, money);
+                    },
                   ),
                 ),
                 titlesData: FlTitlesData(
@@ -176,13 +240,18 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
                       reservedSize: 28,
                       getTitlesWidget: (value, meta) {
                         final i = value.toInt();
-                        // Label every other month, always including this one.
-                        if (i < 0 ||
-                            i >= history.length ||
-                            (history.length - 1 - i).isOdd) {
+                        if (i < 0 || i >= slots.length) {
                           return const SizedBox.shrink();
                         }
-                        final m = history[i];
+                        final m = slots[i];
+                        // Every third month, counted from this month (the
+                        // gap slot shifts the future side by one).
+                        final steps = i <= currentSlot
+                            ? currentSlot - i
+                            : i - currentSlot - 1;
+                        if (m == null || steps % 3 != 0) {
+                          return const SizedBox.shrink();
+                        }
                         return SideTitleWidget(
                           meta: meta,
                           space: 8,
@@ -211,22 +280,25 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
                 ),
                 borderData: FlBorderData(show: false),
                 barGroups: [
-                  for (var i = 0; i < history.length; i++)
-                    _group(
-                      i,
-                      history[i],
-                      filter,
-                      stacked,
-                      present,
-                      staggeredProgress(
-                        _controller.value,
+                  for (var i = 0; i < slots.length; i++)
+                    if (slots[i] == null)
+                      BarChartGroupData(x: i)
+                    else
+                      _group(
                         i,
-                        history.length,
-                        stagger: 0.04,
+                        slots[i]!,
+                        filter,
+                        stacked,
+                        present,
+                        staggeredProgress(
+                          _controller.value,
+                          i,
+                          slots.length,
+                          stagger: 0.03,
+                        ),
+                        tokens,
+                        theme,
                       ),
-                      tokens,
-                      surface,
-                    ),
                 ],
               ),
             ),
@@ -262,6 +334,12 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
             ],
           ),
         ],
+
+        // Why a coming month is bigger, in words a bar can't give.
+        for (final spike in spikes.take(2)) ...[
+          const SizedBox(height: 12),
+          _SpikeNote(spike: spike, money: money),
+        ],
       ],
     );
   }
@@ -274,10 +352,12 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
     List<SubscriptionCategory> present,
     double grow,
     AppTokens tokens,
-    Color surface,
+    ThemeData theme,
   ) {
     const radius = BorderRadius.vertical(top: Radius.circular(4));
-    final total = month.amountFor(filter);
+    const width = 9.0;
+    final estimate = month.isEstimate;
+    Color fill(Color c) => estimate ? c.withValues(alpha: _kEstimateFill) : c;
 
     if (!stacked) {
       final color = tokens.chartColor((filter ?? present.single).index);
@@ -285,10 +365,12 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
         x: x,
         barRods: [
           BarChartRodData(
-            toY: total * grow,
-            color: color,
-            width: 14,
+            toY: month.amountFor(filter) * grow,
+            color: fill(color),
+            width: width,
             borderRadius: radius,
+            borderSide: estimate ? BorderSide(color: color) : BorderSide.none,
+            borderDashArray: estimate ? _kEstimateDash : null,
           ),
         ],
       );
@@ -296,6 +378,7 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
 
     // Stack bottom-up in fixed category order; a thin surface-coloured
     // border separates the segments.
+    final surface = theme.colorScheme.surfaceContainer;
     final items = <BarChartRodStackItem>[];
     var from = 0.0;
     for (final c in present) {
@@ -305,7 +388,7 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
         BarChartRodStackItem(
           from,
           from + v,
-          tokens.chartColor(c.index),
+          fill(tokens.chartColor(c.index)),
           BorderSide(color: surface),
         ),
       );
@@ -318,8 +401,14 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
           toY: from,
           color: Colors.transparent,
           rodStackItems: items,
-          width: 14,
+          width: width,
           borderRadius: radius,
+          borderSide: estimate
+              ? BorderSide(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                )
+              : BorderSide.none,
+          borderDashArray: estimate ? _kEstimateDash : null,
         ),
       ],
     );
@@ -332,8 +421,13 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
     bool stacked,
     String Function(double) money,
   ) {
-    final label = DateFormat('MMMM yyyy').format(DateTime(month.year, month.month));
-    final head = month.isCurrentMonth ? '$label (incl. bills still due)\n' : '$label\n';
+    final label =
+        DateFormat('MMMM yyyy').format(DateTime(month.year, month.month));
+    final head = switch (month.period) {
+      SpendPeriod.past => '$label\n',
+      SpendPeriod.current => '$label · incl. bills still due\n',
+      SpendPeriod.future => '$label · estimate\n',
+    };
     final headStyle = theme.textTheme.labelMedium!.copyWith(
       color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
       fontWeight: FontWeight.w600,
@@ -350,23 +444,138 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
 
     final breakdown = stacked
         ? (month.byCategory.entries.toList()
-              ..sort((a, b) => b.value.compareTo(a.value)))
+          ..sort((a, b) => b.value.compareTo(a.value)))
         : const <MapEntry<SubscriptionCategory, double>>[];
+    final amount = money(month.amountFor(filter));
 
     return BarTooltipItem(
       head,
       headStyle,
       textAlign: TextAlign.left,
       children: [
-        TextSpan(text: money(month.amountFor(filter)), style: valueStyle),
+        TextSpan(
+          text: month.isEstimate ? 'about $amount' : amount,
+          style: valueStyle,
+        ),
         for (final e in breakdown)
           TextSpan(
             text: '\n${e.key.displayName}  ${money(e.value)}',
             style: lineStyle,
           ),
+        if (month.isEstimate)
+          TextSpan(
+            text: '\nBased on your subscriptions today',
+            style: lineStyle.copyWith(fontStyle: FontStyle.italic),
+          ),
       ],
     );
   }
+}
+
+/// "January will likely be higher: about £148 (usually £54).
+///  Amazon Prime renews."
+class _SpikeNote extends StatelessWidget {
+  const _SpikeNote({required this.spike, required this.money});
+
+  final SpendSpike spike;
+  final String Function(double) money;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final month = DateFormat('MMMM').format(
+      DateTime(spike.month.year, spike.month.month),
+    );
+    final names = spike.causes.map((b) => b.name).join(' and ');
+    final verb = spike.causes.length == 1 ? 'renews' : 'renew';
+    final ink = theme.colorScheme.onSurface.withValues(alpha: 0.75);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.trending_up_rounded, size: 18, color: ink),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: '$month will likely be higher: ',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                TextSpan(
+                  text: 'about ${money(spike.amount)} '
+                      '(usually ${money(spike.usual)}). $names $verb.',
+                ),
+              ],
+            ),
+            style: theme.textTheme.bodySmall?.copyWith(color: ink),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Key swatch: solid for billed, faint with a dashed outline for estimate —
+/// the same treatment the bars get.
+class _KeySwatch extends StatelessWidget {
+  const _KeySwatch({required this.color, this.estimate = false});
+
+  final Color color;
+  final bool estimate;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size(14, 10),
+      painter: _SwatchPainter(color: color, estimate: estimate),
+    );
+  }
+}
+
+class _SwatchPainter extends CustomPainter {
+  _SwatchPainter({required this.color, required this.estimate});
+
+  final Color color;
+  final bool estimate;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      const Radius.circular(2),
+    );
+    canvas.drawRRect(
+      rect,
+      Paint()
+        ..color = estimate ? color.withValues(alpha: _kEstimateFill) : color,
+    );
+    if (!estimate) return;
+
+    // Dashed outline, walking the rectangle's perimeter.
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    final path = Path()..addRRect(rect.deflate(0.5));
+    for (final metric in path.computeMetrics()) {
+      var d = 0.0;
+      var on = true;
+      var i = 0;
+      while (d < metric.length) {
+        final len = _kEstimateDash[i % _kEstimateDash.length].toDouble();
+        if (on) canvas.drawPath(metric.extractPath(d, d + len), stroke);
+        d += len;
+        on = !on;
+        i++;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SwatchPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.estimate != estimate;
 }
 
 class _FilterChip extends StatelessWidget {
