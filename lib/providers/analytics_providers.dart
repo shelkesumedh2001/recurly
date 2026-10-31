@@ -197,17 +197,17 @@ final totalPriceChangeImpactProvider = Provider<double?>((ref) {
   );
 });
 
-/// Bills per month: the past 12 months (incl. this one) and an estimate for
-/// the next 6, split by category, in the display currency. Active subs
-/// only — archived subs have no recorded end date to stop their history at.
-final spendTimelineProvider = Provider<List<MonthSpend>>((ref) {
+/// Actual bills per month for the past 12 months (incl. this month), split
+/// by category and converted to the display currency. Active subs only —
+/// archived subs have no recorded end date to stop their history at.
+final spendHistoryProvider = Provider<List<MonthSpend>>((ref) {
   final subscriptionsAsync = ref.watch(subscriptionProvider);
   final displayCurrency = ref.watch(displayCurrencyProvider);
   final rates = ref.watch(exchangeRatesProvider).value;
   final currencyService = ref.watch(currencyServiceProvider);
 
   return subscriptionsAsync.when(
-    data: (subscriptions) => computeSpendTimeline(
+    data: (subscriptions) => computeSpendHistory(
       subscriptions: subscriptions,
       now: clock.now(),
       convert: (amount, from) => currencyService.convert(
