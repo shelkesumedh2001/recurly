@@ -6,6 +6,7 @@ import '../models/credit_card.dart';
 import '../models/exchange_rate.dart';
 import '../providers/credit_card_providers.dart';
 import '../providers/currency_providers.dart';
+import '../utils/adaptive.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/common/app_empty_state.dart';
 
@@ -25,24 +26,26 @@ class CreditCardsScreen extends ConsumerWidget {
         icon: const Icon(Icons.add_card),
         label: const Text('Add card'),
       ),
-      body: cards.isEmpty
-          ? AppEmptyState(
-              icon: Icons.credit_card_outlined,
-              title: 'No cards yet',
-              message:
-                  'Track statement cutoffs and payment due dates, and see '
-                  'which subscriptions land on each statement.',
-              actionLabel: 'Add card',
-              actionIcon: Icons.add_card,
-              onAction: () => _showCardSheet(context, ref),
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-              itemCount: cards.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) =>
-                  _CardTile(card: cards[index]),
-            ),
+      body: ReadableWidth(
+        child: cards.isEmpty
+            ? AppEmptyState(
+                icon: Icons.credit_card_outlined,
+                title: 'No cards yet',
+                message:
+                    'Track statement cutoffs and payment due dates, and see '
+                    'which subscriptions land on each statement.',
+                actionLabel: 'Add card',
+                actionIcon: Icons.add_card,
+                onAction: () => _showCardSheet(context, ref),
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                itemCount: cards.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) =>
+                    _CardTile(card: cards[index]),
+              ),
+      ),
     );
   }
 

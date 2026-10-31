@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/auth_providers.dart';
 import '../services/auth_service.dart';
+import '../utils/adaptive.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -20,117 +21,119 @@ class ProfileScreen extends ConsumerWidget {
         backgroundColor: theme.colorScheme.surface,
         elevation: 0,
       ),
-      body: profileAsync.when(
-        data: (profile) {
-          if (profile == null) {
-            return const Center(child: Text('Not signed in'));
-          }
+      body: ReadableWidth(
+        child: profileAsync.when(
+          data: (profile) {
+            if (profile == null) {
+              return const Center(child: Text('Not signed in'));
+            }
 
-          return ListView(
-            padding: const EdgeInsets.all(24),
-            children: [
-              // Avatar
-              Center(
-                child: CircleAvatar(
-                  radius: 48,
-                  backgroundImage: profile.photoUrl != null
-                      ? NetworkImage(profile.photoUrl!)
-                      : null,
-                  child: profile.photoUrl == null
-                      ? Text(
-                          profile.displayName.isNotEmpty
-                              ? profile.displayName[0].toUpperCase()
-                              : '?',
-                          style: theme.textTheme.headlineLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        )
-                      : null,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Name
-              Center(
-                child: Text(
-                  profile.displayName,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-
-              // Email
-              Center(
-                child: Text(
-                  profile.email,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // Pro badge
-              if (profile.isPro)
+            return ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                // Avatar
                 Center(
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          theme.colorScheme.primary,
-                          theme.colorScheme.tertiary,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(20),
+                  child: CircleAvatar(
+                    radius: 48,
+                    backgroundImage: profile.photoUrl != null
+                        ? NetworkImage(profile.photoUrl!)
+                        : null,
+                    child: profile.photoUrl == null
+                        ? Text(
+                            profile.displayName.isNotEmpty
+                                ? profile.displayName[0].toUpperCase()
+                                : '?',
+                            style: theme.textTheme.headlineLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          )
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Name
+                Center(
+                  child: Text(
+                    profile.displayName,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
-                    child: const Text(
-                      'PRO',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                        letterSpacing: 1,
-                      ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+
+                // Email
+                Center(
+                  child: Text(
+                    profile.email,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                 ),
+                const SizedBox(height: 8),
 
-              const SizedBox(height: 40),
+                // Pro badge
+                if (profile.isPro)
+                  Center(
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            theme.colorScheme.primary,
+                            theme.colorScheme.tertiary,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'PRO',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ),
+                  ),
 
-              // Sign out
-              OutlinedButton.icon(
-                onPressed: () => _handleSignOut(context, ref),
-                icon: const Icon(Icons.logout),
-                label: const Text('Sign Out'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                const SizedBox(height: 40),
+
+                // Sign out
+                OutlinedButton.icon(
+                  onPressed: () => _handleSignOut(context, ref),
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Sign Out'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-              // Delete account
-              TextButton(
-                onPressed: () => _handleDeleteAccount(context, ref),
-                child: Text(
-                  'Delete Account',
-                  style: TextStyle(
-                    color: theme.colorScheme.error,
-                    fontWeight: FontWeight.w500,
+                // Delete account
+                TextButton(
+                  onPressed: () => _handleDeleteAccount(context, ref),
+                  child: Text(
+                    'Delete Account',
+                    style: TextStyle(
+                      color: theme.colorScheme.error,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+              ],
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
+        ),
       ),
     );
   }

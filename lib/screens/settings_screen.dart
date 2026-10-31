@@ -25,6 +25,7 @@ import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../services/preferences_service.dart';
 import '../services/sync_service.dart';
+import '../utils/adaptive.dart';
 import '../utils/changelog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/common/app_dialogs.dart';
@@ -63,128 +64,130 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          // App Section
-          const SectionHeader('App'),
-          SettingsTile(
-            icon: Icons.palette_outlined,
-            title: 'Theme',
-            subtitle: currentPreset.name,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ThemeSettingsScreen(),
-                ),
-              );
-            },
-          ),
-          SettingsTile(
-            icon: Icons.notifications_outlined,
-            title: 'Notifications',
-            subtitle: 'Manage renewal reminders',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const NotificationSettingsScreen(),
-                ),
-              );
-            },
-          ),
-          _buildBudgetCard(context, ref),
-          _buildCategoriesCard(context, ref),
-          _buildCreditCardsCard(context, ref),
-          _buildCurrencyCard(context, ref),
+      body: ReadableWidth(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            // App Section
+            const SectionHeader('App'),
+            SettingsTile(
+              icon: Icons.palette_outlined,
+              title: 'Theme',
+              subtitle: currentPreset.name,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ThemeSettingsScreen(),
+                  ),
+                );
+              },
+            ),
+            SettingsTile(
+              icon: Icons.notifications_outlined,
+              title: 'Notifications',
+              subtitle: 'Manage renewal reminders',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const NotificationSettingsScreen(),
+                  ),
+                );
+              },
+            ),
+            _buildBudgetCard(context, ref),
+            _buildCategoriesCard(context, ref),
+            _buildCreditCardsCard(context, ref),
+            _buildCurrencyCard(context, ref),
 
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-          // Account Section
-          const SectionHeader('Account'),
-          _buildAuthCard(context, ref),
-          _buildSyncCard(context, ref),
-          _buildHouseholdNavCard(context, ref),
+            // Account Section
+            const SectionHeader('Account'),
+            _buildAuthCard(context, ref),
+            _buildSyncCard(context, ref),
+            _buildHouseholdNavCard(context, ref),
 
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-          // Data Section
-          const SectionHeader('Data'),
-          SettingsTile(
-            icon: Icons.save_alt_rounded,
-            title: 'Back up',
-            subtitle: 'Save everything to a JSON file',
-            onTap: () => _backup(context),
-          ),
-          SettingsTile(
-            icon: Icons.settings_backup_restore_rounded,
-            title: 'Restore',
-            subtitle: 'Import a Recurly backup file',
-            onTap: () => _restore(context, ref),
-          ),
-          SettingsTile(
-            icon: Icons.delete_outline,
-            title: 'Clear all data',
-            subtitle: 'Delete all subscriptions',
-            onTap: () => _showClearDataDialog(context, ref),
-            isDestructive: true,
-          ),
+            // Data Section
+            const SectionHeader('Data'),
+            SettingsTile(
+              icon: Icons.save_alt_rounded,
+              title: 'Back up',
+              subtitle: 'Save everything to a JSON file',
+              onTap: () => _backup(context),
+            ),
+            SettingsTile(
+              icon: Icons.settings_backup_restore_rounded,
+              title: 'Restore',
+              subtitle: 'Import a Recurly backup file',
+              onTap: () => _restore(context, ref),
+            ),
+            SettingsTile(
+              icon: Icons.delete_outline,
+              title: 'Clear all data',
+              subtitle: 'Delete all subscriptions',
+              onTap: () => _showClearDataDialog(context, ref),
+              isDestructive: true,
+            ),
 
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-          // About Section
-          const SectionHeader('About'),
-          const SettingsTile(
-            icon: Icons.info_outline,
-            title: 'Version',
-            // kAppBuild is the single source of truth for the app version —
-            // a test forces it to be bumped with pubspec on every release.
-            subtitle: kAppBuild,
-            onTap: null,
-          ),
-          SettingsTile(
-            icon: Icons.privacy_tip_outlined,
-            title: 'Privacy policy',
-            subtitle: 'How we protect your data',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const PrivacyPolicyScreen(),
-                ),
-              );
-            },
-          ),
-          SettingsTile(
-            icon: Icons.bug_report_outlined,
-            title: 'Report a bug',
-            subtitle: 'Help us improve',
-            onTap: () async {
-              // Pre-fill diagnostics so reports are actionable without a
-              // back-and-forth (app build, OS, sub count).
-              final diagnostics = 'App: Recurly $kAppBuild\n'
-                  'OS: Android ${Platform.operatingSystemVersion}\n'
-                  'Subscriptions: ${DatabaseService().getActiveSubscriptionCount()} active\n';
-              final uri = Uri.parse(
-                'mailto:shelkesumedh2001@gmail.com'
-                '?subject=${Uri.encodeComponent('Recurly Bug Report ($kAppBuild)')}'
-                '&body=${Uri.encodeComponent('Describe the bug:\n\n\nSteps to reproduce:\n1. \n2. \n3. \n\nExpected behavior:\n\n\n--- Diagnostics (please keep) ---\n$diagnostics')}',
-              );
-              try {
-                await launchUrl(uri);
-              } catch (_) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('No email app found'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+            // About Section
+            const SectionHeader('About'),
+            const SettingsTile(
+              icon: Icons.info_outline,
+              title: 'Version',
+              // kAppBuild is the single source of truth for the app version —
+              // a test forces it to be bumped with pubspec on every release.
+              subtitle: kAppBuild,
+              onTap: null,
+            ),
+            SettingsTile(
+              icon: Icons.privacy_tip_outlined,
+              title: 'Privacy policy',
+              subtitle: 'How we protect your data',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const PrivacyPolicyScreen(),
+                  ),
+                );
+              },
+            ),
+            SettingsTile(
+              icon: Icons.bug_report_outlined,
+              title: 'Report a bug',
+              subtitle: 'Help us improve',
+              onTap: () async {
+                // Pre-fill diagnostics so reports are actionable without a
+                // back-and-forth (app build, OS, sub count).
+                final diagnostics = 'App: Recurly $kAppBuild\n'
+                    'OS: Android ${Platform.operatingSystemVersion}\n'
+                    'Subscriptions: ${DatabaseService().getActiveSubscriptionCount()} active\n';
+                final uri = Uri.parse(
+                  'mailto:shelkesumedh2001@gmail.com'
+                  '?subject=${Uri.encodeComponent('Recurly Bug Report ($kAppBuild)')}'
+                  '&body=${Uri.encodeComponent('Describe the bug:\n\n\nSteps to reproduce:\n1. \n2. \n3. \n\nExpected behavior:\n\n\n--- Diagnostics (please keep) ---\n$diagnostics')}',
+                );
+                try {
+                  await launchUrl(uri);
+                } catch (_) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('No email app found'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
                 }
-              }
-            },
-          ),
-        ],
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

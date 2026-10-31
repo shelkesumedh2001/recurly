@@ -7,6 +7,7 @@ import '../providers/preferences_providers.dart';
 import '../providers/theme_providers.dart';
 import '../services/theme_service.dart';
 import '../theme/app_tokens.dart';
+import '../utils/adaptive.dart';
 import '../widgets/theme/theme_preview_card.dart';
 
 /// First-run onboarding: let the user pick a theme before entering the app.
@@ -26,94 +27,96 @@ class OnboardingScreen extends ConsumerWidget {
     final currency = CurrencyInfo.getByCode(currencyCode);
 
     return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Welcome to Recurly',
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Set up your currency and theme to get started — you can '
-                'change both any time in Settings.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
-                ),
-              ),
-              const SizedBox(height: 20),
-              _SectionLabel('Currency', theme: theme),
-              const SizedBox(height: 8),
-              _CurrencyTile(
-                currency: currency,
-                fallbackCode: currencyCode,
-                onTap: () => _showCurrencyPicker(context, ref),
-              ),
-              const SizedBox(height: 20),
-              _SectionLabel('Theme', theme: theme),
-              const SizedBox(height: 12),
-              Expanded(
-                child: GridView.builder(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.3,
+      body: ReadableWidth(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Welcome to Recurly',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.5,
                   ),
-                  itemCount: allPresets.length,
-                  itemBuilder: (context, index) {
-                    final preset = allPresets[index];
-                    final isSelected = preferences.themePresetId == preset.id;
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Set up your currency and theme to get started — you can '
+                  'change both any time in Settings.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _SectionLabel('Currency', theme: theme),
+                const SizedBox(height: 8),
+                _CurrencyTile(
+                  currency: currency,
+                  fallbackCode: currencyCode,
+                  onTap: () => _showCurrencyPicker(context, ref),
+                ),
+                const SizedBox(height: 20),
+                _SectionLabel('Theme', theme: theme),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: GridView.builder(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 1.3,
+                    ),
+                    itemCount: allPresets.length,
+                    itemBuilder: (context, index) {
+                      final preset = allPresets[index];
+                      final isSelected = preferences.themePresetId == preset.id;
 
-                    return ThemePreviewCard(
-                      preset: preset,
-                      isSelected: isSelected,
-                      onTap: () {
-                        ref
-                            .read(themePreferencesProvider.notifier)
-                            .setThemePreset(preset.id);
-                      },
-                      customAccentColor: isSelected
-                          ? ThemeService()
-                              .parseHexColor(preferences.customAccentColorHex)
-                          : null,
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.lg),
-                    ),
-                  ),
-                  onPressed: () {
-                    ref
-                        .read(preferencesProvider.notifier)
-                        .completeOnboarding();
-                  },
-                  child: const Text(
-                    'Get Started',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                      return ThemePreviewCard(
+                        preset: preset,
+                        isSelected: isSelected,
+                        onTap: () {
+                          ref
+                              .read(themePreferencesProvider.notifier)
+                              .setThemePreset(preset.id);
+                        },
+                        customAccentColor: isSelected
+                            ? ThemeService()
+                                .parseHexColor(preferences.customAccentColorHex)
+                            : null,
+                      );
+                    },
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                      ),
+                    ),
+                    onPressed: () {
+                      ref
+                          .read(preferencesProvider.notifier)
+                          .completeOnboarding();
+                    },
+                    child: const Text(
+                      'Get Started',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -6,6 +6,7 @@ import '../models/enums.dart';
 import '../models/exchange_rate.dart';
 import '../providers/budget_providers.dart';
 import '../providers/currency_providers.dart';
+import '../utils/adaptive.dart';
 import '../widgets/budget/budget_progress_bar.dart';
 
 class BudgetSettingsScreen extends ConsumerStatefulWidget {
@@ -54,193 +55,195 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Current Status Card
-          if (settings.hasBudget) ...[
-            _buildStatusCard(
-              context,
-              settings,
-              budgetStatus,
-              usage ?? 0,
-              remaining,
-              totalSpend,
-              currencySymbol,
-            ),
-            const SizedBox(height: 24),
-          ],
+      body: ReadableWidth(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Current Status Card
+            if (settings.hasBudget) ...[
+              _buildStatusCard(
+                context,
+                settings,
+                budgetStatus,
+                usage ?? 0,
+                remaining,
+                totalSpend,
+                currencySymbol,
+              ),
+              const SizedBox(height: 24),
+            ],
 
-          // Overall Budget Section
-          Text(
-            'Monthly Budget',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
+            // Overall Budget Section
+            Text(
+              'Monthly Budget',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Set a limit for your total monthly subscriptions',
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 4),
+            Text(
+              'Set a limit for your total monthly subscriptions',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
 
-          // Budget Input
-          Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: _overallBudgetController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-                    ],
-                    decoration: InputDecoration(
-                      labelText: 'Budget Amount',
-                      prefixText: '$currencySymbol ',
-                      hintText: '0.00',
-                      suffixIcon: settings.hasBudget
-                          ? IconButton(
-                              tooltip: 'Clear budget',
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _overallBudgetController.clear();
-                                ref.read(budgetSettingsProvider.notifier).setOverallBudget(null);
-                              },
-                            )
-                          : null,
+            // Budget Input
+            Card(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _overallBudgetController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                      ],
+                      decoration: InputDecoration(
+                        labelText: 'Budget Amount',
+                        prefixText: '$currencySymbol ',
+                        hintText: '0.00',
+                        suffixIcon: settings.hasBudget
+                            ? IconButton(
+                                tooltip: 'Clear budget',
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  _overallBudgetController.clear();
+                                  ref.read(budgetSettingsProvider.notifier).setOverallBudget(null);
+                                },
+                              )
+                            : null,
+                      ),
+                      onSubmitted: (value) => _saveBudget(),
                     ),
-                    onSubmitted: (value) => _saveBudget(),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: _saveBudget,
-                      child: Text(
-                        settings.hasBudget ? 'Update Budget' : 'Set Budget',
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _saveBudget,
+                        child: Text(
+                          settings.hasBudget ? 'Update Budget' : 'Set Budget',
+                        ),
                       ),
                     ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // Alert Settings Section
+            Text(
+              'Alert Settings',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Get notified when approaching your budget limit',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+
+            Card(
+              margin: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    title: const Text('Budget alerts'),
+                    subtitle: const Text('Notify when approaching or exceeding budget'),
+                    value: settings.budgetAlertsEnabled,
+                    onChanged: (value) {
+                      ref.read(budgetSettingsProvider.notifier).toggleAlerts(value);
+                    },
                   ),
+                  if (settings.budgetAlertsEnabled) ...[
+                    const Divider(height: 1),
+                    ListTile(
+                      title: const Text('Warning threshold'),
+                      subtitle: Text('Alert at ${(settings.warningThreshold * 100).toInt()}% of budget'),
+                      trailing: SizedBox(
+                        width: 150,
+                        child: Slider(
+                          value: settings.warningThreshold,
+                          min: 0.5,
+                          max: 0.95,
+                          divisions: 9,
+                          label: '${(settings.warningThreshold * 100).toInt()}%',
+                          onChanged: (value) {
+                            ref.read(budgetSettingsProvider.notifier).setWarningThreshold(value);
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
-          ),
 
-          const SizedBox(height: 32),
+            const SizedBox(height: 32),
 
-          // Alert Settings Section
-          Text(
-            'Alert Settings',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Get notified when approaching your budget limit',
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: 16),
-
-          Card(
-            margin: EdgeInsets.zero,
-            child: Column(
+            // Category Budgets Section
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                SwitchListTile(
-                  title: const Text('Budget alerts'),
-                  subtitle: const Text('Notify when approaching or exceeding budget'),
-                  value: settings.budgetAlertsEnabled,
-                  onChanged: (value) {
-                    ref.read(budgetSettingsProvider.notifier).toggleAlerts(value);
-                  },
-                ),
-                if (settings.budgetAlertsEnabled) ...[
-                  const Divider(height: 1),
-                  ListTile(
-                    title: const Text('Warning threshold'),
-                    subtitle: Text('Alert at ${(settings.warningThreshold * 100).toInt()}% of budget'),
-                    trailing: SizedBox(
-                      width: 150,
-                      child: Slider(
-                        value: settings.warningThreshold,
-                        min: 0.5,
-                        max: 0.95,
-                        divisions: 9,
-                        label: '${(settings.warningThreshold * 100).toInt()}%',
-                        onChanged: (value) {
-                          ref.read(budgetSettingsProvider.notifier).setWarningThreshold(value);
-                        },
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Category Budgets',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Text(
+                      'Set limits per category',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
               ],
             ),
-          ),
+            const SizedBox(height: 16),
 
-          const SizedBox(height: 32),
+            // Category list
+            ...SubscriptionCategory.values.map((category) {
+              final spend = categorySpend[category.displayName] ?? 0.0;
+              final categoryBudget = settings.getCategoryBudget(category.displayName);
+              final hasSpend = spend > 0;
 
-          // Category Budgets Section
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Category Budgets',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Set limits per category',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
+              return _buildCategoryBudgetCard(
+                context,
+                category,
+                spend,
+                categoryBudget,
+                hasSpend,
+                currencySymbol,
+              );
+            }),
 
-          // Category list
-          ...SubscriptionCategory.values.map((category) {
-            final spend = categorySpend[category.displayName] ?? 0.0;
-            final categoryBudget = settings.getCategoryBudget(category.displayName);
-            final hasSpend = spend > 0;
+            const SizedBox(height: 32),
 
-            return _buildCategoryBudgetCard(
-              context,
-              category,
-              spend,
-              categoryBudget,
-              hasSpend,
-              currencySymbol,
-            );
-          }),
-
-          const SizedBox(height: 32),
-
-          // Clear All
-          Center(
-            child: TextButton.icon(
-              onPressed: () => _showClearDialog(context),
-              icon: const Icon(Icons.delete_outline),
-              label: const Text('Clear All Budgets'),
-              style: TextButton.styleFrom(
-                foregroundColor: theme.colorScheme.error,
+            // Clear All
+            Center(
+              child: TextButton.icon(
+                onPressed: () => _showClearDialog(context),
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Clear All Budgets'),
+                style: TextButton.styleFrom(
+                  foregroundColor: theme.colorScheme.error,
+                ),
               ),
             ),
-          ),
 
-          const SizedBox(height: 32),
-        ],
+            const SizedBox(height: 32),
+          ],
+        ),
       ),
     );
   }

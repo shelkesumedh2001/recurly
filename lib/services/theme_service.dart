@@ -255,6 +255,29 @@ class ThemeService {
         }),
       ),
 
+      // Navigation rail (wide windows) — same look as the bottom bar.
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: preset.backgroundColor,
+        elevation: 0,
+        indicatorColor: accentColor.withValues(alpha: 0.2),
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        selectedLabelTextStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: accentColor,
+        ),
+        unselectedLabelTextStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: preset.subtextColor,
+        ),
+        selectedIconTheme: IconThemeData(color: accentColor, size: 24),
+        unselectedIconTheme:
+            IconThemeData(color: preset.subtextColor, size: 24),
+      ),
+
       // List tile theme
       listTileTheme: ListTileThemeData(
         contentPadding: const EdgeInsets.symmetric(

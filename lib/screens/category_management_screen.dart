@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/custom_category.dart';
 import '../providers/category_providers.dart';
+import '../utils/adaptive.dart';
 import '../widgets/category/icon_picker_sheet.dart';
 
 class CategoryManagementScreen extends ConsumerWidget {
@@ -26,65 +27,67 @@ class CategoryManagementScreen extends ConsumerWidget {
         onPressed: () => _showAddCategorySheet(context, ref),
         child: const Icon(Icons.add),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Built-in categories section
-          Text(
-            'Built-in Categories',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'These categories cannot be modified',
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-
-          ...builtInCategories.map((category) => _buildBuiltInCategoryCard(
-                context,
-                category,
-              ),),
-
-          const SizedBox(height: 32),
-
-          // Custom categories section
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Custom Categories',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${customCategories.length} custom ${customCategories.length == 1 ? 'category' : 'categories'}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
+      body: ReadableWidth(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Built-in categories section
+            Text(
+              'Built-in Categories',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'These categories cannot be modified',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
 
-          if (customCategories.isEmpty)
-            _buildEmptyState(context)
-          else
-            ...customCategories.map((category) => _buildCustomCategoryCard(
+            ...builtInCategories.map((category) => _buildBuiltInCategoryCard(
                   context,
-                  ref,
                   category,
                 ),),
 
-          const SizedBox(height: 80), // Space for FAB
-        ],
+            const SizedBox(height: 32),
+
+            // Custom categories section
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Custom Categories',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${customCategories.length} custom ${customCategories.length == 1 ? 'category' : 'categories'}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            if (customCategories.isEmpty)
+              _buildEmptyState(context)
+            else
+              ...customCategories.map((category) => _buildCustomCategoryCard(
+                    context,
+                    ref,
+                    category,
+                  ),),
+
+            const SizedBox(height: 80), // Space for FAB
+          ],
+        ),
       ),
     );
   }
