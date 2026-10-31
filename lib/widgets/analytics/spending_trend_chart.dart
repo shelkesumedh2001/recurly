@@ -6,6 +6,25 @@ import '../../providers/analytics_providers.dart';
 import '../../providers/currency_providers.dart';
 import '../../theme/app_tokens.dart';
 
+/// Delay between successive bars' entrance, as a fraction of the animation.
+const double _kBarStagger = 0.1;
+
+/// Height factor (0..1) for bar [index] of [count] at overall animation
+/// progress [t] (0..1). Each bar starts [_kBarStagger] after the previous
+/// one, and every bar reaches exactly 1.0 when [t] reaches 1.0.
+///
+/// The old version subtracted the delay without rescaling, so later bars
+/// never finished growing: a flat £5/month projection rendered as
+/// £5.00, £5.00, £4.96, £4.87, £4.68, £4.38 (user report, Oct 2026).
+@visibleForTesting
+double staggeredBarProgress(double t, int index, int count) {
+  final totalDelay = _kBarStagger * (count - 1);
+  final span = 1.0 - totalDelay;
+  if (span <= 0) return Curves.easeOutCubic.transform(t.clamp(0.0, 1.0));
+  final local = ((t - index * _kBarStagger) / span).clamp(0.0, 1.0);
+  return Curves.easeOutCubic.transform(local);
+}
+
 class SpendingTrendChart extends ConsumerStatefulWidget {
   const SpendingTrendChart({super.key});
 
@@ -88,7 +107,12 @@ class _SpendingTrendChartState extends ConsumerState<SpendingTrendChart>
                   ),
                   children: <TextSpan>[
                     TextSpan(
-                      text: currencyService.formatAmount(rod.toY, displayCurrency),
+                      // The real amount, not rod.toY: the rod height is
+                      // scaled by the entrance animation.
+                      text: currencyService.formatAmount(
+                        trendData[groupIndex].amount,
+                        displayCurrency,
+                      ),
                       style: theme.textTheme.titleSmall!.copyWith(
                         color: theme.colorScheme.onSurface,
                         fontWeight: FontWeight.w700,
@@ -148,9 +172,10 @@ class _SpendingTrendChartState extends ConsumerState<SpendingTrendChart>
           barGroups: trendData.asMap().entries.map((entry) {
             final index = entry.key;
             final data = entry.value;
-            // Animate each bar with a slight delay based on index
-            final barAnimation = Curves.easeOutCubic.transform(
-              (_animation.value - (index * 0.1)).clamp(0.0, 1.0),
+            final barAnimation = staggeredBarProgress(
+              _animation.value,
+              index,
+              trendData.length,
             );
             return BarChartGroupData(
               x: index,

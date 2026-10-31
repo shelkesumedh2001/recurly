@@ -180,7 +180,10 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
           const SizedBox(height: 28),
 
           // Spending Trend Chart (bar)
-          const _SectionTitle('Projected spending'),
+          const _SectionTitle(
+            'Projected spending',
+            subtitle: 'What your bills will add up to each month, for the next 6 months',
+          ),
           const _ChartCard(child: SpendingTrendChart()),
 
           const SizedBox(height: 28),
