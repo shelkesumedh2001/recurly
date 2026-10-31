@@ -179,10 +179,10 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
 
           const SizedBox(height: 28),
 
-          // Spend timeline: billed past + estimated future (stacked, filterable)
+          // Spend history: what was billed each month (stacked, filterable)
           const _SectionTitle(
             'Spending over time',
-            subtitle: 'What you were billed, and an estimate for the next 6 months',
+            subtitle: 'What you were billed each month',
           ),
           const _ChartCard(child: SpendHistoryChart()),
 
