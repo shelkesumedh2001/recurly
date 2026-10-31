@@ -7,6 +7,7 @@ import '../providers/subscription_providers.dart';
 import '../services/currency_service.dart';
 import '../services/export_service.dart';
 import '../theme/app_tokens.dart';
+import '../utils/adaptive.dart';
 import '../widgets/analytics/budget_gauge.dart';
 import '../widgets/analytics/cancel_simulator_sheet.dart';
 import '../widgets/analytics/category_pie_chart.dart';
@@ -83,34 +84,37 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
           // Currency-conversion warning: every chart below converts to the
           // display currency, so a missing-rates fallback poisons them all.
           const RatesUnavailableWarning(),
-          // Tab bar
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              indicator: BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(12),
+          // Tab bar (kept to a sensible width on wide screens)
+          ReadableWidth(
+            maxWidth: 520,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(16),
               ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent,
-              labelColor: Theme.of(context).colorScheme.primary,
-              unselectedLabelColor:
-                  theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              labelStyle: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
+              child: TabBar(
+                controller: _tabController,
+                indicator: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                labelColor: Theme.of(context).colorScheme.primary,
+                unselectedLabelColor:
+                    theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                labelStyle: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+                tabs: const [
+                  Tab(text: 'Overview'),
+                  Tab(text: 'Calendar'),
+                ],
               ),
-              tabs: const [
-                Tab(text: 'Overview'),
-                Tab(text: 'Calendar'),
-              ],
             ),
           ),
 
@@ -150,11 +154,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
     CurrencyService currencyService,
     String displayCurrency,
   ) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    final top = <Widget>[
           // Hero Stats
           _buildHeroStats(theme, totalMonthlySpend, yearlyProjected,
               subscriptionCount, currencyService, displayCurrency,),
@@ -162,8 +162,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
           // Budget Gauge (self-hides if no budget)
           const BudgetGauge(),
 
-          const SizedBox(height: 28),
-
+    ];
+    final chartSections = <Widget>[
           // Subscription Count Chart (line)
           const _SectionTitle(
             'Subscription growth',
@@ -188,6 +188,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
 
           const SizedBox(height: 28),
 
+    ];
+    final listSections = <Widget>[
           // Price Changes Section
           const _SectionTitle(
             'Price changes',
@@ -237,27 +239,84 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
           // Split Savings (self-hides if not in household or no splits)
           const SplitSavingsCard(),
 
-          // Bottom padding
-          const SizedBox(height: 40),
-        ],
-      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Wide windows (unfolded foldables, landscape): the summary across
+        // the top, then charts and lists side by side instead of one long
+        // stretched column.
+        if (constraints.maxWidth >= kTwoPaneMinWidth) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ReadableWidth(
+              maxWidth: 1200,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ...top,
+                  const SizedBox(height: 28),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: chartSections,
+                        ),
+                      ),
+                      const SizedBox(width: 24),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: listSections,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: ReadableWidth(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...top,
+                const SizedBox(height: 28),
+                ...chartSections,
+                ...listSections,
+                // Bottom padding
+                const SizedBox(height: 40),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildCalendarTab(ThemeData theme) {
     return const SingleChildScrollView(
       padding: EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SectionTitle(
-            'Renewal calendar',
-            subtitle: 'When each subscription bills this month',
-          ),
-          SizedBox(height: 8),
-          RenewalCalendar(),
-          SizedBox(height: 40),
-        ],
+      child: ReadableWidth(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SectionTitle(
+              'Renewal calendar',
+              subtitle: 'When each subscription bills this month',
+            ),
+            SizedBox(height: 8),
+            RenewalCalendar(),
+            SizedBox(height: 40),
+          ],
+        ),
       ),
     );
   }

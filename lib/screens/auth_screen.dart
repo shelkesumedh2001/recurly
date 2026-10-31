@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/auth_service.dart';
+import '../utils/adaptive.dart';
 import '../utils/email_validator.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -40,228 +41,230 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         backgroundColor: theme.colorScheme.surface,
         elevation: 0,
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 20),
-              // Header
-              Text(
-                _isSignUp ? 'Create Account' : 'Welcome Back',
-                style: theme.textTheme.headlineLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -1,
+      body: ReadableWidth(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 20),
+                // Header
+                Text(
+                  _isSignUp ? 'Create Account' : 'Welcome Back',
+                  style: theme.textTheme.headlineLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -1,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _isSignUp
-                    ? 'Sign up to sync your subscriptions across devices'
-                    : 'Sign in to access your synced data',
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                const SizedBox(height: 8),
+                Text(
+                  _isSignUp
+                      ? 'Sign up to sync your subscriptions across devices'
+                      : 'Sign in to access your synced data',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 40),
+                const SizedBox(height: 40),
 
-              // Social sign-in buttons
-              _buildGoogleButton(theme),
-              const SizedBox(height: 12),
-              if (Platform.isIOS) ...[
-                _buildAppleButton(theme),
+                // Social sign-in buttons
+                _buildGoogleButton(theme),
                 const SizedBox(height: 12),
-              ],
+                if (Platform.isIOS) ...[
+                  _buildAppleButton(theme),
+                  const SizedBox(height: 12),
+                ],
 
-              // Divider
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Divider(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.2),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        'or',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                // Divider
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Divider(
+                          color: theme.colorScheme.outline.withValues(alpha: 0.2),
                         ),
                       ),
-                    ),
-                    Expanded(
-                      child: Divider(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          'or',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                      Expanded(
+                        child: Divider(
+                          color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
 
-              // Email/password form
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    if (_isSignUp) ...[
+                // Email/password form
+                Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      if (_isSignUp) ...[
+                        TextFormField(
+                          controller: _nameController,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: InputDecoration(
+                            labelText: 'Display Name',
+                            prefixIcon: const Icon(Icons.person_outline),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          validator: (value) {
+                            if (_isSignUp && (value == null || value.trim().isEmpty)) {
+                              return 'Please enter your name';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       TextFormField(
-                        controller: _nameController,
-                        textCapitalization: TextCapitalization.words,
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        autocorrect: false,
                         decoration: InputDecoration(
-                          labelText: 'Display Name',
-                          prefixIcon: const Icon(Icons.person_outline),
+                          labelText: 'Email',
+                          prefixIcon: const Icon(Icons.email_outlined),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
                         validator: (value) {
-                          if (_isSignUp && (value == null || value.trim().isEmpty)) {
-                            return 'Please enter your name';
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter your email';
+                          }
+                          if (!isValidEmail(value)) {
+                            return 'Please enter a valid email';
                           }
                           return null;
                         },
                       ),
                       const SizedBox(height: 16),
-                    ],
-                    TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      autocorrect: false,
-                      decoration: InputDecoration(
-                        labelText: 'Email',
-                        prefixIcon: const Icon(Icons.email_outlined),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Please enter your email';
-                        }
-                        if (!isValidEmail(value)) {
-                          return 'Please enter a valid email';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          tooltip: _obscurePassword
-                              ? 'Show password'
-                              : 'Hide password',
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          suffixIcon: IconButton(
+                            tooltip: _obscurePassword
+                                ? 'Show password'
+                                : 'Hide password',
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                            onPressed: () {
+                              setState(() => _obscurePassword = !_obscurePassword);
+                            },
                           ),
-                          onPressed: () {
-                            setState(() => _obscurePassword = !_obscurePassword);
-                          },
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your password';
+                          }
+                          if (_isSignUp && value.length < 6) {
+                            return 'Password must be at least 6 characters';
+                          }
+                          return null;
+                        },
                       ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your password';
-                        }
-                        if (_isSignUp && value.length < 6) {
-                          return 'Password must be at least 6 characters';
-                        }
-                        return null;
+                    ],
+                  ),
+                ),
+
+                if (!_isSignUp) ...[
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _handleResetPassword,
+                      child: const Text('Forgot Password?'),
+                    ),
+                  ),
+                ] else
+                  const SizedBox(height: 16),
+
+                const SizedBox(height: 8),
+
+                // Submit button
+                FilledButton(
+                  onPressed: _isLoading ? null : _handleEmailAuth,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          _isSignUp ? 'Create Account' : 'Sign in',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Toggle sign in/up
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _isSignUp
+                          ? 'Already have an account?'
+                          : "Don't have an account?",
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _isSignUp = !_isSignUp;
+                          _formKey.currentState?.reset();
+                        });
                       },
+                      child: Text(_isSignUp ? 'Sign in' : 'Sign Up'),
                     ),
                   ],
                 ),
-              ),
 
-              if (!_isSignUp) ...[
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: _handleResetPassword,
-                    child: const Text('Forgot Password?'),
-                  ),
-                ),
-              ] else
                 const SizedBox(height: 16),
 
-              const SizedBox(height: 8),
-
-              // Submit button
-              FilledButton(
-                onPressed: _isLoading ? null : _handleEmailAuth,
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(
-                        _isSignUp ? 'Create Account' : 'Sign in',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Toggle sign in/up
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _isSignUp
-                        ? 'Already have an account?'
-                        : "Don't have an account?",
-                    style: theme.textTheme.bodyMedium?.copyWith(
+                // Continue without account
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'Continue without account',
+                    style: TextStyle(
                       color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _isSignUp = !_isSignUp;
-                        _formKey.currentState?.reset();
-                      });
-                    },
-                    child: Text(_isSignUp ? 'Sign in' : 'Sign Up'),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              // Continue without account
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(
-                  'Continue without account',
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

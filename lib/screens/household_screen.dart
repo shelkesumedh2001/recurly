@@ -8,6 +8,7 @@ import '../providers/preferences_providers.dart';
 import '../services/database_service.dart';
 import '../services/household_service.dart';
 import '../services/sync_service.dart';
+import '../utils/adaptive.dart';
 import '../widgets/invite_code_card.dart';
 import 'join_household_screen.dart';
 
@@ -35,15 +36,17 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
         backgroundColor: theme.colorScheme.surface,
         elevation: 0,
       ),
-      body: householdAsync.when(
-        data: (household) {
-          if (household == null) {
-            return _buildNoHousehold(context, isPro);
-          }
-          return _buildHouseholdView(context, household, isCreator);
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+      body: ReadableWidth(
+        child: householdAsync.when(
+          data: (household) {
+            if (household == null) {
+              return _buildNoHousehold(context, isPro);
+            }
+            return _buildHouseholdView(context, household, isCreator);
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
+        ),
       ),
     );
   }
