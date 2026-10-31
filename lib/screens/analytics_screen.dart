@@ -15,7 +15,6 @@ import '../widgets/analytics/price_changes_section.dart';
 import '../widgets/analytics/renewal_calendar.dart';
 import '../widgets/analytics/renewal_forecast_timeline.dart';
 import '../widgets/analytics/spend_history_chart.dart';
-import '../widgets/analytics/spending_trend_chart.dart';
 import '../widgets/analytics/split_savings_card.dart';
 import '../widgets/analytics/subscription_count_chart.dart';
 import '../widgets/analytics/who_pays_more_bar.dart';
@@ -180,21 +179,12 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
 
           const SizedBox(height: 28),
 
-          // Spend History Chart (stacked bar, filterable)
+          // Spend timeline: billed past + estimated future (stacked, filterable)
           const _SectionTitle(
-            'Monthly spending',
-            subtitle: 'What you were billed each month',
+            'Spending over time',
+            subtitle: 'What you were billed, and an estimate for the next 6 months',
           ),
           const _ChartCard(child: SpendHistoryChart()),
-
-          const SizedBox(height: 28),
-
-          // Spending Trend Chart (bar)
-          const _SectionTitle(
-            'Projected spending',
-            subtitle: 'What your bills will add up to each month, for the next 6 months',
-          ),
-          const _ChartCard(child: SpendingTrendChart()),
 
           const SizedBox(height: 28),
 
