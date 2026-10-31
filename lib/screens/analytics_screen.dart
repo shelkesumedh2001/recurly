@@ -14,6 +14,7 @@ import '../widgets/analytics/monthly_comparison_chip.dart';
 import '../widgets/analytics/price_changes_section.dart';
 import '../widgets/analytics/renewal_calendar.dart';
 import '../widgets/analytics/renewal_forecast_timeline.dart';
+import '../widgets/analytics/spend_history_chart.dart';
 import '../widgets/analytics/spending_trend_chart.dart';
 import '../widgets/analytics/split_savings_card.dart';
 import '../widgets/analytics/subscription_count_chart.dart';
@@ -176,6 +177,15 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
           // Category Chart (pie)
           const _SectionTitle('Spending by category'),
           const _ChartCard(child: CategoryPieChart()),
+
+          const SizedBox(height: 28),
+
+          // Spend History Chart (stacked bar, filterable)
+          const _SectionTitle(
+            'Monthly spending',
+            subtitle: 'What you were billed each month',
+          ),
+          const _ChartCard(child: SpendHistoryChart()),
 
           const SizedBox(height: 28),
 
