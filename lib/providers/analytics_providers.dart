@@ -6,6 +6,7 @@ import '../models/subscription.dart';
 import '../services/currency_service.dart';
 import '../utils/billing_cycle.dart';
 import '../utils/money.dart';
+import '../utils/spend_history.dart';
 import 'auth_providers.dart';
 import 'currency_providers.dart';
 import 'household_providers.dart';
@@ -237,6 +238,31 @@ final spendingTrendProvider = Provider<List<MonthlySpendingData>>((ref) {
 
       return trendData;
     },
+    loading: () => [],
+    error: (_, __) => [],
+  );
+});
+
+/// Actual bills per month for the past 12 months (incl. this month), split
+/// by category and converted to the display currency. Active subs only —
+/// archived subs have no recorded end date to stop their history at.
+final spendHistoryProvider = Provider<List<MonthSpend>>((ref) {
+  final subscriptionsAsync = ref.watch(subscriptionProvider);
+  final displayCurrency = ref.watch(displayCurrencyProvider);
+  final rates = ref.watch(exchangeRatesProvider).value;
+  final currencyService = ref.watch(currencyServiceProvider);
+
+  return subscriptionsAsync.when(
+    data: (subscriptions) => computeSpendHistory(
+      subscriptions: subscriptions,
+      now: clock.now(),
+      convert: (amount, from) => currencyService.convert(
+        amount: amount,
+        from: from,
+        to: displayCurrency,
+        rates: rates,
+      ),
+    ),
     loading: () => [],
     error: (_, __) => [],
   );
