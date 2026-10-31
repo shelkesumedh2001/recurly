@@ -247,6 +247,15 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
         // the top, then charts and lists side by side instead of one long
         // stretched column.
         if (constraints.maxWidth >= kTwoPaneMinWidth) {
+          // On a book-style foldable the columns meet at the fold, so no
+          // chart card straddles the crease. The 24 is this view's padding.
+          final split = foldSplitFor(context, constraints.maxWidth);
+          final leftWidth = split == null ? null : split.startWidth - 24 - 12;
+          final gap = split == null ? 24.0 : split.gap + 24;
+          final charts = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: chartSections,
+          );
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: ReadableWidth(
@@ -259,13 +268,11 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: chartSections,
-                        ),
-                      ),
-                      const SizedBox(width: 24),
+                      if (leftWidth != null)
+                        SizedBox(width: leftWidth, child: charts)
+                      else
+                        Expanded(child: charts),
+                      SizedBox(width: gap),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,

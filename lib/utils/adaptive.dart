@@ -77,6 +77,30 @@ class ReadableWidth extends StatelessWidget {
   return null;
 }
 
+/// Where to split a region [width] logical pixels wide (flush with the
+/// screen's right edge) so that two panes meet at a vertical fold: the start
+/// pane's width and the gap to leave for the fold itself. Null when there is
+/// no vertical fold, or when meeting at it would leave a pane narrower than
+/// [minPaneWidth].
+({double startWidth, double gap})? foldSplitFor(
+  BuildContext context,
+  double width, {
+  double minPaneWidth = 280,
+}) {
+  final screenWidth = MediaQuery.sizeOf(context).width;
+  final fold = verticalFoldIn(
+    MediaQuery.displayFeaturesOf(context),
+    regionLeft: screenWidth - width,
+    regionWidth: width,
+  );
+  if (fold == null) return null;
+  if (fold.left < minPaneWidth ||
+      width - fold.left - fold.width < minPaneWidth) {
+    return null;
+  }
+  return (startWidth: fold.left, gap: fold.width);
+}
+
 /// Two side-by-side panes for wide windows.
 ///
 /// When a vertical fold crosses the panes, they meet at the fold (each pane
@@ -107,31 +131,15 @@ class TwoPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final features = MediaQuery.displayFeaturesOf(context);
     final divider = Theme.of(context).colorScheme.outline.withValues(alpha: 0.1);
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final fold = verticalFoldIn(
-          features,
-          regionLeft: screenWidth - width,
-          regionWidth: width,
-        );
-
-        double startWidth;
-        double gap;
-        if (fold != null &&
-            fold.left >= minPaneWidth &&
-            width - fold.left - fold.width >= minPaneWidth) {
-          startWidth = fold.left;
-          gap = fold.width;
-        } else {
-          startWidth =
-              (width * startFraction).clamp(minStartWidth, maxStartWidth);
-          gap = 0;
-        }
+        final split = foldSplitFor(context, width, minPaneWidth: minPaneWidth);
+        final startWidth = split?.startWidth ??
+            (width * startFraction).clamp(minStartWidth, maxStartWidth);
+        final gap = split?.gap ?? 0.0;
 
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
