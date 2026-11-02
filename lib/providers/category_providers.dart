@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/custom_category.dart';
 import '../models/enums.dart';
+import '../models/subscription.dart';
 import '../services/custom_category_service.dart';
 import 'subscription_providers.dart';
 
@@ -121,4 +122,20 @@ final builtInCategoriesProvider = Provider<List<UnifiedCategory>>((ref) {
   return SubscriptionCategory.values
       .map(UnifiedCategory.fromEnum)
       .toList();
+});
+
+/// The category a subscription is filed under: its custom category when
+/// that id exists on this device, else its built-in [Subscription.category].
+/// The one place Home, Analytics, budgets and export decide this (BUG-17).
+final categoryOfProvider = Provider<UnifiedCategory Function(Subscription)>((ref) {
+  final customs = ref.watch(customCategoriesProvider);
+  final byId = {
+    for (var i = 0; i < customs.length; i++)
+      customs[i].id: UnifiedCategory.fromCustom(customs[i], order: i),
+  };
+  return (sub) {
+    final customId = sub.customCategoryId;
+    return (customId == null ? null : byId[customId]) ??
+        UnifiedCategory.fromEnum(sub.category);
+  };
 });

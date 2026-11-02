@@ -1,4 +1,4 @@
-import '../models/enums.dart';
+import '../models/custom_category.dart';
 import '../models/subscription.dart';
 import 'money.dart';
 
@@ -19,7 +19,7 @@ class MonthSpend {
 
   /// Display-currency amount per category; categories with no bills are
   /// absent, never zero-valued.
-  final Map<SubscriptionCategory, double> byCategory;
+  final Map<UnifiedCategory, double> byCategory;
 
   /// The current month counts bills still due later this month too, so the
   /// bar reads as "this month's bill", not a half-finished month.
@@ -28,7 +28,7 @@ class MonthSpend {
   double get total => roundMoney(byCategory.values.fold(0, (a, b) => a + b));
 
   /// Spend for one [category], or the total when [category] is null.
-  double amountFor(SubscriptionCategory? category) =>
+  double amountFor(UnifiedCategory? category) =>
       category == null ? total : (byCategory[category] ?? 0);
 }
 
@@ -70,12 +70,15 @@ List<MonthSpend> computeSpendHistory({
   required ConvertToDisplay convert,
   int months = 12,
   double Function(Subscription sub)? shareOf,
+  UnifiedCategory Function(Subscription sub)? categoryOf,
 }) {
+  final categoryFor =
+      categoryOf ?? (Subscription s) => UnifiedCategory.fromEnum(s.category);
   final result = <MonthSpend>[];
   for (var i = months - 1; i >= 0; i--) {
     final start = DateTime(now.year, now.month - i, 1);
     final end = DateTime(start.year, start.month + 1, 0);
-    final byCategory = <SubscriptionCategory, double>{};
+    final byCategory = <UnifiedCategory, double>{};
 
     for (final sub in subscriptions) {
       for (final billDate in sub.renewalsInRange(start, end)) {
@@ -83,7 +86,8 @@ List<MonthSpend> computeSpendHistory({
         if (charge.price <= 0) continue;
         // My share of the bill (D2); 1 for unsplit subs.
         final share = shareOf?.call(sub) ?? 1;
-        byCategory[sub.category] = (byCategory[sub.category] ?? 0) +
+        final category = categoryFor(sub);
+        byCategory[category] = (byCategory[category] ?? 0) +
             convert(charge.price * share, charge.currency);
       }
     }

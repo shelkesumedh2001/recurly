@@ -35,6 +35,7 @@ class Subscription extends HiveObject { // For recently deleted feature
     this.priceHistory,
     this.customDays,
     this.cardId,
+    this.customCategoryId,
   });
 
   /// Create from JSON (Firebase)
@@ -80,6 +81,7 @@ class Subscription extends HiveObject { // For recently deleted feature
           .toList(),
       customDays: json['customDays'] as int?,
       cardId: json['cardId'] as String?,
+      customCategoryId: json['customCategoryId'] as String?,
     );
   }
   @HiveField(0)
@@ -159,6 +161,13 @@ class Subscription extends HiveObject { // For recently deleted feature
   /// local-only; on a device without this card id, no card info is shown.
   @HiveField(23)
   String? cardId;
+
+  /// User-made category (CustomCategory.id) this sub is filed under.
+  /// Custom categories are local to the device (and backups); where the id
+  /// doesn't resolve — another device, a partner's copy, an older app —
+  /// [category] is the fallback, which is `other` for custom picks (BUG-17).
+  @HiveField(24)
+  String? customCategoryId;
 
   /// Whether this subscription has any recorded price changes
   bool get hasPriceHistory => priceHistory != null && priceHistory!.isNotEmpty;
@@ -368,6 +377,7 @@ class Subscription extends HiveObject { // For recently deleted feature
       'priceHistory': priceHistory,
       'customDays': customDays,
       'cardId': cardId,
+      'customCategoryId': customCategoryId,
     };
   }
 
@@ -404,6 +414,8 @@ class Subscription extends HiveObject { // For recently deleted feature
     bool clearCustomDays = false,
     String? cardId,
     bool clearCardId = false,
+    String? customCategoryId,
+    bool clearCustomCategoryId = false,
   }) {
     return Subscription(
       id: id ?? this.id,
@@ -432,6 +444,9 @@ class Subscription extends HiveObject { // For recently deleted feature
       priceHistory: clearPriceHistory ? null : (priceHistory ?? this.priceHistory),
       customDays: clearCustomDays ? null : (customDays ?? this.customDays),
       cardId: clearCardId ? null : (cardId ?? this.cardId),
+      customCategoryId: clearCustomCategoryId
+          ? null
+          : (customCategoryId ?? this.customCategoryId),
     );
   }
 

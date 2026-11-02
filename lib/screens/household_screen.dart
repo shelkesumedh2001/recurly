@@ -192,7 +192,7 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                '${household.members.length} members',
+                '${household.members.length} ${household.members.length == 1 ? 'member' : 'members'}',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 ),

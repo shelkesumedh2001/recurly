@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:recurly/models/custom_category.dart';
 import 'package:recurly/models/enums.dart';
 import 'package:recurly/models/subscription.dart';
 import 'package:recurly/providers/analytics_providers.dart';
@@ -34,7 +35,9 @@ Subscription _sub({
 double _identity(double amount, String from) => amount;
 
 List<double> _totals(List<MonthSpend> h, [SubscriptionCategory? c]) =>
-    [for (final m in h) m.amountFor(c)];
+    [for (final m in h) m.amountFor(c == null ? null : _u(c))];
+
+UnifiedCategory _u(SubscriptionCategory c) => UnifiedCategory.fromEnum(c);
 
 void main() {
   group('computeSpendHistory', () {
@@ -134,11 +137,11 @@ void main() {
       );
       final oct = h.last;
       expect(oct.total, 8);
-      expect(oct.amountFor(SubscriptionCategory.entertainment), 5);
-      expect(oct.amountFor(SubscriptionCategory.productivity), 3);
-      expect(oct.amountFor(SubscriptionCategory.health), 0);
+      expect(oct.amountFor(_u(SubscriptionCategory.entertainment)), 5);
+      expect(oct.amountFor(_u(SubscriptionCategory.productivity)), 3);
+      expect(oct.amountFor(_u(SubscriptionCategory.health)), 0);
       // Categories with no bills are absent, not zero.
-      expect(h[10].byCategory.keys, [SubscriptionCategory.entertainment]);
+      expect(h[10].byCategory.keys, [_u(SubscriptionCategory.entertainment)]);
     });
 
     test('converts each bill from its own currency', () {
@@ -161,8 +164,8 @@ void main() {
               year: i < 2 ? 2025 : 2026,
               isCurrentMonth: i == 11,
               byCategory: {
-                SubscriptionCategory.entertainment: 5,
-                if (i.isEven) SubscriptionCategory.productivity: 3,
+                _u(SubscriptionCategory.entertainment): 5,
+                if (i.isEven) _u(SubscriptionCategory.productivity): 3,
               },
             ),
         ];

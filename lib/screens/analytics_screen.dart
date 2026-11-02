@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/analytics_providers.dart';
+import '../providers/category_providers.dart';
 import '../providers/currency_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../services/currency_service.dart';
@@ -228,7 +229,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
             _buildInsightCard(
               theme,
               title: 'Top category',
-              value: topCategory.key.displayName,
+              value: topCategory.key.name,
               subtitle:
                   '${currencyService.formatAmount(topCategory.value, displayCurrency)}/mo',
               icon: Icons.pie_chart_rounded,
@@ -652,6 +653,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
         currencyService: currencyService,
         exchangeRates: exchangeRates,
         shareOf: ref.read(myShareOfProvider),
+        categoryName: (sub) => ref.read(categoryOfProvider)(sub).name,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -692,6 +694,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
         currencyService: currencyService,
         exchangeRates: exchangeRates,
         shareOf: ref.read(myShareOfProvider),
+        categoryName: (sub) => ref.read(categoryOfProvider)(sub).name,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

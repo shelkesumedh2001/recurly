@@ -3,13 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/budget.dart';
-import '../models/enums.dart';
+import '../models/custom_category.dart';
 import '../models/exchange_rate.dart';
 import '../providers/budget_providers.dart';
+import '../providers/category_providers.dart';
 import '../providers/currency_providers.dart';
 import '../utils/adaptive.dart';
 import '../utils/money.dart';
 import '../widgets/budget/budget_progress_bar.dart';
+import '../widgets/category/category_icon.dart';
 
 class BudgetSettingsScreen extends ConsumerStatefulWidget {
   const BudgetSettingsScreen({super.key});
@@ -214,9 +216,11 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
             const SizedBox(height: 16),
 
             // Category list
-            ...SubscriptionCategory.values.map((category) {
-              final spend = categorySpend[category.displayName] ?? 0.0;
-              final categoryBudget = settings.getCategoryBudget(category.displayName);
+            // Built-in and custom categories (BUG-17); budgets are keyed
+            // by name, the same key categorySpendByNameProvider uses.
+            ...ref.watch(allCategoriesProvider).map((category) {
+              final spend = categorySpend[category.name] ?? 0.0;
+              final categoryBudget = settings.getCategoryBudget(category.name);
               final hasSpend = spend > 0;
 
               return _buildCategoryBudgetCard(
@@ -383,7 +387,7 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
 
   Widget _buildCategoryBudgetCard(
     BuildContext context,
-    SubscriptionCategory category,
+    UnifiedCategory category,
     double spend,
     double? budget,
     bool hasSpend,
@@ -403,14 +407,11 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
             borderRadius: BorderRadius.circular(10),
           ),
           child: Center(
-            child: Text(
-              category.icon,
-              style: const TextStyle(fontSize: 18),
-            ),
+            child: CategoryIcon(category, size: 18),
           ),
         ),
         title: Text(
-          category.displayName,
+          category.name,
           style: const TextStyle(fontWeight: FontWeight.w500),
         ),
         subtitle: hasSpend || hasBudget
@@ -430,7 +431,7 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
 
   void _showCategoryBudgetDialog(
     BuildContext context,
-    SubscriptionCategory category,
+    UnifiedCategory category,
     double? currentBudget,
     String currencySymbol,
   ) {
@@ -441,7 +442,7 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('${category.displayName} budget'),
+        title: Text('${category.name} budget'),
         content: TextField(
           controller: controller,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -460,7 +461,7 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
             TextButton(
               onPressed: () {
                 ref.read(budgetSettingsProvider.notifier).setCategoryBudget(
-                      category.displayName,
+                      category.name,
                       null,
                     );
                 Navigator.pop(context);
@@ -478,7 +479,7 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
             onPressed: () {
               final amount = double.tryParse(controller.text.trim());
               ref.read(budgetSettingsProvider.notifier).setCategoryBudget(
-                    category.displayName,
+                    category.name,
                     amount,
                   );
               Navigator.pop(context);

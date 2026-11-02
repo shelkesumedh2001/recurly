@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../models/enums.dart';
+import '../../models/custom_category.dart';
 import '../../providers/analytics_providers.dart';
 import '../../providers/currency_providers.dart';
 import '../../theme/app_tokens.dart';
@@ -30,7 +30,19 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
   );
 
   /// Null = all categories (stacked).
-  SubscriptionCategory? _filter;
+  UnifiedCategory? _filter;
+
+  /// Month whose tooltip is pinned open. Tap a bar to show it; it stays
+  /// until the next tap (same bar or empty space hides, another bar moves
+  /// it). fl_chart's built-in touches only showed it while the finger was
+  /// down, so a quick tap showed nothing (BUG-23, D5).
+  int? _selected;
+
+  void _onTouch(FlTouchEvent event, BarTouchResponse? response) {
+    if (event is! FlTapUpEvent) return;
+    final i = response?.spot?.touchedBarGroupIndex;
+    setState(() => _selected = (i == null || i == _selected) ? null : i);
+  }
 
   @override
   void initState() {
@@ -60,10 +72,14 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
     final displayCurrency = ref.watch(displayCurrencyProvider);
     String money(double v) => currencyService.formatAmount(v, displayCurrency);
 
-    // Categories that billed anything in the window, in fixed enum order.
-    final present = SubscriptionCategory.values
-        .where((c) => history.any((m) => (m.byCategory[c] ?? 0) > 0))
-        .toList();
+    // Categories that billed anything in the window: built-ins in enum
+    // order, then custom categories (BUG-17).
+    final present = {
+      for (final m in history)
+        for (final e in m.byCategory.entries)
+          if (e.value > 0) e.key,
+    }.toList()
+      ..sort((a, b) => a.colorIndex.compareTo(b.colorIndex));
 
     if (history.isEmpty || present.isEmpty) {
       return Padding(
@@ -109,8 +125,8 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
               ),
               for (final c in present)
                 _FilterChip(
-                  label: c.displayName,
-                  dotColor: tokens.chartColor(c.index),
+                  label: c.name,
+                  dotColor: tokens.chartColor(c.colorIndex),
                   selected: filter == c,
                   onTap: () => setState(() => _filter = c),
                 ),
@@ -143,6 +159,8 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
                 alignment: BarChartAlignment.spaceAround,
                 maxY: maxY,
                 barTouchData: BarTouchData(
+                  handleBuiltInTouches: false,
+                  touchCallback: _onTouch,
                   touchTooltipData: BarTouchTooltipData(
                     fitInsideHorizontally: true,
                     fitInsideVertically: true,
@@ -226,6 +244,7 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
                       ),
                       tokens,
                       surface,
+                      selected: i == _selected,
                     ),
                 ],
               ),
@@ -248,13 +267,13 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
                       width: 10,
                       height: 10,
                       decoration: BoxDecoration(
-                        color: tokens.chartColor(c.index),
+                        color: tokens.chartColor(c.colorIndex),
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      c.displayName,
+                      c.name,
                       style: theme.textTheme.labelSmall?.copyWith(color: muted),
                     ),
                   ],
@@ -269,20 +288,23 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
   BarChartGroupData _group(
     int x,
     MonthSpend month,
-    SubscriptionCategory? filter,
+    UnifiedCategory? filter,
     bool stacked,
-    List<SubscriptionCategory> present,
+    List<UnifiedCategory> present,
     double grow,
     AppTokens tokens,
-    Color surface,
-  ) {
+    Color surface, {
+    bool selected = false,
+  }) {
     const radius = BorderRadius.vertical(top: Radius.circular(4));
+    final tooltip = selected ? const [0] : const <int>[];
     final total = month.amountFor(filter);
 
     if (!stacked) {
-      final color = tokens.chartColor((filter ?? present.single).index);
+      final color = tokens.chartColor((filter ?? present.single).colorIndex);
       return BarChartGroupData(
         x: x,
+        showingTooltipIndicators: tooltip,
         barRods: [
           BarChartRodData(
             toY: total * grow,
@@ -305,7 +327,7 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
         BarChartRodStackItem(
           from,
           from + v,
-          tokens.chartColor(c.index),
+          tokens.chartColor(c.colorIndex),
           BorderSide(color: surface),
         ),
       );
@@ -313,6 +335,7 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
     }
     return BarChartGroupData(
       x: x,
+      showingTooltipIndicators: tooltip,
       barRods: [
         BarChartRodData(
           toY: from,
@@ -328,7 +351,7 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
   BarTooltipItem _tooltip(
     ThemeData theme,
     MonthSpend month,
-    SubscriptionCategory? filter,
+    UnifiedCategory? filter,
     bool stacked,
     String Function(double) money,
   ) {
@@ -351,7 +374,7 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
     final breakdown = stacked
         ? (month.byCategory.entries.toList()
               ..sort((a, b) => b.value.compareTo(a.value)))
-        : const <MapEntry<SubscriptionCategory, double>>[];
+        : const <MapEntry<UnifiedCategory, double>>[];
 
     return BarTooltipItem(
       head,
@@ -361,7 +384,7 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
         TextSpan(text: money(month.amountFor(filter)), style: valueStyle),
         for (final e in breakdown)
           TextSpan(
-            text: '\n${e.key.displayName}  ${money(e.value)}',
+            text: '\n${e.key.name}  ${money(e.value)}',
             style: lineStyle,
           ),
       ],

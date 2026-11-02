@@ -576,7 +576,7 @@ class SettingsScreen extends ConsumerWidget {
       icon: Icons.people_outline,
       title: 'Household',
       subtitle: household != null
-          ? '${household.name} (${household.members.length} members)'
+          ? '${household.name} (${household.members.length} ${household.members.length == 1 ? 'member' : 'members'})'
           : 'Create or join a household',
       onTap: () {
         Navigator.push(

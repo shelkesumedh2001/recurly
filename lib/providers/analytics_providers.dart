@@ -1,6 +1,7 @@
 import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/enums.dart';
+
+import '../models/custom_category.dart';
 import '../models/exchange_rate.dart';
 import '../models/subscription.dart';
 import '../services/currency_service.dart';
@@ -9,24 +10,27 @@ import '../utils/money.dart';
 import '../utils/spend_history.dart';
 import '../utils/split_copies.dart';
 import 'auth_providers.dart';
+import 'category_providers.dart';
 import 'currency_providers.dart';
 import 'household_providers.dart';
 import 'subscription_providers.dart';
 
 /// Provider for spending by category (converted to display currency so
 /// mixed-currency subscriptions aggregate correctly).
-final categorySpendProvider = Provider<Map<SubscriptionCategory, double>>((ref) {
+/// Keyed by the category each sub is filed under, custom ones included.
+final categorySpendProvider = Provider<Map<UnifiedCategory, double>>((ref) {
   final subscriptionsAsync = ref.watch(subscriptionProvider);
   final monthlyCost = ref.watch(myMonthlyCostProvider);
+  final categoryOf = ref.watch(categoryOfProvider);
 
   return subscriptionsAsync.when(
     data: (subscriptions) {
-      final Map<SubscriptionCategory, double> spendByCategory = {};
+      final Map<UnifiedCategory, double> spendByCategory = {};
 
       for (final sub in subscriptions) {
         final converted = monthlyCost(sub);
-        final current = spendByCategory[sub.category] ?? 0.0;
-        spendByCategory[sub.category] = current + converted;
+        final category = categoryOf(sub);
+        spendByCategory[category] = (spendByCategory[category] ?? 0) + converted;
       }
 
       return spendByCategory.map((k, v) => MapEntry(k, roundMoney(v)));
@@ -64,7 +68,7 @@ final yearlyProjectedSpendProvider = Provider<double>((ref) {
 });
 
 /// Provider for category with highest spend
-final topCategoryProvider = Provider<MapEntry<SubscriptionCategory, double>?>((ref) {
+final topCategoryProvider = Provider<MapEntry<UnifiedCategory, double>?>((ref) {
   final spendByCategory = ref.watch(categorySpendProvider);
   
   if (spendByCategory.isEmpty) return null;
@@ -198,6 +202,7 @@ final spendHistoryProvider = Provider<List<MonthSpend>>((ref) {
       subscriptions: subscriptions,
       now: clock.now(),
       shareOf: shareOf,
+      categoryOf: ref.watch(categoryOfProvider),
       convert: (amount, from) => currencyService.convert(
         amount: amount,
         from: from,

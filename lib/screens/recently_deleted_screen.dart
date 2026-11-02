@@ -5,12 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/subscription.dart';
 import '../providers/auth_providers.dart';
+import '../providers/category_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../providers/sync_providers.dart';
 import '../services/database_service.dart';
 import '../services/sync_service.dart';
 import '../utils/adaptive.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/category/category_icon.dart';
 import '../widgets/common/app_empty_state.dart';
 
 class RecentlyDeletedScreen extends ConsumerStatefulWidget {
@@ -237,9 +239,8 @@ class _DeletedCard extends ConsumerWidget {
                     child: Center(
                       child: Opacity(
                         opacity: 0.5,
-                        child: Text(
-                          subscription.category.icon,
-                          style: const TextStyle(fontSize: 24),
+                        child: CategoryIcon(
+                          ref.watch(categoryOfProvider)(subscription),
                         ),
                       ),
                     ),
