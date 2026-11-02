@@ -2,11 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../models/exchange_rate.dart';
+import '../models/subscription.dart';
 import '../services/currency_service.dart';
 import '../services/database_service.dart';
 import '../services/preferences_service.dart';
 import '../utils/money.dart';
+import '../utils/split_copies.dart';
+import 'auth_providers.dart';
 import 'subscription_providers.dart';
 
 /// Currency service singleton provider
@@ -143,22 +147,41 @@ final conversionUnavailableProvider = Provider<bool>((ref) {
   );
 });
 
-/// Convert total monthly spend to display currency
-final convertedTotalSpendProvider = Provider<double>((ref) {
-  final subscriptions = ref.watch(subscriptionProvider).value ?? [];
+/// The fraction of a sub I pay (1 unless it's split — see
+/// [myShareFraction]), for the signed-in user.
+final myShareOfProvider = Provider<double Function(Subscription)>((ref) {
+  final uid = ref.watch(currentFirebaseUserProvider)?.uid;
+  return (sub) => myShareFraction(sub, uid);
+});
+
+/// What I pay per month for [Subscription], in the display currency.
+///
+/// D2 (BUG-12): every personal total — Analytics, budgets, home widget,
+/// export — counts my share of a split sub, the same rule as Home
+/// "My share", for owner and partner alike. Only the household views
+/// count full prices.
+final myMonthlyCostProvider = Provider<double Function(Subscription)>((ref) {
   final displayCurrency = ref.watch(displayCurrencyProvider);
   final rates = ref.watch(exchangeRatesProvider).value;
-  final service = ref.read(currencyServiceProvider);
-
-  double total = 0;
-  for (final sub in subscriptions) {
-    if (!sub.isArchived && sub.deletedAt == null) {
-      total += service.convert(
-        amount: sub.monthlyEquivalent,
+  final service = ref.watch(currencyServiceProvider);
+  final shareOf = ref.watch(myShareOfProvider);
+  return (sub) => service.convert(
+        amount: sub.monthlyEquivalent * shareOf(sub),
         from: sub.currency,
         to: displayCurrency,
         rates: rates,
       );
+});
+
+/// What I pay per month in total, in the display currency.
+final convertedTotalSpendProvider = Provider<double>((ref) {
+  final subscriptions = ref.watch(subscriptionProvider).value ?? [];
+  final monthlyCost = ref.watch(myMonthlyCostProvider);
+
+  double total = 0;
+  for (final sub in subscriptions) {
+    if (!sub.isArchived && sub.deletedAt == null) {
+      total += monthlyCost(sub);
     }
   }
 

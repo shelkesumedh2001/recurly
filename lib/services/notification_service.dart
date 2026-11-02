@@ -106,6 +106,17 @@ class NotificationService {
     // stopped getting them (rescheduling only happens at app launch).
     var billDate = subscription.nextBillDate;
     for (var occurrence = 0; occurrence < lookAheadCycles; occurrence++) {
+      // The trial-end bill already gets "trial ends — cancel before…"
+      // reminders; a second "renews" one for the same charge contradicts
+      // it (BUG-20). Only skipped when those trial reminders exist.
+      if (isCoveredByTrialReminder(subscription, preferences, billDate)) {
+        billDate = addOneCycle(
+          subscription.billingCycle,
+          billDate,
+          customDays: subscription.customDays,
+        );
+        continue;
+      }
       await _scheduleRenewalReminders(
         subscription,
         preferences,
@@ -123,6 +134,23 @@ class NotificationService {
     await _scheduleTrialReminders(subscription, preferences);
   }
 
+  @visibleForTesting
+  static bool isCoveredByTrialReminder(
+    Subscription subscription,
+    AppPreferences preferences,
+    DateTime billDate,
+  ) {
+    final end = subscription.trialEndDate;
+    if (!subscription.isFreeTrial || end == null) return false;
+    final anyTrialReminder = preferences.trialReminder7DaysEnabled ||
+        preferences.trialReminder3DaysEnabled ||
+        preferences.trialReminder1DayEnabled;
+    return anyTrialReminder &&
+        billDate.year == end.year &&
+        billDate.month == end.month &&
+        billDate.day == end.day;
+  }
+
   /// How many future billing cycles get reminders scheduled up front.
   static const int lookAheadCycles = 3;
 
@@ -136,6 +164,9 @@ class NotificationService {
     // "· Paid with <card>" when the sub is assigned to a tracked card, so
     // the reminder says which card is about to be charged.
     final cardSuffix = _cardSuffix(subscription);
+    // What this bill charges: for a trial every bill from trial end is at
+    // the post-trial price, never the trial price (BUG-20).
+    final amount = subscription.formatAmount(subscription.chargePerRenewal);
     final billText = DateFormat.yMMMd().format(billDate);
 
     debugPrint(
@@ -152,15 +183,15 @@ class NotificationService {
       final (title, body) = switch (daysBefore) {
         0 => (
             '${subscription.name} renews today',
-            'Your ${subscription.formattedPrice} subscription is renewing today$cardSuffix',
+            'Your $amount subscription is renewing today$cardSuffix',
           ),
         1 => (
             '${subscription.name} renews tomorrow',
-            'Your ${subscription.formattedPrice} subscription will renew on $billText$cardSuffix',
+            'Your $amount subscription will renew on $billText$cardSuffix',
           ),
         _ => (
             '${subscription.name} renews in $daysBefore days',
-            'Your ${subscription.formattedPrice} subscription will renew on $billText$cardSuffix',
+            'Your $amount subscription will renew on $billText$cardSuffix',
           ),
       };
       await _scheduleNotification(
@@ -188,7 +219,7 @@ class NotificationService {
     final trialEnd = subscription.trialEndDate!;
     final priceAfter = subscription.priceAfterTrial;
     final amountText = priceAfter != null
-        ? '${subscription.currencySymbol}${priceAfter.toStringAsFixed(2)}'
+        ? subscription.formatAmount(priceAfter)
         : 'the recurring price';
 
     final reminders = <int>[

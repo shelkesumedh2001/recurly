@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/navigation_providers.dart';
 import '../services/notification_service.dart';
+import '../utils/adaptive.dart';
 import 'analytics_screen.dart';
 import 'credit_cards_screen.dart';
 import 'home_screen.dart';
@@ -72,24 +73,71 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
     }
   }
 
+  static const _destinations = [
+    (
+      icon: Icons.home_outlined,
+      selected: Icons.home_rounded,
+      label: 'Home',
+    ),
+    (
+      icon: Icons.pie_chart_outline_rounded,
+      selected: Icons.pie_chart_rounded,
+      label: 'Analytics',
+    ),
+    (
+      icon: Icons.settings_outlined,
+      selected: Icons.settings_rounded,
+      label: 'Settings',
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final divider = theme.colorScheme.outline.withValues(alpha: 0.1);
+
+    // IndexedStack keeps every tab alive: switching is instant and
+    // scroll position / search state survive the round trip.
+    final body = IndexedStack(
+      index: _selectedIndex,
+      children: _screens,
+    );
+
+    // Wide windows (unfolded foldables, landscape, tablets): a side rail,
+    // so the bottom bar doesn't stretch across the screen and the content
+    // keeps its full height. Styled by the theme's navigationRailTheme.
+    if (windowClassOf(context) != WindowClass.compact) {
+      return Scaffold(
+        backgroundColor: theme.colorScheme.surface,
+        body: Row(
+          children: [
+            NavigationRail(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: _onItemTapped,
+              labelType: NavigationRailLabelType.all,
+              groupAlignment: -0.85,
+              destinations: [
+                for (final d in _destinations)
+                  NavigationRailDestination(
+                    icon: Icon(d.icon),
+                    selectedIcon: Icon(d.selected),
+                    label: Text(d.label),
+                  ),
+              ],
+            ),
+            VerticalDivider(width: 1, thickness: 1, color: divider),
+            Expanded(child: body),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
-      // IndexedStack keeps every tab alive: switching is instant and
-      // scroll position / search state survive the round trip.
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _screens,
-      ),
+      body: body,
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           border: Border(
-            top: BorderSide(
-              color: theme.colorScheme.outline.withValues(alpha: 0.1),
-              width: 1,
-            ),
+            top: BorderSide(color: divider, width: 1),
           ),
         ),
         child: NavigationBar(
@@ -101,22 +149,13 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
           // Icon/label colors come from the theme's navigationBarTheme so
           // every preset styles the bar consistently.
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home_rounded),
-              label: 'Home',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.pie_chart_outline_rounded),
-              selectedIcon: Icon(Icons.pie_chart_rounded),
-              label: 'Analytics',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.settings_outlined),
-              selectedIcon: Icon(Icons.settings_rounded),
-              label: 'Settings',
-            ),
+          destinations: [
+            for (final d in _destinations)
+              NavigationDestination(
+                icon: Icon(d.icon),
+                selectedIcon: Icon(d.selected),
+                label: d.label,
+              ),
           ],
         ),
       ),

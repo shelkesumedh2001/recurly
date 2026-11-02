@@ -7,6 +7,7 @@ import '../models/split_proposal.dart';
 import '../providers/auth_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../services/split_service.dart';
+import '../utils/money.dart';
 
 class SplitProposalCard extends ConsumerStatefulWidget {
   const SplitProposalCard({
@@ -73,13 +74,13 @@ class _SplitProposalCardState extends ConsumerState<SplitProposalCard> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Total: ${p.currencySymbol}${p.totalPrice.toStringAsFixed(2)}',
+                'Total: ${formatMoney(p.totalPrice, p.currencySymbol)}',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
               ),
               Text(
-                'Your share: ${p.currencySymbol}${p.partnerShareAmount.toStringAsFixed(2)} (${p.partnerSharePercent.round()}%)',
+                'Your share: ${formatMoney(p.partnerShareAmount, p.currencySymbol)} (${p.partnerSharePercent.round()}%)',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: theme.colorScheme.primary,

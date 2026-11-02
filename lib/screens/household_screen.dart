@@ -1,13 +1,12 @@
-import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/auth_providers.dart';
 import '../providers/household_providers.dart';
 import '../providers/preferences_providers.dart';
-import '../services/database_service.dart';
 import '../services/household_service.dart';
 import '../services/sync_service.dart';
+import '../utils/adaptive.dart';
 import '../widgets/invite_code_card.dart';
 import 'join_household_screen.dart';
 
@@ -35,15 +34,17 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
         backgroundColor: theme.colorScheme.surface,
         elevation: 0,
       ),
-      body: householdAsync.when(
-        data: (household) {
-          if (household == null) {
-            return _buildNoHousehold(context, isPro);
-          }
-          return _buildHouseholdView(context, household, isCreator);
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+      body: ReadableWidth(
+        child: householdAsync.when(
+          data: (household) {
+            if (household == null) {
+              return _buildNoHousehold(context, isPro);
+            }
+            return _buildHouseholdView(context, household, isCreator);
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
+        ),
       ),
     );
   }
@@ -191,7 +192,7 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                '${household.members.length} members',
+                '${household.members.length} ${household.members.length == 1 ? 'member' : 'members'}',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
@@ -553,22 +554,14 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
     );
   }
 
-  /// Clear splitWith from all local Hive subscriptions
+  /// Drop my split copies and clear splitWith on my subs (archived ones
+  /// too), then reload the list — the old version wrote Hive but never
+  /// refreshed the provider, so stale splits stayed on screen and in the
+  /// totals until a restart (BUG-10).
   Future<void> _clearLocalSplitData() async {
-    final user = ref.read(currentFirebaseUserProvider);
-    final uid = user?.uid;
-    final db = DatabaseService();
-    final subs = db.getActiveSubscriptions();
-    for (final sub in subs) {
-      if (uid != null && sub.ownerUid != null && sub.ownerUid != uid) {
-        // Reference sub from a split — delete it entirely
-        await db.deleteSubscription(sub.id);
-      } else if (sub.splitWith != null && sub.splitWith!.isNotEmpty) {
-        await db.updateSubscription(
-          sub.copyWith(clearSplitWith: true, updatedAt: clock.now()),
-        );
-      }
-    }
+    final uid = ref.read(currentFirebaseUserProvider)?.uid;
+    if (uid == null) return;
+    await SyncService().syncSplits(uid, partnerUid: null);
   }
 
   void _confirmLeave(BuildContext context) {

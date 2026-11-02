@@ -83,8 +83,9 @@ class CustomCategoryService {
     }
 
     // Add custom categories
-    for (final custom in getAllCustomCategories()) {
-      unified.add(UnifiedCategory.fromCustom(custom));
+    final customs = getAllCustomCategories();
+    for (var i = 0; i < customs.length; i++) {
+      unified.add(UnifiedCategory.fromCustom(customs[i], order: i));
     }
 
     return unified;
@@ -95,7 +96,8 @@ class CustomCategoryService {
     if (isCustom) {
       final custom = getCategoryById(id);
       if (custom != null) {
-        return UnifiedCategory.fromCustom(custom);
+        final order = getAllCustomCategories().indexWhere((c) => c.id == id);
+        return UnifiedCategory.fromCustom(custom, order: order < 0 ? 0 : order);
       }
     } else {
       // Try to match enum category

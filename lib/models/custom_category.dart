@@ -76,13 +76,18 @@ class CustomCategory extends HiveObject {
 }
 
 /// Unified category representation (combines enum + custom categories)
+/// A category as the user sees it — built-in or their own. Used to file,
+/// group, colour and label subscriptions (BUG-17).
 class UnifiedCategory {
   const UnifiedCategory({
     required this.id,
     required this.name,
     required this.icon,
     required this.isCustom,
+    this.isEmoji = true,
     this.colorHex,
+    this.colorIndex = 0,
+    this.builtIn,
   });
 
   /// Create from a built-in enum category
@@ -92,25 +97,40 @@ class UnifiedCategory {
       name: enumCategory.displayName,
       icon: enumCategory.icon,
       isCustom: false,
+      colorIndex: enumCategory.index,
+      builtIn: enumCategory,
     );
   }
 
-  /// Create from a custom category
-  factory UnifiedCategory.fromCustom(CustomCategory custom) {
+  /// Create from a custom category. [order] is its position among the
+  /// custom categories; colours continue after the built-ins'.
+  factory UnifiedCategory.fromCustom(CustomCategory custom, {int order = 0}) {
     return UnifiedCategory(
       id: custom.id,
       name: custom.name,
       icon: custom.icon,
       isCustom: true,
+      isEmoji: custom.isEmoji,
       colorHex: custom.colorHex,
+      colorIndex: SubscriptionCategory.values.length + order,
     );
   }
 
   final String id;
   final String name;
+
+  /// Emoji, or a Material icon code point as a string when ![isEmoji].
   final String icon;
   final bool isCustom;
+  final bool isEmoji;
   final String? colorHex;
+
+  /// Index into the theme's chart palette: the enum index for built-ins,
+  /// after them for custom categories. Stable across screens.
+  final int colorIndex;
+
+  /// The built-in category, or null for a custom one.
+  final SubscriptionCategory? builtIn;
 
   @override
   bool operator ==(Object other) =>

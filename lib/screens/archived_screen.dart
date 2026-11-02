@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/subscription.dart';
+import '../providers/category_providers.dart';
 import '../providers/subscription_providers.dart';
+import '../utils/adaptive.dart';
+import '../widgets/category/category_icon.dart';
 import '../widgets/common/app_empty_state.dart';
 
 class ArchivedScreen extends ConsumerWidget {
@@ -28,34 +31,36 @@ class ArchivedScreen extends ConsumerWidget {
           ),
         ),
       ),
-      body: archivedSubscriptions.isEmpty
-          ? const AppEmptyState(
-              icon: Icons.archive_outlined,
-              title: 'No archived subscriptions',
-              message:
-                  'Archiving pauses a subscription without deleting its '
-                  'history. Archive one from its details sheet and it '
-                  'lands here.',
-            )
-          : CustomScrollView(
-              slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.all(20),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final subscription = archivedSubscriptions[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _ArchivedCard(subscription: subscription),
-                        );
-                      },
-                      childCount: archivedSubscriptions.length,
+      body: ReadableWidth(
+        child: archivedSubscriptions.isEmpty
+            ? const AppEmptyState(
+                icon: Icons.archive_outlined,
+                title: 'No archived subscriptions',
+                message:
+                    'Archiving pauses a subscription without deleting its '
+                    'history. Archive one from its details sheet and it '
+                    'lands here.',
+              )
+            : CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.all(20),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final subscription = archivedSubscriptions[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _ArchivedCard(subscription: subscription),
+                          );
+                        },
+                        childCount: archivedSubscriptions.length,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+      ),
     );
   }
 
@@ -142,10 +147,7 @@ class _ArchivedCard extends ConsumerWidget {
                   color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                 ),
                 child: Center(
-                  child: Text(
-                    subscription.category.icon,
-                    style: const TextStyle(fontSize: 24),
-                  ),
+                  child: CategoryIcon(ref.watch(categoryOfProvider)(subscription)),
                 ),
               ),
 

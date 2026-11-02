@@ -2,6 +2,7 @@ import 'package:clock/clock.dart';
 import 'package:hive/hive.dart';
 
 import '../utils/card_dates.dart';
+import '../utils/card_dates.dart' as card_dates show dueDateForCharge;
 
 part 'credit_card.g.dart';
 
@@ -63,6 +64,15 @@ class CreditCardInfo extends HiveObject {
   /// actually paid on this date.
   DateTime get currentStatementDueDate =>
       nextOccurrenceOfDay(dueDay, nextCutoffDate);
+
+  /// When a charge on [charge] gets paid — the due date of the statement
+  /// that charge lands on, which isn't [nextDueDate] when the charge falls
+  /// after the current cutoff (BUG-18).
+  DateTime dueDateForCharge(DateTime charge) => card_dates.dueDateForCharge(
+        cutoffDay: cutoffDay,
+        dueDay: dueDay,
+        charge: charge,
+      );
 
   /// True if [date] falls in the currently accumulating statement window:
   /// after the previous cutoff, up to and including the next cutoff.

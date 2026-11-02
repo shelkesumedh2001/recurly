@@ -1,9 +1,12 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
+
 import '../models/exchange_rate.dart';
 import '../utils/constants.dart';
+import '../utils/money.dart';
 
 /// Service for currency conversion and exchange rate management
 class CurrencyService {
@@ -145,34 +148,10 @@ class CurrencyService {
     return amount / fromRate * toRate;
   }
 
-  /// Format amount with currency symbol
+  /// Format amount with currency symbol (see [formatMoney]).
   String formatAmount(double amount, String currencyCode) {
-    final info = CurrencyInfo.getByCode(currencyCode);
-    final symbol = info?.symbol ?? currencyCode;
-
-    // Format with appropriate decimal places
-    String formatted;
-    if (currencyCode == 'JPY' || currencyCode == 'KRW') {
-      // No decimal places for these currencies
-      formatted = amount.round().toString();
-    } else {
-      formatted = amount.toStringAsFixed(2);
-    }
-
-    // Add thousand separators
-    final parts = formatted.split('.');
-    final intPart = parts[0].replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (match) => '${match[1]},',
-    );
-
-    if (parts.length > 1) {
-      formatted = '$intPart.${parts[1]}';
-    } else {
-      formatted = intPart;
-    }
-
-    return '$symbol$formatted';
+    final symbol = CurrencyInfo.getByCode(currencyCode)?.symbol ?? currencyCode;
+    return formatMoney(amount, symbol, currencyCode: currencyCode);
   }
 
   /// Get the last update time

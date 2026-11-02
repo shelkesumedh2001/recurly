@@ -117,15 +117,19 @@ void main() {
     });
 
     test('newer remote soft-delete propagates to local', () async {
+      // Relative to now: a fixed date ages past the 30-day purge window and
+      // the sub gets purged instead of soft-deleted (this test went red on
+      // its own in Oct 2026 that way).
+      final now = DateTime.now();
       await subsBox.put(
         's1',
-        sub('s1', updatedAt: DateTime(2026, 7, 1)),
+        sub('s1', updatedAt: now.subtract(const Duration(days: 2))),
       );
       await remoteSubs().doc('s1').set(
             sub(
               's1',
-              updatedAt: DateTime(2026, 7, 2),
-              deletedAt: DateTime(2026, 7, 2),
+              updatedAt: now.subtract(const Duration(days: 1)),
+              deletedAt: now.subtract(const Duration(days: 1)),
             ).toJson(),
           );
 

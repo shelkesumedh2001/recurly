@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
+import '../models/custom_category.dart';
 import '../models/enums.dart';
 import '../models/exchange_rate.dart';
 import '../models/subscription.dart';
@@ -21,6 +22,7 @@ import '../utils/billing_cycle.dart';
 import '../utils/card_dates.dart';
 import '../utils/constants.dart';
 import 'app_toast.dart';
+import 'category/category_icon.dart';
 
 class AddSubscriptionSheet extends ConsumerStatefulWidget { // Null for add, populated for edit
 
@@ -40,7 +42,13 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   final _priceController = TextEditingController();
 
   BillingCycle _selectedBillingCycle = BillingCycle.monthly;
-  SubscriptionCategory _selectedCategory = SubscriptionCategory.entertainment;
+  /// Built-in or custom (BUG-17). Saved as [Subscription.category] (the
+  /// built-in, `other` for custom ones) + [Subscription.customCategoryId].
+  UnifiedCategory _selectedCategory =
+      UnifiedCategory.fromEnum(SubscriptionCategory.entertainment);
+
+  /// What the edited sub was filed under when the sheet opened.
+  UnifiedCategory? _initialCategory;
   /// The NEXT bill date, which is what users actually know ("it bills on
   /// the 22nd"). Deliberately null until they say so: this used to default
   /// to today and be silently accepted, which made `nextBillDate` land one
@@ -93,7 +101,8 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       _nameController.text = sub.name;
       _priceController.text = sub.price.toString();
       _selectedBillingCycle = sub.billingCycle;
-      _selectedCategory = sub.category;
+      _selectedCategory = ref.read(categoryOfProvider)(sub);
+      _initialCategory = _selectedCategory;
       // Show what the field now means — the next bill, derived from the
       // stored anchor — rather than the anchor itself.
       _initialNextBillDate = sub.nextBillDate;
@@ -378,20 +387,21 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                 const SizedBox(height: AppConstants.spacing16),
 
                 // Category
-                DropdownButtonFormField<SubscriptionCategory>(
+                DropdownButtonFormField<UnifiedCategory>(
                   initialValue: _selectedCategory,
                   decoration: const InputDecoration(
                     labelText: 'Category',
                     prefixIcon: Icon(Icons.category_outlined),
                   ),
-                  items: ref.watch(categoriesByUsageProvider).map((category) {
+                  // Built-ins by usage, then the user's own categories.
+                  items: _categoryChoices().map((category) {
                     return DropdownMenuItem(
                       value: category,
                       child: Row(
                         children: [
-                          Text(category.icon),
+                          CategoryIcon(category, size: 16),
                           const SizedBox(width: 8),
-                          Text(category.displayName),
+                          Text(category.name),
                         ],
                       ),
                     );
@@ -770,7 +780,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           currency: _selectedCurrency,
           billingCycle: _selectedBillingCycle,
           firstBillDate: anchorDate,
-          category: _selectedCategory,
+          category: _selectedCategory.builtIn ?? SubscriptionCategory.other,
           logoUrl: _logoUrl,
           color: _templateColor,
           isFreeTrial: _isFreeTrial,
@@ -783,6 +793,12 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           clearCustomDays: _selectedBillingCycle != BillingCycle.custom,
           cardId: _selectedCardId,
           clearCardId: _selectedCardId == null,
+          customCategoryId:
+              _selectedCategory.isCustom ? _selectedCategory.id : null,
+          // An unchanged pick keeps a custom id this device can't resolve
+          // (category made on another device) instead of wiping it.
+          clearCustomCategoryId: !_selectedCategory.isCustom &&
+              _selectedCategory != _initialCategory,
         );
       } else {
         subscription = Subscription(
@@ -792,7 +808,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           currency: _selectedCurrency!,
           billingCycle: _selectedBillingCycle,
           firstBillDate: anchorDate,
-          category: _selectedCategory,
+          category: _selectedCategory.builtIn ?? SubscriptionCategory.other,
           logoUrl: _logoUrl,
           color: _templateColor,
           createdAt: clock.now(),
@@ -801,6 +817,8 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           priceAfterTrial: priceAfterTrial,
           customDays: customDays,
           cardId: _selectedCardId,
+          customCategoryId:
+              _selectedCategory.isCustom ? _selectedCategory.id : null,
         );
       }
 
@@ -1104,6 +1122,18 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     );
   }
 
+  /// Built-in categories (most used first), then custom ones — always
+  /// including the current pick so the dropdown has its value.
+  List<UnifiedCategory> _categoryChoices() {
+    final custom = ref.watch(allCategoriesProvider).where((c) => c.isCustom);
+    final choices = [
+      ...ref.watch(categoriesByUsageProvider).map(UnifiedCategory.fromEnum),
+      ...custom,
+    ];
+    if (!choices.contains(_selectedCategory)) choices.add(_selectedCategory);
+    return choices;
+  }
+
   /// Fill the form from a tapped template. Applied directly (not via a
   /// provider) so re-picking the same service after dismissing the sheet
   /// still works.
@@ -1111,7 +1141,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     HapticFeedback.selectionClick();
     setState(() {
       _nameController.text = template.name;
-      _selectedCategory = template.category;
+      _selectedCategory = UnifiedCategory.fromEnum(template.category);
       _selectedBillingCycle = template.defaultBillingCycle;
       // Don't pre-fill price - let user enter their plan price
       _priceController.clear();

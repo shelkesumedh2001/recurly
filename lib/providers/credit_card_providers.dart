@@ -143,7 +143,7 @@ final cardStatementTotalProvider =
   double total = 0;
   for (final sub in subs) {
     total += service.convert(
-      amount: sub.price,
+      amount: sub.chargePerRenewal,
       from: sub.currency,
       to: displayCurrency,
       rates: rates,

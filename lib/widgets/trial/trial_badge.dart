@@ -195,7 +195,7 @@ class TrialExpiryCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '\$${subscription.priceAfterTrial!.toStringAsFixed(2)}',
+                        subscription.formatAmount(subscription.priceAfterTrial!),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 18,

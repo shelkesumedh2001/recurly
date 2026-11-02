@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/theme_providers.dart';
 import '../services/theme_service.dart';
+import '../utils/adaptive.dart';
 import '../widgets/theme/color_picker_sheet.dart';
 import '../widgets/theme/theme_preview_card.dart';
 
@@ -24,181 +25,183 @@ class ThemeSettingsScreen extends ConsumerWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        children: [
-          // Section: Theme Presets
-          Text(
-            'Choose Theme',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
+      body: ReadableWidth(
+        child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          children: [
+            // Section: Theme Presets
+            Text(
+              'Choose Theme',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Select a theme that suits your style',
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: 16),
-
-          // Theme grid
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.3,
+            const SizedBox(height: 4),
+            Text(
+              'Select a theme that suits your style',
+              style: theme.textTheme.bodySmall,
             ),
-            itemCount: allPresets.length,
-            itemBuilder: (context, index) {
-              final preset = allPresets[index];
-              final isSelected = preferences.themePresetId == preset.id;
+            const SizedBox(height: 16),
 
-              return ThemePreviewCard(
-                preset: preset,
-                isSelected: isSelected,
-                onTap: () {
-                  ref.read(themePreferencesProvider.notifier).setThemePreset(preset.id);
-                },
-                customAccentColor: isSelected ? ThemeService().parseHexColor(preferences.customAccentColorHex) : null,
-              );
-            },
-          ),
+            // Theme grid
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1.3,
+              ),
+              itemCount: allPresets.length,
+              itemBuilder: (context, index) {
+                final preset = allPresets[index];
+                final isSelected = preferences.themePresetId == preset.id;
 
-          const SizedBox(height: 32),
-
-          // Section: Accent Color
-          Text(
-            'Accent Color',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
+                return ThemePreviewCard(
+                  preset: preset,
+                  isSelected: isSelected,
+                  onTap: () {
+                    ref.read(themePreferencesProvider.notifier).setThemePreset(preset.id);
+                  },
+                  customAccentColor: isSelected ? ThemeService().parseHexColor(preferences.customAccentColorHex) : null,
+                );
+              },
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Customize the highlight color for buttons and interactive elements',
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: 16),
 
-          // Current accent color card
-          Card(
-            margin: EdgeInsets.zero,
-            child: InkWell(
-              onTap: () => _showColorPicker(context, ref),
-              borderRadius: BorderRadius.circular(20),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    // Color preview circle
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: effectiveAccent,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: effectiveAccent.withValues(alpha: 0.4),
-                            blurRadius: 8,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            preferences.customAccentColorHex != null
-                                ? 'Custom Color'
-                                : 'Theme Default',
-                            style: theme.textTheme.titleSmall,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _getColorHex(effectiveAccent),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              fontFamily: 'monospace',
+            const SizedBox(height: 32),
+
+            // Section: Accent Color
+            Text(
+              'Accent Color',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Customize the highlight color for buttons and interactive elements',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+
+            // Current accent color card
+            Card(
+              margin: EdgeInsets.zero,
+              child: InkWell(
+                onTap: () => _showColorPicker(context, ref),
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      // Color preview circle
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: effectiveAccent,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: effectiveAccent.withValues(alpha: 0.4),
+                              blurRadius: 8,
+                              spreadRadius: 1,
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    Icon(
-                      Icons.chevron_right,
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                    ),
-                  ],
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              preferences.customAccentColorHex != null
+                                  ? 'Custom Color'
+                                  : 'Theme Default',
+                              style: theme.textTheme.titleSmall,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _getColorHex(effectiveAccent),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right,
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          if (preferences.customAccentColorHex != null) ...[
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () {
-                  ref.read(themePreferencesProvider.notifier).setCustomAccentColor(null);
+            if (preferences.customAccentColorHex != null) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () {
+                    ref.read(themePreferencesProvider.notifier).setCustomAccentColor(null);
+                  },
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Reset to theme default'),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 32),
+
+            // Section: Card Style
+            Text(
+              'Card Style',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Choose how cards look throughout the app',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+
+            // Gradient cards toggle
+            Card(
+              margin: EdgeInsets.zero,
+              child: SwitchListTile(
+                title: const Text('Gradient hero cards'),
+                subtitle: const Text('Use gradient backgrounds on summary cards'),
+                value: preferences.useGradientCards,
+                onChanged: (value) {
+                  ref.read(themePreferencesProvider.notifier).toggleGradientCards(value);
                 },
-                icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('Reset to theme default'),
               ),
             ),
+
+            const SizedBox(height: 32),
+
+            // Section: Reset
+            Center(
+              child: TextButton.icon(
+                onPressed: () => _showResetDialog(context, ref),
+                icon: const Icon(Icons.restore),
+                label: const Text('Reset to Defaults'),
+                style: TextButton.styleFrom(
+                  foregroundColor: theme.colorScheme.error,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 32),
           ],
-
-          const SizedBox(height: 32),
-
-          // Section: Card Style
-          Text(
-            'Card Style',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Choose how cards look throughout the app',
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: 16),
-
-          // Gradient cards toggle
-          Card(
-            margin: EdgeInsets.zero,
-            child: SwitchListTile(
-              title: const Text('Gradient hero cards'),
-              subtitle: const Text('Use gradient backgrounds on summary cards'),
-              value: preferences.useGradientCards,
-              onChanged: (value) {
-                ref.read(themePreferencesProvider.notifier).toggleGradientCards(value);
-              },
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          // Section: Reset
-          Center(
-            child: TextButton.icon(
-              onPressed: () => _showResetDialog(context, ref),
-              icon: const Icon(Icons.restore),
-              label: const Text('Reset to Defaults'),
-              style: TextButton.styleFrom(
-                foregroundColor: theme.colorScheme.error,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 32),
-        ],
+        ),
       ),
     );
   }

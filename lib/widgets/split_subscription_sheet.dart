@@ -9,6 +9,8 @@ import '../providers/household_providers.dart';
 import '../providers/preferences_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../services/split_service.dart';
+import '../utils/money.dart';
+import 'app_toast.dart';
 
 class SplitSubscriptionSheet extends ConsumerStatefulWidget {
   const SplitSubscriptionSheet({
@@ -28,13 +30,30 @@ class _SplitSubscriptionSheetState
   double _sharePercent = 50;
   bool _isLoading = false;
 
+  /// The partner's entry in this sub's split, if it has one.
+  Map<String, dynamic>? get _existing {
+    final splits = widget.subscription.splitWith;
+    return (splits == null || splits.isEmpty) ? null : splits.first;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Changing a split starts from the current share, not 50%.
+    final pct = _existing?['sharePercent'];
+    if (pct is num) _sharePercent = pct.toDouble().clamp(10, 90);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final sub = widget.subscription;
     final partnerLabel = ref.watch(partnerLabelProvider);
-    final partnerShare = sub.price * (_sharePercent / 100);
-    final myShare = sub.price - partnerShare;
+    // Partner's share rounded to the cent (what their copy shows); mine is
+    // the rest, so the two always add up to the price (BUG-14).
+    final partnerShare = roundCents(sub.currentPrice * (_sharePercent / 100));
+    final myShare = roundCents(sub.currentPrice) - partnerShare;
+    final hasSplit = _existing != null;
 
     return Container(
       margin: const EdgeInsets.all(12),
@@ -63,7 +82,7 @@ class _SplitSubscriptionSheetState
               const SizedBox(height: 20),
 
               Text(
-                'Split Subscription',
+                hasSplit ? 'Change split' : 'Split Subscription',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
@@ -121,14 +140,13 @@ class _SplitSubscriptionSheetState
                   _buildShareInfo(
                     theme,
                     label: 'Your share',
-                    amount: '${sub.currencySymbol}${myShare.toStringAsFixed(2)}',
+                    amount: sub.formatAmount(myShare),
                     percent: '${(100 - _sharePercent).round()}%',
                   ),
                   _buildShareInfo(
                     theme,
                     label: "$partnerLabel's share",
-                    amount:
-                        '${sub.currencySymbol}${partnerShare.toStringAsFixed(2)}',
+                    amount: sub.formatAmount(partnerShare),
                     percent: '${_sharePercent.round()}%',
                   ),
                 ],
@@ -152,15 +170,29 @@ class _SplitSubscriptionSheetState
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text(
-                          'Propose Split',
-                          style: TextStyle(
+                      : Text(
+                          hasSplit ? 'Propose new split' : 'Propose Split',
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                 ),
               ),
+              if (hasSplit) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: _isLoading ? null : _stopSplitting,
+                    style: TextButton.styleFrom(
+                      foregroundColor: theme.colorScheme.error,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Stop splitting'),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -200,58 +232,74 @@ class _SplitSubscriptionSheetState
     );
   }
 
+  /// The other household member, or null (shows why in a toast).
+  String? _partnerUid(String myUid) {
+    final members = ref.read(householdMembersProvider);
+    final partnerUid =
+        members.firstWhere((m) => m != myUid, orElse: () => '');
+    if (partnerUid.isEmpty) {
+      showAppToast('No ${ref.read(partnerLabelProvider)} found in the household');
+      return null;
+    }
+    return partnerUid;
+  }
+
   Future<void> _proposeSplit() async {
     final user = ref.read(currentFirebaseUserProvider);
     if (user == null) return;
+    final partnerUid = _partnerUid(user.uid);
+    if (partnerUid == null) return;
 
-    // Get partner UID from household
-    final members = ref.read(householdMembersProvider);
-    final partnerUid = members.firstWhere(
-      (m) => m != user.uid,
-      orElse: () => '',
-    );
-
-    if (partnerUid.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content:
-                Text('No ${ref.read(partnerLabelProvider)} found in the household'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-      return;
-    }
-
-    setState(() => _isLoading = true);
-    try {
-      await SplitService().proposeSplit(
+    await _run(
+      () => SplitService().proposeSplit(
         ownerUid: user.uid,
         subId: widget.subscription.id,
         partnerUid: partnerUid,
         sharePercent: _sharePercent,
-      );
-      // Reload subscriptions so split icon shows immediately
+      ),
+      done: _existing != null
+          ? 'New split sent — ${ref.read(partnerLabelProvider)} needs to accept it'
+          : 'Split proposed',
+    );
+  }
+
+  /// Ends the split for both people: the owner's splitWith goes, and the
+  /// partner's copy + proposal are deleted (BUG-7).
+  Future<void> _stopSplitting() async {
+    final user = ref.read(currentFirebaseUserProvider);
+    if (user == null) return;
+    final partnerUid =
+        _existing?['uid'] as String? ?? _partnerUid(user.uid);
+    if (partnerUid == null) return;
+
+    await _run(
+      () => SplitService().removeSplit(
+        ownerUid: user.uid,
+        subId: widget.subscription.id,
+        partnerUid: partnerUid,
+      ),
+      done: 'Stopped splitting ${widget.subscription.name}',
+    );
+  }
+
+  /// Runs a split write. Feedback goes through [showAppToast] (root
+  /// overlay): a SnackBar lands on the Scaffold *behind* this sheet, which
+  /// is how failures used to vanish silently (BUG-7).
+  Future<void> _run(Future<void> Function() action, {required String done}) async {
+    setState(() => _isLoading = true);
+    try {
+      await action();
+      // Reload subscriptions so the split icon updates immediately
       unawaited(ref.read(subscriptionProvider.notifier).loadSubscriptions());
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Split proposed'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+      if (mounted) Navigator.pop(context);
+      showAppToast(done);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed: $e'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+      debugPrint('Split change failed: $e');
+      showAppToast(
+        e is TimeoutException
+            ? "Couldn't reach the server. Check your connection and try again."
+            : "Couldn't update the split. Try again.",
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

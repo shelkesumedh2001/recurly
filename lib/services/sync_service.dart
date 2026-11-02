@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/subscription.dart';
 import '../models/sync_status.dart';
+import '../utils/split_copies.dart';
 import 'database_service.dart';
 import 'sync_queue.dart';
 
@@ -63,6 +64,12 @@ class SyncService {
     syncStatus.value = SyncStatus.syncing;
 
     try {
+      // Another account's data left on this device (sign-out keeps local
+      // data) must not be merged into — or deleted from — this account.
+      await _dropForeignLocalData(uid);
+      _accountReadyUid = uid;
+      _runDeferredSplitSync();
+
       // Replay writes queued while offline BEFORE merging: a queued
       // hard-delete must remove the remote doc first, or the merge below
       // would see it as remote-only and resurrect it locally.
@@ -81,6 +88,31 @@ class SyncService {
     } catch (e) {
       debugPrint('Sync initialization error: $e');
       syncStatus.value = SyncStatus.error;
+    }
+  }
+
+  /// Uid whose local data has been checked by [_dropForeignLocalData];
+  /// [syncSplits] waits for it (P3-4: it raced the merge).
+  String? _accountReadyUid;
+  ({String uid, String? partnerUid, List<Subscription> docs})?
+      _deferredSplitSync;
+
+  Future<void> _dropForeignLocalData(String uid) async {
+    final ids = foreignSubIds(_db.getAllSubscriptions(), uid);
+    if (ids.isEmpty) return;
+    debugPrint('Sign-in as $uid: removing ${ids.length} subs of another '
+        'account from this device');
+    for (final id in ids) {
+      await _db.deleteSubscription(id);
+    }
+    remoteDataChangeTicker.value++;
+  }
+
+  void _runDeferredSplitSync() {
+    final d = _deferredSplitSync;
+    _deferredSplitSync = null;
+    if (d != null && d.uid == _accountReadyUid) {
+      unawaited(syncSplits(d.uid, partnerUid: d.partnerUid, partnerDocs: d.docs));
     }
   }
 
@@ -403,14 +435,23 @@ class SyncService {
   }
 
   /// Initialize household sync — listen to partner's visible subscriptions
+  /// and keep my split copies of them in line with the owner's docs.
+  ///
+  /// Re-run whenever the household's member list changes (a partner joins
+  /// or leaves), not only when my own profile changes (BUG-11).
   Future<void> initializeHouseholdSync(
       String uid, String householdId,) async {
     await _householdListener?.cancel();
+    _householdListener = null;
 
     try {
-      // Get household to find partner uid
-      final householdDoc =
-          await _firestore.collection('households').doc(householdId).get();
+      // Server read: the member list decides whether every split gets torn
+      // down, so a stale cached "alone" must not be trusted.
+      final householdDoc = await _firestore
+          .collection('households')
+          .doc(householdId)
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 10));
       if (!householdDoc.exists) return;
 
       final members = (householdDoc.data()?['members'] as List<dynamic>?)
@@ -420,7 +461,14 @@ class SyncService {
         (m) => m != uid,
         orElse: () => '',
       );
-      if (partnerUid.isEmpty) return;
+      if (partnerUid.isEmpty) {
+        // Alone in the household (partner left, or not joined yet): no
+        // split can stand — drop copies of the ex-partner's subs and clear
+        // their name from mine (BUG-9).
+        partnerSubscriptions.value = [];
+        await syncSplits(uid, partnerUid: null);
+        return;
+      }
 
       // Query must match Firestore rules: only householdVisible == true docs are readable
       _householdListener = _firestore
@@ -428,16 +476,20 @@ class SyncService {
           .doc(partnerUid)
           .collection('subscriptions')
           .where('householdVisible', isEqualTo: true)
-          .snapshots()
+          .snapshots(includeMetadataChanges: true)
           .listen(
         (snapshot) {
+          final all = snapshot.docs
+              .map((doc) => Subscription.fromJson(doc.data()))
+              .toList();
           // Exclude the partner's soft-deleted subs (deletedAt set) so they
           // don't linger in household spend views / partner lists.
-          final subs = snapshot.docs
-              .map((doc) => Subscription.fromJson(doc.data()))
-              .where((sub) => sub.deletedAt == null)
-              .toList();
-          partnerSubscriptions.value = subs;
+          partnerSubscriptions.value =
+              all.where((sub) => sub.deletedAt == null).toList();
+          // Only a server-confirmed snapshot is the owner's real state.
+          if (!snapshot.metadata.isFromCache) {
+            unawaited(syncSplits(uid, partnerUid: partnerUid, partnerDocs: all));
+          }
         },
         onError: (e) {
           debugPrint('Household sync error: $e');
@@ -446,6 +498,116 @@ class SyncService {
     } catch (e) {
       debugPrint('Household sync init error: $e');
     }
+  }
+
+  /// Fires after [syncSplits] changed local data: ids of copies written
+  /// and removed, so reminders can be rescheduled / cancelled.
+  final ValueNotifier<({Set<String> upserted, Set<String> deleted})>
+      splitCopiesChanged =
+      ValueNotifier((upserted: <String>{}, deleted: <String>{}));
+
+  bool _syncingSplits = false;
+  ({String? partnerUid, List<Subscription> docs})? _pendingSplitSync;
+
+  /// Bring my split data in line with the household (see [planSplitSync]):
+  /// copies follow the owner's docs, splits with an ex-partner go.
+  /// Writes Hive and my own Firestore docs, always bumping `updatedAt` so
+  /// my other devices' last-write-wins listener takes the change (BUG-10).
+  Future<void> syncSplits(
+    String uid, {
+    required String? partnerUid,
+    List<Subscription> partnerDocs = const [],
+  }) async {
+    if (_accountReadyUid != uid) {
+      // Sign-in still checking this device's data for another account's
+      // subs; run once it's done.
+      _deferredSplitSync =
+          (uid: uid, partnerUid: partnerUid, docs: partnerDocs);
+      return;
+    }
+    if (_syncingSplits) {
+      // Coalesce: run once more with the latest input when this finishes.
+      _pendingSplitSync = (partnerUid: partnerUid, docs: partnerDocs);
+      return;
+    }
+    _syncingSplits = true;
+    try {
+      final plan = planSplitSync(
+        myUid: uid,
+        partnerUid: partnerUid,
+        local: _db.getAllSubscriptions(),
+        partnerDocs: partnerDocs,
+      );
+      if (plan.isEmpty) return;
+      debugPrint('Split sync: ${plan.upsertCopies.length} copies written, '
+          '${plan.deleteCopyIds.length} removed, '
+          '${plan.updateOwn.length} own subs cleared');
+
+      for (final copy in plan.upsertCopies) {
+        await _db.addSubscription(copy);
+      }
+      for (final id in plan.deleteCopyIds) {
+        await _db.deleteSubscription(id);
+      }
+      for (final sub in plan.updateOwn) {
+        await _db.updateSubscription(sub);
+      }
+      remoteDataChangeTicker.value++;
+      splitCopiesChanged.value = (
+        upserted: plan.upsertCopies.map((s) => s.id).toSet(),
+        deleted: plan.deleteCopyIds.toSet(),
+      );
+
+      // Remote: my own collection only. Copies are pushed whole (`set`
+      // without merge) so a field the owner cleared doesn't linger.
+      final col =
+          _firestore.collection('users').doc(uid).collection('subscriptions');
+      for (final copy in plan.upsertCopies) {
+        try {
+          await col
+              .doc(copy.id)
+              .set(copy.toJson())
+              .timeout(const Duration(seconds: 10));
+        } catch (e) {
+          debugPrint('Split sync push failed (${copy.id}): $e');
+        }
+      }
+      for (final id in plan.deleteCopyIds) {
+        await deleteRemoteSubscription(uid, id);
+      }
+      for (final sub in plan.updateOwn) {
+        await pushSubscription(uid, sub);
+      }
+    } catch (e) {
+      debugPrint('Split sync error: $e');
+    } finally {
+      _syncingSplits = false;
+      final next = _pendingSplitSync;
+      _pendingSplitSync = null;
+      if (next != null) {
+        unawaited(
+          syncSplits(uid, partnerUid: next.partnerUid, partnerDocs: next.docs),
+        );
+      }
+    }
+  }
+
+  /// [syncSplits] with no partner, but only after the server confirms I'm
+  /// not in a household: a cached profile without `householdId` (fresh
+  /// sign-in, stale cache) must not tear down real splits.
+  Future<void> syncSplitsIfNotInHousehold(String uid) async {
+    try {
+      final me = await _firestore
+          .collection('users')
+          .doc(uid)
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 10));
+      if (me.data()?['householdId'] != null) return;
+    } catch (e) {
+      debugPrint('Split cleanup skipped (offline?): $e');
+      return;
+    }
+    await syncSplits(uid, partnerUid: null);
   }
 
   /// Dispose household sync — cancel listener and clear partner subs
@@ -505,6 +667,8 @@ class SyncService {
     _householdListener = null;
     _initialized = false;
     _currentUid = null;
+    _accountReadyUid = null;
+    _deferredSplitSync = null;
     syncStatus.value = SyncStatus.idle;
     partnerSubscriptions.value = [];
     // Per-session state — clear so a later sign-in under a different uid

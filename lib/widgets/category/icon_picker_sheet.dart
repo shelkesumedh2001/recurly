@@ -1,5 +1,32 @@
 import 'package:flutter/material.dart';
 
+/// Emoji choices for custom categories, written as `\u{…}` escapes on
+/// purpose: the literal characters were once stripped from this file by a
+/// tool, leaving 80 blank tiles that all looked selected (BUG-16).
+@visibleForTesting
+const List<String> kCategoryEmojis = [
+  // Entertainment
+  '\u{1F3AC}', '\u{1F3B5}', '\u{1F3AE}', '\u{1F4FA}', '\u{1F3A7}', '\u{1F3A4}', '\u{1F3AD}', '\u{1F37F}',
+  // Technology
+  '\u{1F4BB}', '\u{1F4F1}', '\u{2601}\u{FE0F}', '\u{1F5A5}\u{FE0F}', '\u{2328}\u{FE0F}', '\u{1F50C}', '\u{1F916}', '\u{1F6F0}\u{FE0F}',
+  // Finance
+  '\u{1F4B0}', '\u{1F4B3}', '\u{1F3E6}', '\u{1F4C8}', '\u{1F4B5}', '\u{1FA99}', '\u{1F9FE}', '\u{1F4BC}',
+  // Health & Fitness
+  '\u{2764}\u{FE0F}', '\u{1F4AA}', '\u{1F3CB}\u{FE0F}', '\u{1F9D8}', '\u{1F3C3}', '\u{1F48A}', '\u{1FA7A}', '\u{1F6B4}',
+  // Food & Drink
+  '\u{1F354}', '\u{1F355}', '\u{2615}', '\u{1F363}', '\u{1F957}', '\u{1F377}', '\u{1F37A}', '\u{1F6D2}',
+  // Shopping
+  '\u{1F6CD}\u{FE0F}', '\u{1F455}', '\u{1F45F}', '\u{1F4E6}', '\u{1F381}', '\u{1F484}', '\u{231A}', '\u{1F576}\u{FE0F}',
+  // Travel
+  '\u{2708}\u{FE0F}', '\u{1F697}', '\u{1F3E8}', '\u{1F686}', '\u{1F5FA}\u{FE0F}', '\u{26FD}', '\u{1F695}', '\u{1F9F3}',
+  // Education
+  '\u{1F4DA}', '\u{1F393}', '\u{270F}\u{FE0F}', '\u{1F9E0}', '\u{1F4DD}', '\u{1F52C}', '\u{1F30D}', '\u{1F5E3}\u{FE0F}',
+  // Utilities
+  '\u{26A1}', '\u{1F4A1}', '\u{1F4A7}', '\u{1F525}', '\u{1F4F6}', '\u{1F3E0}', '\u{1F527}', '\u{1F5D1}\u{FE0F}',
+  // General
+  '\u{2B50}', '\u{1F4CC}', '\u{1F514}', '\u{1F512}', '\u{1F436}', '\u{1F476}', '\u{1F331}', '\u{2728}',
+];
+
 /// Bottom sheet for picking icons (emoji or Material icons)
 class IconPickerSheet extends StatefulWidget {
   const IconPickerSheet({
@@ -23,29 +50,9 @@ class _IconPickerSheetState extends State<IconPickerSheet>
   String? _selectedIcon;
   bool _isEmoji = true;
 
-  // Common emojis for categories
-  static const List<String> _emojis = [
-    // Entertainment
-    '', '', '', '', '', '', '', '',
-    // Technology
-    '', '', '', '', '', '', '', '',
-    // Finance
-    '', '', '', '', '', '', '', '',
-    // Health & Fitness
-    '', '', '', '‍♂️', '', '', '', '',
-    // Food & Drink
-    '', '', '', '', '', '', '', '',
-    // Shopping
-    '', '', '', '', '', '', '', '',
-    // Travel
-    '', '', '', '', '', '', '', '',
-    // Education
-    '', '', '', '', '', '', '', '',
-    // Utilities
-    '', '', '', '', '', '', '', '',
-    // General
-    '', '', '', '', '', '', '', '',
-  ];
+  // Common emojis for categories (see [kCategoryEmojis]).
+  static const List<String> _emojis = kCategoryEmojis;
+
 
   // Common Material icons for categories
   static const List<IconData> _materialIcons = [

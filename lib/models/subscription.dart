@@ -2,6 +2,7 @@ import 'package:clock/clock.dart';
 import 'package:hive/hive.dart';
 
 import '../utils/billing_cycle.dart';
+import '../utils/money.dart';
 import 'enums.dart';
 
 part 'subscription.g.dart';
@@ -34,6 +35,7 @@ class Subscription extends HiveObject { // For recently deleted feature
     this.priceHistory,
     this.customDays,
     this.cardId,
+    this.customCategoryId,
   });
 
   /// Create from JSON (Firebase)
@@ -79,6 +81,7 @@ class Subscription extends HiveObject { // For recently deleted feature
           .toList(),
       customDays: json['customDays'] as int?,
       cardId: json['cardId'] as String?,
+      customCategoryId: json['customCategoryId'] as String?,
     );
   }
   @HiveField(0)
@@ -158,6 +161,13 @@ class Subscription extends HiveObject { // For recently deleted feature
   /// local-only; on a device without this card id, no card info is shown.
   @HiveField(23)
   String? cardId;
+
+  /// User-made category (CustomCategory.id) this sub is filed under.
+  /// Custom categories are local to the device (and backups); where the id
+  /// doesn't resolve — another device, a partner's copy, an older app —
+  /// [category] is the fallback, which is `other` for custom picks (BUG-17).
+  @HiveField(24)
+  String? customCategoryId;
 
   /// Whether this subscription has any recorded price changes
   bool get hasPriceHistory => priceHistory != null && priceHistory!.isNotEmpty;
@@ -285,17 +295,28 @@ class Subscription extends HiveObject { // For recently deleted feature
     return next.difference(today).inDays;
   }
 
+  /// What this sub costs per bill right now: [price] during a trial (or
+  /// for a normal sub), the post-trial price once the trial has ended.
+  /// Expired trials keep `isFreeTrial` until the user confirms they're
+  /// still subscribed (or archives), but they're charged from trial end,
+  /// so every total must count what's actually being paid (BUG-24).
+  double get currentPrice => isTrialExpired ? chargePerRenewal : price;
+
   /// Convert price to monthly equivalent for comparison.
   ///
   /// For custom cycles, computes from [customDays] using avg month length
   /// (30.44 days). E.g. customDays=14 → ~2.17 bills per month.
-  double get monthlyEquivalent {
+  double get monthlyEquivalent => monthlyEquivalentOf(currentPrice);
+
+  /// Monthly equivalent of an arbitrary per-bill [amount] on this sub's
+  /// cycle (price deltas, post-trial price, split shares).
+  double monthlyEquivalentOf(double amount) {
     if (billingCycle == BillingCycle.custom &&
         customDays != null &&
         customDays! > 0) {
-      return price * (30.44 / customDays!);
+      return amount * (30.44 / customDays!);
     }
-    return price * billingCycle.getMonthlyMultiplier();
+    return amount * billingCycle.getMonthlyMultiplier();
   }
 
   /// Get renewal urgency status for color coding
@@ -322,10 +343,12 @@ class Subscription extends HiveObject { // For recently deleted feature
     }
   }
 
-  /// Formatted price string
-  String get formattedPrice {
-    return '$currencySymbol${price.toStringAsFixed(2)}';
-  }
+  /// Formatted price string (what's billed now — see [currentPrice]).
+  String get formattedPrice => formatAmount(currentPrice);
+
+  /// [amount] in this sub's currency, e.g. "\$12.99".
+  String formatAmount(double amount) =>
+      formatMoney(amount, currencySymbol, currencyCode: currency);
 
   /// Convert to JSON for Firebase
   Map<String, dynamic> toJson() {
@@ -354,6 +377,7 @@ class Subscription extends HiveObject { // For recently deleted feature
       'priceHistory': priceHistory,
       'customDays': customDays,
       'cardId': cardId,
+      'customCategoryId': customCategoryId,
     };
   }
 
@@ -378,6 +402,7 @@ class Subscription extends HiveObject { // For recently deleted feature
     DateTime? trialEndDate,
     double? priceAfterTrial,
     bool clearTrialEndDate = false,
+    bool clearPriceAfterTrial = false,
     DateTime? updatedAt,
     String? ownerUid,
     bool? householdVisible,
@@ -389,6 +414,8 @@ class Subscription extends HiveObject { // For recently deleted feature
     bool clearCustomDays = false,
     String? cardId,
     bool clearCardId = false,
+    String? customCategoryId,
+    bool clearCustomCategoryId = false,
   }) {
     return Subscription(
       id: id ?? this.id,
@@ -407,7 +434,9 @@ class Subscription extends HiveObject { // For recently deleted feature
       deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
       isFreeTrial: isFreeTrial ?? this.isFreeTrial,
       trialEndDate: clearTrialEndDate ? null : (trialEndDate ?? this.trialEndDate),
-      priceAfterTrial: priceAfterTrial ?? this.priceAfterTrial,
+      priceAfterTrial: clearPriceAfterTrial
+          ? null
+          : (priceAfterTrial ?? this.priceAfterTrial),
       updatedAt: updatedAt ?? this.updatedAt,
       ownerUid: ownerUid ?? this.ownerUid,
       householdVisible: householdVisible ?? this.householdVisible,
@@ -415,6 +444,9 @@ class Subscription extends HiveObject { // For recently deleted feature
       priceHistory: clearPriceHistory ? null : (priceHistory ?? this.priceHistory),
       customDays: clearCustomDays ? null : (customDays ?? this.customDays),
       cardId: clearCardId ? null : (cardId ?? this.cardId),
+      customCategoryId: clearCustomCategoryId
+          ? null
+          : (customCategoryId ?? this.customCategoryId),
     );
   }
 
@@ -425,6 +457,21 @@ class Subscription extends HiveObject { // For recently deleted feature
     final today = DateTime(now.year, now.month, now.day);
     final end = DateTime(trialEndDate!.year, trialEndDate!.month, trialEndDate!.day);
     return end.difference(today).inDays;
+  }
+
+  /// The sub as a regular paid subscription after its trial: billed at
+  /// the post-trial price, on the chain that starts at trial end.
+  Subscription convertedFromTrial() {
+    if (!isFreeTrial) return this;
+    final end = trialEndDate;
+    return copyWith(
+      price: chargePerRenewal,
+      isFreeTrial: false,
+      clearTrialEndDate: true,
+      clearPriceAfterTrial: true,
+      firstBillDate:
+          end != null ? DateTime(end.year, end.month, end.day) : firstBillDate,
+    );
   }
 
   /// Check if trial has expired (date-only comparison — a trial ending today

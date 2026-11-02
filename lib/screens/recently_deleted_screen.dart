@@ -5,11 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/subscription.dart';
 import '../providers/auth_providers.dart';
+import '../providers/category_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../providers/sync_providers.dart';
 import '../services/database_service.dart';
 import '../services/sync_service.dart';
+import '../utils/adaptive.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/category/category_icon.dart';
 import '../widgets/common/app_empty_state.dart';
 
 class RecentlyDeletedScreen extends ConsumerStatefulWidget {
@@ -67,68 +70,70 @@ class _RecentlyDeletedScreenState extends ConsumerState<RecentlyDeletedScreen> {
           ),
         ),
       ),
-      body: Column(
-        children: [
-          // Info banner
-          Container(
-            margin: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.errorContainer.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: theme.colorScheme.error.withValues(alpha: 0.2),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  size: 20,
-                  color: theme.colorScheme.error,
+      body: ReadableWidth(
+        child: Column(
+          children: [
+            // Info banner
+            Container(
+              margin: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.errorContainer.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: theme.colorScheme.error.withValues(alpha: 0.2),
+                  width: 1,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Items will be permanently deleted after 30 days',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onErrorContainer,
-                      fontWeight: FontWeight.w500,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 20,
+                    color: theme.colorScheme.error,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Items will be permanently deleted after 30 days',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
 
-          // List or empty state
-          Expanded(
-            child: _deletedSubscriptions.isEmpty
-                ? const AppEmptyState(
-                    icon: Icons.delete_outline,
-                    title: 'Recently deleted is empty',
-                    message:
-                        'Deleted subscriptions wait here for 30 days so you '
-                        'can restore them, then they are removed for good.',
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: _deletedSubscriptions.length,
-                    itemBuilder: (context, index) {
-                      final subscription = _deletedSubscriptions[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _DeletedCard(
-                          subscription: subscription,
-                          databaseService: databaseService,
-                          onItemRemoved: _removeItemFromList,
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+            // List or empty state
+            Expanded(
+              child: _deletedSubscriptions.isEmpty
+                  ? const AppEmptyState(
+                      icon: Icons.delete_outline,
+                      title: 'Recently deleted is empty',
+                      message:
+                          'Deleted subscriptions wait here for 30 days so you '
+                          'can restore them, then they are removed for good.',
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: _deletedSubscriptions.length,
+                      itemBuilder: (context, index) {
+                        final subscription = _deletedSubscriptions[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _DeletedCard(
+                            subscription: subscription,
+                            databaseService: databaseService,
+                            onItemRemoved: _removeItemFromList,
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -234,9 +239,8 @@ class _DeletedCard extends ConsumerWidget {
                     child: Center(
                       child: Opacity(
                         opacity: 0.5,
-                        child: Text(
-                          subscription.category.icon,
-                          style: const TextStyle(fontSize: 24),
+                        child: CategoryIcon(
+                          ref.watch(categoryOfProvider)(subscription),
                         ),
                       ),
                     ),

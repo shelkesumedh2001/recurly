@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/split_proposal.dart';
 import '../models/subscription.dart';
+import '../utils/split_copies.dart';
 import 'database_service.dart';
 
 /// Service for managing per-subscription splitting
@@ -33,7 +34,7 @@ class SplitService {
       ownerUid: ownerUid,
       partnerUid: partnerUid,
       subscriptionName: sub.name,
-      totalPrice: sub.price,
+      totalPrice: sub.currentPrice,
       partnerSharePercent: sharePercent,
       currency: sub.currency,
       createdAt: DateTime.now(),
@@ -90,38 +91,28 @@ class SplitService {
         .doc(proposal.subId);
 
     final ownerSubDoc = await _timed(ownerSubRef.get());
-    if (ownerSubDoc.exists) {
-      final data = ownerSubDoc.data()!;
-      final splitWith =
-          (data['splitWith'] as List<dynamic>?)?.map((e) {
-                final map = Map<String, dynamic>.from(e as Map);
-                if (map['uid'] == partnerUid) {
-                  map['accepted'] = true;
-                }
-                return map;
-              }).toList() ??
-              [];
-      // Include updatedAt so owner's remote listener picks up the change
-      await _timed(ownerSubRef.update({
-        'splitWith': splitWith,
-        'updatedAt': DateTime.now().toIso8601String(),
-      }),);
-    }
+    if (!ownerSubDoc.exists) return;
+    final data = ownerSubDoc.data()!;
+    final splitWith = (data['splitWith'] as List<dynamic>?)?.map((e) {
+          final map = Map<String, dynamic>.from(e as Map);
+          if (map['uid'] == partnerUid) map['accepted'] = true;
+          return map;
+        }).toList() ??
+        [];
+    // Include updatedAt so owner's remote listener picks up the change
+    await _timed(ownerSubRef.update({
+      'splitWith': splitWith,
+      'updatedAt': DateTime.now().toIso8601String(),
+    }),);
 
-    // Create reference subscription in partner's collection
-    final ownerSub =
-        ownerSubDoc.exists ? Subscription.fromJson(ownerSubDoc.data()!) : null;
-    if (ownerSub != null) {
-      final partnerSharePrice =
-          ownerSub.price * (proposal.partnerSharePercent / 100);
-
-      final referenceSub = ownerSub.copyWith(
-        ownerUid: proposal.ownerUid,
-        price: partnerSharePrice,
-        updatedAt: DateTime.now(),
-      );
-
-      // Save to partner's Firestore subscriptions
+    // Create my copy of the owner's sub at my share — the same derivation
+    // the household listener uses to keep it in sync (split_copies.dart).
+    final referenceSub = partnerCopyFor(
+      Subscription.fromJson({...data, 'splitWith': splitWith}),
+      ownerUid: proposal.ownerUid,
+      myUid: partnerUid,
+    );
+    if (referenceSub != null) {
       await _timed(_firestore
           .collection('users')
           .doc(partnerUid)
@@ -129,25 +120,12 @@ class SplitService {
           .doc(proposal.subId)
           .set(referenceSub.toJson()),);
 
-      // Also save reference sub to local Hive so it appears in partner's UI immediately
-      // (partner may not have Pro sync listener running)
+      // Local copy so it shows up right away.
       await _db.addSubscription(referenceSub);
     }
-
-    // Also update local Hive if we're the owner
-    final localSub = _db.getSubscriptionById(proposal.subId);
-    if (localSub != null && localSub.ownerUid == proposal.ownerUid) {
-      final updatedSplitWith = localSub.splitWith?.map((e) {
-            if (e['uid'] == partnerUid) {
-              return {...e, 'accepted': true};
-            }
-            return e;
-          }).toList() ??
-          [];
-      await _db.updateSubscription(
-        localSub.copyWith(splitWith: updatedSplitWith),
-      );
-    }
+    // (No local "owner" update here: this runs on the acceptor's device,
+    // where the only local doc with this id is the copy above. Flipping
+    // its splitWith is what double-applied the share — BUG-3.)
   }
 
   /// Reject a split proposal
@@ -177,8 +155,11 @@ class SplitService {
               ?.where((e) => (e as Map)['uid'] != partnerUid)
               .toList() ??
           [];
+      // updatedAt: the owner's listener is last-write-wins on it; without
+      // the bump the decline never reaches the owner's device (BUG-8).
       await _timed(ownerSubRef.update({
         'splitWith': splitWith.isEmpty ? FieldValue.delete() : splitWith,
+        'updatedAt': DateTime.now().toIso8601String(),
       }),);
     }
   }
@@ -205,6 +186,7 @@ class SplitService {
           [];
       await _timed(ownerSubRef.update({
         'splitWith': splitWith.isEmpty ? FieldValue.delete() : splitWith,
+        'updatedAt': DateTime.now().toIso8601String(),
       }),);
     }
 

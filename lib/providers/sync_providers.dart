@@ -9,6 +9,7 @@ import '../services/database_service.dart';
 import '../services/sync_service.dart';
 import 'auth_providers.dart';
 import 'currency_providers.dart';
+import 'household_providers.dart';
 import 'subscription_providers.dart';
 
 /// Provider for the sync service singleton
@@ -80,19 +81,34 @@ final syncInitProvider = Provider<void>((ref) {
   });
 });
 
-/// Reactive household sync provider — auto-initializes/disposes when householdId changes
+/// Reactive household sync provider — (re)initializes when my householdId
+/// changes AND when the household's member list changes, so the creator
+/// starts seeing a partner the moment they join (BUG-11) and the one who
+/// stays is cleaned up the moment the other leaves (BUG-9).
 final householdSyncProvider = Provider<void>((ref) {
   final profile = ref.watch(currentUserProfileProvider).value;
   final user = ref.watch(currentFirebaseUserProvider);
   final syncService = ref.watch(syncServiceProvider);
+  final members = ref.watch(
+    currentHouseholdProvider.select((h) => h.value?.members.join(',')),
+  );
 
-  if (user == null || profile == null || profile.householdId == null) {
+  if (user == null || profile == null) {
     syncService.disposeHouseholdSync();
+    return;
+  }
+
+  if (profile.householdId == null) {
+    syncService.disposeHouseholdSync();
+    // Not in a household (left, disbanded, or never joined): no split can
+    // stand. Idempotent — a no-op when there's nothing to clean (BUG-10).
+    unawaited(syncService.syncSplitsIfNotInHousehold(user.uid));
     return;
   }
 
   final householdId = profile.householdId!;
   final uid = user.uid;
+  debugPrint('Household sync init (members: $members)');
 
   // Initialize household sync
   syncService.initializeHouseholdSync(uid, householdId);

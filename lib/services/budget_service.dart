@@ -1,4 +1,6 @@
+import 'package:clock/clock.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+
 import '../models/budget.dart';
 import '../utils/constants.dart';
 
@@ -94,7 +96,7 @@ class BudgetService {
 
     // Avoid showing alerts more than once per day
     if (settings.lastBudgetAlertShown != null) {
-      final hoursSinceLastAlert = DateTime.now()
+      final hoursSinceLastAlert = clock.now()
           .difference(settings.lastBudgetAlertShown!)
           .inHours;
       if (hoursSinceLastAlert < 24) return false;
@@ -107,7 +109,7 @@ class BudgetService {
   Future<void> markAlertShown() async {
     final settings = getSettings();
     await saveSettings(
-      settings.copyWith(lastBudgetAlertShown: DateTime.now()),
+      settings.copyWith(lastBudgetAlertShown: clock.now()),
     );
   }
 

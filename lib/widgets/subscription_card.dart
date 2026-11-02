@@ -3,7 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
 import '../models/subscription.dart';
+import '../providers/auth_providers.dart';
+import '../providers/category_providers.dart';
 import '../providers/credit_card_providers.dart';
 import '../providers/household_providers.dart';
 import '../providers/preferences_providers.dart';
@@ -11,6 +14,7 @@ import '../providers/subscription_providers.dart';
 import '../theme/app_tokens.dart';
 import 'add_subscription_sheet.dart';
 import 'app_toast.dart';
+import 'category/category_icon.dart';
 import 'common/app_dialogs.dart';
 import 'common/detail_row.dart';
 import 'split_subscription_sheet.dart';
@@ -38,8 +42,10 @@ class SubscriptionCard extends ConsumerWidget {
     final subscriptionId = subscription.id;
     final subscriptionName = subscription.name;
 
-    // Partner subs are read-only (no swipe, no context menu)
-    if (isPartnerSub) {
+    // Partner subs and my copies of their split subs are read-only (no
+    // swipe, no context menu): the owner edits them, and any local change
+    // to a copy would be overwritten by the owner's doc (BUG-4).
+    if (isPartnerSub || _isSplitCopy(ref)) {
       return _buildCardContent(context, ref, theme, urgencyColor);
     }
 
@@ -116,7 +122,7 @@ class SubscriptionCard extends ConsumerWidget {
             child: Row(
               children: [
                 // Logo/Icon
-                _buildLogo(context, urgencyColor),
+                _buildLogo(context, ref, urgencyColor),
 
                 const SizedBox(width: 16),
 
@@ -160,7 +166,7 @@ class SubscriptionCard extends ConsumerWidget {
                             TrialBadge(
                                 subscription: subscription, compact: true,),
                           ],
-                          if (_hasSplit()) ...[
+                          if (_hasSplit() || _isSplitCopy(ref)) ...[
                             const SizedBox(width: 6),
                             Icon(
                               Icons.call_split,
@@ -210,22 +216,21 @@ class SubscriptionCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      subscription.isFreeTrial && subscription.price == 0
+                      // An ended trial is billed at its post-trial price
+                      // (formattedPrice already says so) — no "FREE".
+                      _inTrial && subscription.price == 0
                           ? 'FREE'
                           : subscription.formattedPrice,
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.5,
-                        color: subscription.isFreeTrial
-                            ? theme.colorScheme.primary
-                            : null,
+                        color: _inTrial ? theme.colorScheme.primary : null,
                       ),
                     ),
                     const SizedBox(height: 2),
-                    if (subscription.isFreeTrial &&
-                        subscription.priceAfterTrial != null)
+                    if (_inTrial && subscription.priceAfterTrial != null)
                       Text(
-                        '${subscription.currencySymbol}${subscription.priceAfterTrial!.toStringAsFixed(2)} after',
+                        '${subscription.formatAmount(subscription.priceAfterTrial!)} after',
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: theme.colorScheme.onSurface
                               .withValues(alpha: 0.5),
@@ -265,7 +270,7 @@ class SubscriptionCard extends ConsumerWidget {
   }
 
   /// Build logo or placeholder
-  Widget _buildLogo(BuildContext context, Color urgencyColor) {
+  Widget _buildLogo(BuildContext context, WidgetRef ref, Color urgencyColor) {
     // If logoUrl exists, try to load network image
     if (subscription.logoUrl != null && subscription.logoUrl!.isNotEmpty) {
       return Container(
@@ -290,9 +295,8 @@ class SubscriptionCard extends ConsumerWidget {
                 return Container(
                   color: urgencyColor.withValues(alpha: 0.12),
                   child: Center(
-                    child: Text(
-                      subscription.category.icon,
-                      style: const TextStyle(fontSize: 24),
+                    child: CategoryIcon(
+                      ref.read(categoryOfProvider)(subscription),
                     ),
                   ),
                 );
@@ -312,15 +316,24 @@ class SubscriptionCard extends ConsumerWidget {
         color: urgencyColor.withValues(alpha: 0.12),
       ),
       child: Center(
-        child: Text(
-          subscription.category.icon,
-          style: const TextStyle(fontSize: 24),
-        ),
+        child: CategoryIcon(ref.read(categoryOfProvider)(subscription)),
       ),
     );
   }
 
   /// Check if subscription has a split
+  /// A trial that hasn't ended yet (still billed at the trial price).
+  bool get _inTrial =>
+      subscription.isFreeTrial && !subscription.isTrialExpired;
+
+  /// My copy of a sub my partner owns and splits with me (priced at my
+  /// share already).
+  bool _isSplitCopy(WidgetRef ref) {
+    final uid = ref.read(currentFirebaseUserProvider)?.uid;
+    final owner = subscription.ownerUid;
+    return owner != null && uid != null && owner != uid;
+  }
+
   bool _hasSplit() {
     return subscription.splitWith != null && subscription.splitWith!.isNotEmpty;
   }
@@ -408,7 +421,7 @@ class SubscriptionCard extends ConsumerWidget {
                   // Header: logo, name/category, renewal countdown pill
                   Row(
                     children: [
-                      _buildLogo(context, urgencyColor),
+                      _buildLogo(context, ref, urgencyColor),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
@@ -421,7 +434,7 @@ class SubscriptionCard extends ConsumerWidget {
                               ),
                             ),
                             Text(
-                              subscription.category.displayName,
+                              ref.read(categoryOfProvider)(subscription).name,
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: theme.colorScheme.onSurface
                                     .withValues(alpha: 0.6),
@@ -483,28 +496,42 @@ class SubscriptionCard extends ConsumerWidget {
                   ),
                   DetailRow(
                     'Monthly cost',
-                    '${subscription.currencySymbol}${subscription.monthlyEquivalent.toStringAsFixed(2)}',
+                    subscription.formatAmount(subscription.monthlyEquivalent),
                   ),
                   if (subscription.cardId != null)
                     if (ref.read(cardByIdProvider(subscription.cardId))
                         case final card?)
                       DetailRow(
                         'Card',
-                        '${card.name} · payment due ${DateFormat('MMM d').format(card.nextDueDate)}',
+                        '${card.name} · payment due ${DateFormat('MMM d').format(card.dueDateForCharge(subscription.nextBillDate))}',
                       ),
-                  if (_hasSplit()) ...[
+                  if (_isSplitCopy(ref))
                     DetailRow(
                       'Split',
-                      "${(subscription.splitWith!.first['sharePercent'] as num).toInt()}% ${ref.read(partnerLabelProvider)}'s share",
+                      '${ref.read(partnerLabelProvider)} pays the bill · price is your share',
+                    )
+                  else if (_hasSplit()) ...[
+                    DetailRow(
+                      'Split',
+                      "${(subscription.splitWith!.first['sharePercent'] as num).toInt()}% ${ref.read(partnerLabelProvider)}'s share"
+                          "${subscription.splitWith!.first['accepted'] == true ? '' : ' · waiting for ${ref.read(partnerLabelProvider)}'}",
                     ),
                     DetailRow(
                       'Your share',
-                      '${subscription.currencySymbol}${(subscription.price * (1 - (subscription.splitWith!.first['sharePercent'] as num) / 100)).toStringAsFixed(2)}',
+                      subscription.formatAmount(
+                        subscription.currentPrice *
+                            (1 -
+                                (subscription.splitWith!.first['sharePercent']
+                                        as num) /
+                                    100),
+                      ),
                     ),
                   ],
 
                   // Split button (only for own subs in a household)
-                  if (!isPartnerSub && ref.read(isInHouseholdProvider)) ...[
+                  if (!isPartnerSub &&
+                      !_isSplitCopy(ref) &&
+                      ref.read(isInHouseholdProvider)) ...[
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
@@ -534,7 +561,7 @@ class SubscriptionCard extends ConsumerWidget {
 
                   // Actions. The sheet dismisses by swipe/scrim, so own subs
                   // don't need a Close button.
-                  if (isPartnerSub)
+                  if (isPartnerSub || _isSplitCopy(ref))
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(

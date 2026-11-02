@@ -2,11 +2,12 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../models/enums.dart';
+import '../../models/custom_category.dart';
 import '../../providers/analytics_providers.dart';
 import '../../providers/currency_providers.dart';
 import '../../providers/navigation_providers.dart';
 import '../../theme/app_tokens.dart';
+import '../../utils/stagger.dart';
 import 'category_detail_sheet.dart';
 
 class CategoryPieChart extends ConsumerStatefulWidget {
@@ -124,7 +125,7 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
                                 showCategoryDetailSheet(
                                   context,
                                   category: entry.key,
-                                  categoryIndex: tappedIndex,
+                                  categoryIndex: entry.key.colorIndex,
                                   totalAmount: entry.value,
                                 );
                               }
@@ -188,7 +189,7 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
                   final index = mapEntry.key;
                   final data = mapEntry.value;
                   final percentage = (data.value / total * 100).toStringAsFixed(1);
-                  final color = _getCategoryColorByIndex(index);
+                  final color = _getCategoryColorByIndex(data.key.colorIndex);
                   final isTouched = index == _touchedIndex;
 
                   return GestureDetector(
@@ -196,7 +197,7 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
                       showCategoryDetailSheet(
                         context,
                         category: data.key,
-                        categoryIndex: index,
+                        categoryIndex: data.key.colorIndex,
                         totalAmount: data.value,
                       );
                     },
@@ -225,7 +226,7 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            data.key.displayName,
+                            data.key.name,
                             style: theme.textTheme.bodyMedium?.copyWith(
                               fontWeight: isTouched ? FontWeight.w700 : FontWeight.w500,
                               color: theme.colorScheme.onSurface,
@@ -254,7 +255,7 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
 
   List<PieChartSectionData> _showingSections(
     ThemeData theme,
-    List<MapEntry<SubscriptionCategory, double>> sortedEntries,
+    List<MapEntry<UnifiedCategory, double>> sortedEntries,
     double total,
     double animationValue,
   ) {
@@ -263,10 +264,13 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
       final radius = isTouched ? 34.0 : 26.0;
       final entry = sortedEntries[i];
 
-      // Staggered animation
-      final segmentDelay = i * 0.08;
-      final segmentAnimationValue = (animationValue - segmentDelay).clamp(0.0, 1.0);
-      final easedValue = Curves.easeOutCubic.transform(segmentAnimationValue);
+      // Staggered animation; every slice settles at its true value.
+      final easedValue = staggeredProgress(
+        animationValue,
+        i,
+        sortedEntries.length,
+        stagger: 0.08,
+      );
       final animatedValue = entry.value * easedValue;
 
       return PieChartSectionData(
@@ -274,7 +278,7 @@ class _CategoryPieChartState extends ConsumerState<CategoryPieChart>
         title: '',
         radius: radius,
         gradient: LinearGradient(
-          colors: _getCategoryGradientByIndex(i),
+          colors: _getCategoryGradientByIndex(entry.key.colorIndex),
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

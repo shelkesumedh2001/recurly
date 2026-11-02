@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'money.dart';
 
 /// Extension methods for DateTime
 extension DateTimeExtensions on DateTime {
@@ -88,7 +89,7 @@ extension StringExtensions on String {
 extension DoubleExtensions on double {
   /// Format as currency
   String toCurrency({String symbol = '\$'}) {
-    return '$symbol${toStringAsFixed(2)}';
+    return formatMoney(this, symbol);
   }
 
   /// Format with commas for thousands

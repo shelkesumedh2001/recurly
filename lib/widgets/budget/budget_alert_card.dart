@@ -9,6 +9,7 @@ class BudgetAlertCard extends StatelessWidget {
     required this.usage,
     required this.budget,
     required this.spent,
+    required this.formatAmount,
     this.onDismiss,
     this.onTap,
   });
@@ -17,6 +18,9 @@ class BudgetAlertCard extends StatelessWidget {
   final double usage;
   final double budget;
   final double spent;
+
+  /// Formats an amount in the display currency (was a hard-coded "\$").
+  final String Function(double amount) formatAmount;
   final VoidCallback? onDismiss;
   final VoidCallback? onTap;
 
@@ -85,7 +89,7 @@ class BudgetAlertCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         isExceeded
-                            ? 'You\'ve spent ${_formatCurrency(overspent)} over your budget'
+                            ? 'You\'ve spent ${formatAmount(overspent)} over your budget'
                             : 'You\'ve used $percentage% of your monthly budget',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
@@ -136,13 +140,13 @@ class BudgetAlertCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${_formatCurrency(spent)} spent',
+                  '${formatAmount(spent)} spent',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
                 Text(
-                  '${_formatCurrency(budget)} budget',
+                  '${formatAmount(budget)} budget',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
@@ -153,12 +157,5 @@ class BudgetAlertCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _formatCurrency(double amount) {
-    if (amount >= 1000) {
-      return '\$${(amount / 1000).toStringAsFixed(1)}k';
-    }
-    return '\$${amount.toStringAsFixed(2)}';
   }
 }

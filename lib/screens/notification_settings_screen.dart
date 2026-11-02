@@ -5,6 +5,7 @@ import '../models/app_preferences.dart';
 import '../providers/credit_card_providers.dart';
 import '../providers/preferences_providers.dart';
 import '../providers/subscription_providers.dart';
+import '../utils/adaptive.dart';
 
 class NotificationSettingsScreen extends ConsumerWidget {
   const NotificationSettingsScreen({super.key});
@@ -29,317 +30,319 @@ class NotificationSettingsScreen extends ConsumerWidget {
           ),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          // Permission status card
-          FutureBuilder<bool>(
-            future: notificationService.hasPermission(),
-            builder: (context, snapshot) {
-              final hasPermission = snapshot.data ?? true;
-              if (!hasPermission) {
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 20),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.errorContainer,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: theme.colorScheme.error.withValues(alpha: 0.3),
-                      width: 1,
+      body: ReadableWidth(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            // Permission status card
+            FutureBuilder<bool>(
+              future: notificationService.hasPermission(),
+              builder: (context, snapshot) {
+                final hasPermission = snapshot.data ?? true;
+                if (!hasPermission) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 20),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: theme.colorScheme.error.withValues(alpha: 0.3),
+                        width: 1,
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.warning_amber_rounded,
-                        color: theme.colorScheme.error,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Permission Required',
-                              style: TextStyle(
-                                color: theme.colorScheme.onErrorContainer,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Enable notification permission in system settings',
-                              style: TextStyle(
-                                color: theme.colorScheme.onErrorContainer,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          color: theme.colorScheme.error,
                         ),
-                      ),
-                      TextButton(
-                        onPressed: () async {
-                          await notificationService.requestPermission();
-                        },
-                        child: const Text('Enable'),
-                      ),
-                    ],
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-
-          // Renewal Reminders Section
-          _buildSectionHeader(context, 'Renewal Reminders'),
-
-          // Master switch
-          _buildSwitchCard(
-            context,
-            theme,
-            icon: Icons.notifications_active,
-            title: 'Enable Notifications',
-            subtitle: preferences.notificationsEnabled
-                ? 'Get reminders before renewals'
-                : 'Notifications are off',
-            value: preferences.notificationsEnabled,
-            onChanged: (value) async {
-              await ref.read(preferencesProvider.notifier).toggleNotifications(value);
-              if (context.mounted) {
-                await _rescheduleAll(ref, context);
-              }
-            },
-          ),
-
-          const SizedBox(height: 24),
-
-          // Reminder Schedule Section
-          _buildSectionHeader(context, 'Reminder Schedule'),
-
-          // 7 days reminder
-          _buildSwitchCard(
-            context,
-            theme,
-            icon: Icons.today_outlined,
-            title: '7 days before',
-            subtitle: 'Early warning',
-            value: preferences.reminder7DaysEnabled,
-            enabled: preferences.notificationsEnabled,
-            onChanged: (value) async {
-              await ref.read(preferencesProvider.notifier).toggleReminder7Days(value);
-              if (context.mounted) {
-                await _rescheduleAll(ref, context);
-              }
-            },
-          ),
-
-          // 3 days reminder
-          _buildSwitchCard(
-            context,
-            theme,
-            icon: Icons.event_outlined,
-            title: '3 days before',
-            subtitle: 'Mid-range reminder',
-            value: preferences.reminder3DaysEnabled,
-            enabled: preferences.notificationsEnabled,
-            onChanged: (value) async {
-              await ref.read(preferencesProvider.notifier).toggleReminder3Days(value);
-              if (context.mounted) {
-                await _rescheduleAll(ref, context);
-              }
-            },
-          ),
-
-          // 1 day reminder
-          _buildSwitchCard(
-            context,
-            theme,
-            icon: Icons.alarm_outlined,
-            title: '1 day before',
-            subtitle: 'Last-minute reminder',
-            value: preferences.reminder1DayEnabled,
-            enabled: preferences.notificationsEnabled,
-            onChanged: (value) async {
-              await ref.read(preferencesProvider.notifier).toggleReminder1Day(value);
-              if (context.mounted) {
-                await _rescheduleAll(ref, context);
-              }
-            },
-          ),
-
-          // Renewal day reminder
-          _buildSwitchCard(
-            context,
-            theme,
-            icon: Icons.notifications_outlined,
-            title: 'On renewal day',
-            subtitle: 'Day of billing',
-            value: preferences.reminderOnDayEnabled,
-            enabled: preferences.notificationsEnabled,
-            onChanged: (value) async {
-              await ref.read(preferencesProvider.notifier).toggleReminderOnDay(value);
-              if (context.mounted) {
-                await _rescheduleAll(ref, context);
-              }
-            },
-          ),
-
-          const SizedBox(height: 24),
-
-          // Free-Trial Reminders Section
-          _buildSectionHeader(context, 'Free-Trial Reminders'),
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 12, right: 4),
-            child: Text(
-              'Reminders to cancel before a trial converts to a paid subscription.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-          ),
-          _buildSwitchCard(
-            context,
-            theme,
-            icon: Icons.alarm,
-            title: '1 day before trial ends',
-            subtitle: 'Last-minute heads up',
-            value: preferences.trialReminder1DayEnabled,
-            enabled: preferences.notificationsEnabled,
-            onChanged: (value) async {
-              await ref.read(preferencesProvider.notifier).toggleTrialReminder1Day(value);
-              if (context.mounted) {
-                await _rescheduleAll(ref, context);
-              }
-            },
-          ),
-          _buildSwitchCard(
-            context,
-            theme,
-            icon: Icons.event_outlined,
-            title: '3 days before trial ends',
-            subtitle: 'Mid-range reminder',
-            value: preferences.trialReminder3DaysEnabled,
-            enabled: preferences.notificationsEnabled,
-            onChanged: (value) async {
-              await ref.read(preferencesProvider.notifier).toggleTrialReminder3Days(value);
-              if (context.mounted) {
-                await _rescheduleAll(ref, context);
-              }
-            },
-          ),
-          _buildSwitchCard(
-            context,
-            theme,
-            icon: Icons.today_outlined,
-            title: '7 days before trial ends',
-            subtitle: 'Early warning',
-            value: preferences.trialReminder7DaysEnabled,
-            enabled: preferences.notificationsEnabled,
-            onChanged: (value) async {
-              await ref.read(preferencesProvider.notifier).toggleTrialReminder7Days(value);
-              if (context.mounted) {
-                await _rescheduleAll(ref, context);
-              }
-            },
-          ),
-
-          const SizedBox(height: 24),
-
-          // Notification Time Section
-          _buildSectionHeader(context, 'Notification Time'),
-          _buildTimePickerCard(context, theme, preferences, ref),
-
-          // Debug Section (Only in debug mode)
-          if (kDebugMode) ...[
-            const SizedBox(height: 32),
-            _buildSectionHeader(context, 'Debug Info'),
-            Container(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: theme.colorScheme.outline.withValues(alpha: 0.08),
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                children: [
-                  ListTile(
-                    onTap: () async {
-                      await notificationService.showTestNotification();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Test notification sent')),
-                        );
-                      }
-                    },
-                    leading: Icon(Icons.notifications_active_outlined, color: theme.colorScheme.primary),
-                    title: const Text('Send a test notification'),
-                    subtitle: const Text('Check if notifications can display'),
-                    trailing: const Icon(Icons.chevron_right),
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    onTap: () async {
-                      final pending = await notificationService.getPendingNotifications();
-                      if (context.mounted) {
-                        await showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: Text('Pending notifications (${pending.length})'),
-                            content: SizedBox(
-                              width: double.maxFinite,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Padding(
-                                    padding: EdgeInsets.only(bottom: 12),
-                                    child: Text(
-                                      'Note: The "Renews today" text is the message that will be shown on the future scheduled date.',
-                                      style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
-                                    ),
-                                  ),
-                                  Flexible(
-                                    child: pending.isEmpty
-                                        ? const Text('No pending notifications')
-                                        : ListView.builder(
-                                            shrinkWrap: true,
-                                            itemCount: pending.length,
-                                            itemBuilder: (context, index) {
-                                              final request = pending[index];
-                                              return ListTile(
-                                                title: Text(request.title ?? 'No title'),
-                                                subtitle: Text('ID: ${request.id}\n${request.body ?? ''}\nPayload: ${request.payload ?? 'None'}'),
-                                                isThreeLine: true,
-                                              );
-                                            },
-                                          ),
-                                  ),
-                                ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Permission Required',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onErrorContainer,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Close'),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Enable notification permission in system settings',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onErrorContainer,
+                                  fontSize: 13,
+                                ),
                               ),
                             ],
                           ),
-                        );
-                      }
-                    },
-                    leading: Icon(Icons.bug_report_outlined, color: theme.colorScheme.tertiary),
-                    title: const Text('View pending notifications'),
-                    subtitle: const Text('Check scheduled reminders'),
-                    trailing: const Icon(Icons.chevron_right),
-                  ),
-                ],
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            await notificationService.requestPermission();
+                          },
+                          child: const Text('Enable'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+
+            // Renewal Reminders Section
+            _buildSectionHeader(context, 'Renewal Reminders'),
+
+            // Master switch
+            _buildSwitchCard(
+              context,
+              theme,
+              icon: Icons.notifications_active,
+              title: 'Enable Notifications',
+              subtitle: preferences.notificationsEnabled
+                  ? 'Get reminders before renewals'
+                  : 'Notifications are off',
+              value: preferences.notificationsEnabled,
+              onChanged: (value) async {
+                await ref.read(preferencesProvider.notifier).toggleNotifications(value);
+                if (context.mounted) {
+                  await _rescheduleAll(ref, context);
+                }
+              },
+            ),
+
+            const SizedBox(height: 24),
+
+            // Reminder Schedule Section
+            _buildSectionHeader(context, 'Reminder Schedule'),
+
+            // 7 days reminder
+            _buildSwitchCard(
+              context,
+              theme,
+              icon: Icons.today_outlined,
+              title: '7 days before',
+              subtitle: 'Early warning',
+              value: preferences.reminder7DaysEnabled,
+              enabled: preferences.notificationsEnabled,
+              onChanged: (value) async {
+                await ref.read(preferencesProvider.notifier).toggleReminder7Days(value);
+                if (context.mounted) {
+                  await _rescheduleAll(ref, context);
+                }
+              },
+            ),
+
+            // 3 days reminder
+            _buildSwitchCard(
+              context,
+              theme,
+              icon: Icons.event_outlined,
+              title: '3 days before',
+              subtitle: 'Mid-range reminder',
+              value: preferences.reminder3DaysEnabled,
+              enabled: preferences.notificationsEnabled,
+              onChanged: (value) async {
+                await ref.read(preferencesProvider.notifier).toggleReminder3Days(value);
+                if (context.mounted) {
+                  await _rescheduleAll(ref, context);
+                }
+              },
+            ),
+
+            // 1 day reminder
+            _buildSwitchCard(
+              context,
+              theme,
+              icon: Icons.alarm_outlined,
+              title: '1 day before',
+              subtitle: 'Last-minute reminder',
+              value: preferences.reminder1DayEnabled,
+              enabled: preferences.notificationsEnabled,
+              onChanged: (value) async {
+                await ref.read(preferencesProvider.notifier).toggleReminder1Day(value);
+                if (context.mounted) {
+                  await _rescheduleAll(ref, context);
+                }
+              },
+            ),
+
+            // Renewal day reminder
+            _buildSwitchCard(
+              context,
+              theme,
+              icon: Icons.notifications_outlined,
+              title: 'On renewal day',
+              subtitle: 'Day of billing',
+              value: preferences.reminderOnDayEnabled,
+              enabled: preferences.notificationsEnabled,
+              onChanged: (value) async {
+                await ref.read(preferencesProvider.notifier).toggleReminderOnDay(value);
+                if (context.mounted) {
+                  await _rescheduleAll(ref, context);
+                }
+              },
+            ),
+
+            const SizedBox(height: 24),
+
+            // Free-Trial Reminders Section
+            _buildSectionHeader(context, 'Free-Trial Reminders'),
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 12, right: 4),
+              child: Text(
+                'Reminders to cancel before a trial converts to a paid subscription.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
               ),
             ),
+            _buildSwitchCard(
+              context,
+              theme,
+              icon: Icons.alarm,
+              title: '1 day before trial ends',
+              subtitle: 'Last-minute heads up',
+              value: preferences.trialReminder1DayEnabled,
+              enabled: preferences.notificationsEnabled,
+              onChanged: (value) async {
+                await ref.read(preferencesProvider.notifier).toggleTrialReminder1Day(value);
+                if (context.mounted) {
+                  await _rescheduleAll(ref, context);
+                }
+              },
+            ),
+            _buildSwitchCard(
+              context,
+              theme,
+              icon: Icons.event_outlined,
+              title: '3 days before trial ends',
+              subtitle: 'Mid-range reminder',
+              value: preferences.trialReminder3DaysEnabled,
+              enabled: preferences.notificationsEnabled,
+              onChanged: (value) async {
+                await ref.read(preferencesProvider.notifier).toggleTrialReminder3Days(value);
+                if (context.mounted) {
+                  await _rescheduleAll(ref, context);
+                }
+              },
+            ),
+            _buildSwitchCard(
+              context,
+              theme,
+              icon: Icons.today_outlined,
+              title: '7 days before trial ends',
+              subtitle: 'Early warning',
+              value: preferences.trialReminder7DaysEnabled,
+              enabled: preferences.notificationsEnabled,
+              onChanged: (value) async {
+                await ref.read(preferencesProvider.notifier).toggleTrialReminder7Days(value);
+                if (context.mounted) {
+                  await _rescheduleAll(ref, context);
+                }
+              },
+            ),
+
+            const SizedBox(height: 24),
+
+            // Notification Time Section
+            _buildSectionHeader(context, 'Notification Time'),
+            _buildTimePickerCard(context, theme, preferences, ref),
+
+            // Debug Section (Only in debug mode)
+            if (kDebugMode) ...[
+              const SizedBox(height: 32),
+              _buildSectionHeader(context, 'Debug Info'),
+              Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.08),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    ListTile(
+                      onTap: () async {
+                        await notificationService.showTestNotification();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Test notification sent')),
+                          );
+                        }
+                      },
+                      leading: Icon(Icons.notifications_active_outlined, color: theme.colorScheme.primary),
+                      title: const Text('Send a test notification'),
+                      subtitle: const Text('Check if notifications can display'),
+                      trailing: const Icon(Icons.chevron_right),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      onTap: () async {
+                        final pending = await notificationService.getPendingNotifications();
+                        if (context.mounted) {
+                          await showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: Text('Pending notifications (${pending.length})'),
+                              content: SizedBox(
+                                width: double.maxFinite,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Padding(
+                                      padding: EdgeInsets.only(bottom: 12),
+                                      child: Text(
+                                        'Note: The "Renews today" text is the message that will be shown on the future scheduled date.',
+                                        style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                                      ),
+                                    ),
+                                    Flexible(
+                                      child: pending.isEmpty
+                                          ? const Text('No pending notifications')
+                                          : ListView.builder(
+                                              shrinkWrap: true,
+                                              itemCount: pending.length,
+                                              itemBuilder: (context, index) {
+                                                final request = pending[index];
+                                                return ListTile(
+                                                  title: Text(request.title ?? 'No title'),
+                                                  subtitle: Text('ID: ${request.id}\n${request.body ?? ''}\nPayload: ${request.payload ?? 'None'}'),
+                                                  isThreeLine: true,
+                                                );
+                                              },
+                                            ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Close'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                      },
+                      leading: Icon(Icons.bug_report_outlined, color: theme.colorScheme.tertiary),
+                      title: const Text('View pending notifications'),
+                      subtitle: const Text('Check scheduled reminders'),
+                      trailing: const Icon(Icons.chevron_right),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
