@@ -30,6 +30,7 @@ import '../widgets/notification_primer.dart';
 import '../widgets/rates_warning.dart';
 import '../widgets/subscription_card.dart';
 import '../widgets/sync_indicator.dart';
+import '../widgets/trial/trial_ended_banner.dart';
 import 'archived_screen.dart';
 import 'recently_deleted_screen.dart';
 import 'split_requests_screen.dart';
@@ -274,6 +275,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           }
 
           final listSlivers = <Widget>[
+            // Ended trials waiting for "still subscribed?" (BUG-24)
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
+              sliver: SliverToBoxAdapter(child: TrialEndedBanners()),
+            ),
             // Own subscriptions
             SliverPadding(
               padding: const EdgeInsets.symmetric(

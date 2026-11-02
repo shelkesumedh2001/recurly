@@ -210,22 +210,21 @@ class SubscriptionCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      subscription.isFreeTrial && subscription.price == 0
+                      // An ended trial is billed at its post-trial price
+                      // (formattedPrice already says so) — no "FREE".
+                      _inTrial && subscription.price == 0
                           ? 'FREE'
                           : subscription.formattedPrice,
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.5,
-                        color: subscription.isFreeTrial
-                            ? theme.colorScheme.primary
-                            : null,
+                        color: _inTrial ? theme.colorScheme.primary : null,
                       ),
                     ),
                     const SizedBox(height: 2),
-                    if (subscription.isFreeTrial &&
-                        subscription.priceAfterTrial != null)
+                    if (_inTrial && subscription.priceAfterTrial != null)
                       Text(
-                        '${subscription.currencySymbol}${subscription.priceAfterTrial!.toStringAsFixed(2)} after',
+                        '${subscription.formatAmount(subscription.priceAfterTrial!)} after',
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: theme.colorScheme.onSurface
                               .withValues(alpha: 0.5),
@@ -321,6 +320,10 @@ class SubscriptionCard extends ConsumerWidget {
   }
 
   /// Check if subscription has a split
+  /// A trial that hasn't ended yet (still billed at the trial price).
+  bool get _inTrial =>
+      subscription.isFreeTrial && !subscription.isTrialExpired;
+
   bool _hasSplit() {
     return subscription.splitWith != null && subscription.splitWith!.isNotEmpty;
   }

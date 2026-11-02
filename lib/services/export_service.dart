@@ -296,7 +296,7 @@ class ExportService {
 
       rows.add([
         sub.name,
-        sub.price.toStringAsFixed(2),
+        sub.currentPrice.toStringAsFixed(2),
         sub.currency,
         sub.billingCycle.displayName,
         convertedMonthly.toStringAsFixed(2),
@@ -483,7 +483,7 @@ class ExportService {
 
               // Convert to display currency
               final convertedPrice = currencyService.convert(
-                amount: sub.price,
+                amount: sub.chargePerRenewal,
                 from: sub.currency,
                 to: displayCurrency,
                 rates: exchangeRates,
@@ -712,7 +712,7 @@ class ExportService {
             ...subscriptions.map((sub) {
               // Convert to display currency
               final convertedPrice = currencyService.convert(
-                amount: sub.price,
+                amount: sub.currentPrice,
                 from: sub.currency,
                 to: displayCurrency,
                 rates: exchangeRates,

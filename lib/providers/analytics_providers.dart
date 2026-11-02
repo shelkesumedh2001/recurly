@@ -168,7 +168,7 @@ double? computeTotalPriceChangeImpact({
     final diff = sub.price - oldPrice;
     // Build a temporary sub with the diff as price so monthlyEquivalent
     // applies the right multiplier (including customDays for custom cycles).
-    final monthlyDiff = sub.copyWith(price: diff).monthlyEquivalent;
+    final monthlyDiff = sub.monthlyEquivalentOf(diff);
     final converted = currencyService.convertOrNull(
       amount: monthlyDiff,
       from: sub.currency,
@@ -351,7 +351,9 @@ final upcomingRenewalsProvider = Provider<List<UpcomingRenewal>>((ref) {
         // Collect dates within the 30-day window
         while (!billDate.isAfter(cutoff)) {
           final converted = currencyService.convert(
-            amount: sub.price,
+            // What each bill charges — a trial's bills (from trial end)
+            // are at the post-trial price, not the trial price (BUG-15).
+            amount: sub.chargePerRenewal,
             from: sub.currency,
             to: displayCurrency,
             rates: exchangeRates,
