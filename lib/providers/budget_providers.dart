@@ -55,6 +55,12 @@ class BudgetNotifier extends StateNotifier<BudgetSettings> {
     _loadSettings();
   }
 
+  /// Hide the budget alert for a day (BudgetService.shouldShowAlert).
+  Future<void> dismissAlert() async {
+    await _budgetService.markAlertShown();
+    _loadSettings();
+  }
+
   /// Clear all budgets
   Future<void> clearAllBudgets() async {
     await _budgetService.clearAllBudgets();

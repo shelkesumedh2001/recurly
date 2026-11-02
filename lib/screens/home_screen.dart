@@ -25,6 +25,7 @@ import '../utils/split_copies.dart';
 import '../widgets/add_subscription_sheet.dart';
 import '../widgets/analytics/category_pie_chart.dart';
 import '../widgets/analytics/renewal_forecast_timeline.dart';
+import '../widgets/budget/budget_alert_banner.dart';
 import '../widgets/common/app_bottom_sheet.dart';
 import '../widgets/common/app_empty_state.dart';
 import '../widgets/notification_primer.dart';
@@ -272,9 +273,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           }
 
           final listSlivers = <Widget>[
-            // Ended trials waiting for "still subscribed?" (BUG-24)
+            // Budget alert (P3-2) and ended trials waiting for
+            // "still subscribed?" (BUG-24)
             const SliverPadding(
               padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
+              sliver: SliverToBoxAdapter(child: BudgetAlertBanner()),
+            ),
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 0),
               sliver: SliverToBoxAdapter(child: TrialEndedBanners()),
             ),
             // Own subscriptions
