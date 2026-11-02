@@ -12,6 +12,7 @@ import '../services/notification_service.dart';
 import '../services/sync_service.dart';
 import '../utils/constants.dart';
 import 'auth_providers.dart';
+import 'currency_providers.dart';
 import 'preferences_providers.dart';
 import 'sync_providers.dart';
 
@@ -108,13 +109,29 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
       case HomeSortMode.date:
         subs.sort((a, b) => a.nextBillDate.compareTo(b.nextBillDate));
       case HomeSortMode.price:
-        subs.sort((a, b) => b.monthlyEquivalent.compareTo(a.monthlyEquivalent));
+        final cost = _monthlyInDisplayCurrency();
+        subs.sort((a, b) => cost(b).compareTo(cost(a)));
       case HomeSortMode.name:
         subs.sort(
           (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
         );
     }
     return subs;
+  }
+
+  /// Monthly cost in the display currency: price sort must compare like
+  /// with like — "₹44.84 weekly" (~$2/mo) ranked above "€47.58 every 10
+  /// days" (~$162/mo) when raw numbers were compared (BUG-21).
+  double Function(Subscription) _monthlyInDisplayCurrency() {
+    final service = _ref.read(currencyServiceProvider);
+    final displayCurrency = _ref.read(displayCurrencyProvider);
+    final rates = _ref.read(exchangeRatesProvider).value;
+    return (sub) => service.convert(
+          amount: sub.monthlyEquivalent,
+          from: sub.currency,
+          to: displayCurrency,
+          rates: rates,
+        );
   }
 
   /// Push to sync if enabled (fire-and-forget to avoid blocking UI offline)
@@ -281,8 +298,9 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
   void sortByPrice() {
     final current = state.value;
     if (current != null) {
+      final cost = _monthlyInDisplayCurrency();
       final sorted = List<Subscription>.from(current)
-        ..sort((a, b) => b.monthlyEquivalent.compareTo(a.monthlyEquivalent));
+        ..sort((a, b) => cost(b).compareTo(cost(a)));
       state = AsyncValue.data(sorted);
     }
   }

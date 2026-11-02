@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/subscription.dart';
+import '../providers/category_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../utils/adaptive.dart';
+import '../widgets/category/category_icon.dart';
 import '../widgets/common/app_empty_state.dart';
 
 class ArchivedScreen extends ConsumerWidget {
@@ -145,10 +147,7 @@ class _ArchivedCard extends ConsumerWidget {
                   color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                 ),
                 child: Center(
-                  child: Text(
-                    subscription.category.icon,
-                    style: const TextStyle(fontSize: 24),
-                  ),
+                  child: CategoryIcon(ref.watch(categoryOfProvider)(subscription)),
                 ),
               ),
 

@@ -112,7 +112,32 @@ class AppTokens extends ThemeExtension<AppTokens> {
   }
 
   /// Categorical chart color for series/category [index].
-  Color chartColor(int index) => chartColors[index % chartColors.length];
+  /// Chart colour for series [index]. Past the palette (custom categories
+  /// come after the 6 built-ins) each extra colour takes the middle of the
+  /// next-largest hue gap in this theme's palette, keeping the palette's
+  /// tone — the palette used to wrap, so the first custom category was
+  /// drawn in Entertainment's colour.
+  Color chartColor(int index) {
+    final n = chartColors.length;
+    if (index < n) return chartColors[index];
+
+    final hues = [for (final c in chartColors) HSLColor.fromColor(c).hue]
+      ..sort();
+    final gaps = <({double size, double mid})>[
+      for (var i = 0; i < n; i++)
+        (() {
+          final a = hues[i];
+          final b = i + 1 < n ? hues[i + 1] : hues[0] + 360;
+          return (size: b - a, mid: (a + (b - a) / 2) % 360);
+        })(),
+    ]..sort((x, y) => y.size.compareTo(x.size));
+
+    final extra = index - n;
+    final gap = gaps[extra % gaps.length];
+    // Later rounds nudge within the same gap so they still differ.
+    final hue = (gap.mid + (extra ~/ gaps.length) * gap.size / 4) % 360;
+    return HSLColor.fromColor(chartColors[index % n]).withHue(hue).toColor();
+  }
 
   /// Subtle two-stop gradient around the chart color for [index].
   List<Color> chartGradient(int index) {

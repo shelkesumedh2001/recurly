@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
 import '../models/subscription.dart';
 import '../providers/auth_providers.dart';
+import '../providers/category_providers.dart';
 import '../providers/credit_card_providers.dart';
 import '../providers/household_providers.dart';
 import '../providers/preferences_providers.dart';
@@ -12,6 +14,7 @@ import '../providers/subscription_providers.dart';
 import '../theme/app_tokens.dart';
 import 'add_subscription_sheet.dart';
 import 'app_toast.dart';
+import 'category/category_icon.dart';
 import 'common/app_dialogs.dart';
 import 'common/detail_row.dart';
 import 'split_subscription_sheet.dart';
@@ -119,7 +122,7 @@ class SubscriptionCard extends ConsumerWidget {
             child: Row(
               children: [
                 // Logo/Icon
-                _buildLogo(context, urgencyColor),
+                _buildLogo(context, ref, urgencyColor),
 
                 const SizedBox(width: 16),
 
@@ -267,7 +270,7 @@ class SubscriptionCard extends ConsumerWidget {
   }
 
   /// Build logo or placeholder
-  Widget _buildLogo(BuildContext context, Color urgencyColor) {
+  Widget _buildLogo(BuildContext context, WidgetRef ref, Color urgencyColor) {
     // If logoUrl exists, try to load network image
     if (subscription.logoUrl != null && subscription.logoUrl!.isNotEmpty) {
       return Container(
@@ -292,9 +295,8 @@ class SubscriptionCard extends ConsumerWidget {
                 return Container(
                   color: urgencyColor.withValues(alpha: 0.12),
                   child: Center(
-                    child: Text(
-                      subscription.category.icon,
-                      style: const TextStyle(fontSize: 24),
+                    child: CategoryIcon(
+                      ref.read(categoryOfProvider)(subscription),
                     ),
                   ),
                 );
@@ -314,10 +316,7 @@ class SubscriptionCard extends ConsumerWidget {
         color: urgencyColor.withValues(alpha: 0.12),
       ),
       child: Center(
-        child: Text(
-          subscription.category.icon,
-          style: const TextStyle(fontSize: 24),
-        ),
+        child: CategoryIcon(ref.read(categoryOfProvider)(subscription)),
       ),
     );
   }
@@ -422,7 +421,7 @@ class SubscriptionCard extends ConsumerWidget {
                   // Header: logo, name/category, renewal countdown pill
                   Row(
                     children: [
-                      _buildLogo(context, urgencyColor),
+                      _buildLogo(context, ref, urgencyColor),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
@@ -435,7 +434,7 @@ class SubscriptionCard extends ConsumerWidget {
                               ),
                             ),
                             Text(
-                              subscription.category.displayName,
+                              ref.read(categoryOfProvider)(subscription).name,
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: theme.colorScheme.onSurface
                                     .withValues(alpha: 0.6),
@@ -504,7 +503,7 @@ class SubscriptionCard extends ConsumerWidget {
                         case final card?)
                       DetailRow(
                         'Card',
-                        '${card.name} · payment due ${DateFormat('MMM d').format(card.nextDueDate)}',
+                        '${card.name} · payment due ${DateFormat('MMM d').format(card.dueDateForCharge(subscription.nextBillDate))}',
                       ),
                   if (_isSplitCopy(ref))
                     DetailRow(

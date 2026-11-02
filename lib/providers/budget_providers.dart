@@ -1,9 +1,11 @@
 import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../models/budget.dart';
 import '../models/subscription.dart';
 import '../services/budget_service.dart';
 import '../utils/money.dart';
+import 'category_providers.dart';
 import 'currency_providers.dart';
 import 'subscription_providers.dart';
 
@@ -110,11 +112,13 @@ final categoryBudgetStatusProvider = Provider.family<BudgetStatus, String>((ref,
 final categorySpendByNameProvider = Provider<Map<String, double>>((ref) {
   final subscriptions = ref.watch(subscriptionProvider).value ?? [];
   final monthlyCost = ref.watch(myMonthlyCostProvider);
+  final categoryOf = ref.watch(categoryOfProvider);
 
   final Map<String, double> categorySpend = {};
   for (final sub in subscriptions) {
     if (!sub.isArchived && sub.deletedAt == null) {
-      final categoryName = sub.category.displayName;
+      // Custom category name when the sub is filed under one (BUG-17).
+      final categoryName = categoryOf(sub).name;
       final converted = monthlyCost(sub);
       categorySpend[categoryName] = (categorySpend[categoryName] ?? 0) + converted;
     }
