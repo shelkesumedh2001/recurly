@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../models/budget.dart';
 import '../models/enums.dart';
 import '../models/exchange_rate.dart';
 import '../providers/budget_providers.dart';
 import '../providers/currency_providers.dart';
 import '../utils/adaptive.dart';
+import '../utils/money.dart';
 import '../widgets/budget/budget_progress_bar.dart';
 
 class BudgetSettingsScreen extends ConsumerStatefulWidget {
@@ -340,7 +342,7 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '$currencySymbol${totalSpend.toStringAsFixed(2)}',
+                formatMoney(totalSpend, currencySymbol),
                 style: theme.textTheme.headlineLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
@@ -367,8 +369,8 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
           if (remaining != null)
             Text(
               remaining >= 0
-                  ? '$currencySymbol${remaining.toStringAsFixed(2)} remaining'
-                  : '$currencySymbol${remaining.abs().toStringAsFixed(2)} over budget',
+                  ? '${formatMoney(remaining, currencySymbol)} remaining'
+                  : '${formatMoney(remaining.abs(), currencySymbol)} over budget',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: statusColor,
                 fontWeight: FontWeight.w500,
@@ -414,8 +416,8 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
         subtitle: hasSpend || hasBudget
             ? Text(
                 hasBudget
-                    ? '$currencySymbol${spend.toStringAsFixed(2)} / $currencySymbol${budget.toStringAsFixed(0)}'
-                    : '$currencySymbol${spend.toStringAsFixed(2)} spent',
+                    ? '${formatMoney(spend, currencySymbol)} / $currencySymbol${budget.toStringAsFixed(0)}'
+                    : '${formatMoney(spend, currencySymbol)} spent',
               )
             : const Text('No subscriptions'),
         trailing: TextButton(

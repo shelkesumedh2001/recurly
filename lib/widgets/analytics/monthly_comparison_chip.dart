@@ -22,7 +22,9 @@ class MonthlyComparisonChip extends ConsumerWidget {
     final icon = isIncrease ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded;
     final prefix = isIncrease ? '+' : '';
     final formattedDelta = currencyService.formatAmount(comparison.delta.abs(), displayCurrency);
-    final percentText = '${comparison.percentChange.abs().toStringAsFixed(1)}%';
+    final percent = comparison.percentChange;
+    final percentText =
+        percent == null ? '' : ' (${percent.abs().toStringAsFixed(1)}%)';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -36,7 +38,7 @@ class MonthlyComparisonChip extends ConsumerWidget {
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 4),
           Text(
-            '$prefix$formattedDelta ($percentText) vs last month',
+            '$prefix$formattedDelta$percentText vs last month',
             style: theme.textTheme.labelSmall?.copyWith(
               color: color,
               fontWeight: FontWeight.w600,

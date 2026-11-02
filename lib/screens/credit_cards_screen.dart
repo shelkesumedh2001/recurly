@@ -7,6 +7,7 @@ import '../models/exchange_rate.dart';
 import '../providers/credit_card_providers.dart';
 import '../providers/currency_providers.dart';
 import '../utils/adaptive.dart';
+import '../utils/money.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/common/app_empty_state.dart';
 
@@ -110,7 +111,7 @@ class _CardTile extends ConsumerWidget {
                     : '${statementSubs.length} '
                         '${statementSubs.length == 1 ? 'renewal' : 'renewals'}'
                         ' this statement · '
-                        '$symbol${statementTotal.toStringAsFixed(2)}'
+                        '${formatMoney(statementTotal, symbol)}'
                         ' — due ${dateFormat.format(card.currentStatementDueDate)}',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.primary,

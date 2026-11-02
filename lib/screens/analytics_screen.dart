@@ -651,6 +651,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
         displayCurrency: displayCurrency,
         currencyService: currencyService,
         exchangeRates: exchangeRates,
+        shareOf: ref.read(myShareOfProvider),
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -690,6 +691,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
         displayCurrency: displayCurrency,
         currencyService: currencyService,
         exchangeRates: exchangeRates,
+        shareOf: ref.read(myShareOfProvider),
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

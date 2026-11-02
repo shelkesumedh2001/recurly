@@ -109,20 +109,13 @@ final categoryBudgetStatusProvider = Provider.family<BudgetStatus, String>((ref,
 /// by the `SubscriptionCategory` enum.
 final categorySpendByNameProvider = Provider<Map<String, double>>((ref) {
   final subscriptions = ref.watch(subscriptionProvider).value ?? [];
-  final displayCurrency = ref.watch(displayCurrencyProvider);
-  final rates = ref.watch(exchangeRatesProvider).value;
-  final currencyService = ref.watch(currencyServiceProvider);
+  final monthlyCost = ref.watch(myMonthlyCostProvider);
 
   final Map<String, double> categorySpend = {};
   for (final sub in subscriptions) {
     if (!sub.isArchived && sub.deletedAt == null) {
       final categoryName = sub.category.displayName;
-      final converted = currencyService.convert(
-        amount: sub.monthlyEquivalent,
-        from: sub.currency,
-        to: displayCurrency,
-        rates: rates,
-      );
+      final converted = monthlyCost(sub);
       categorySpend[categoryName] = (categorySpend[categoryName] ?? 0) + converted;
     }
   }
@@ -212,12 +205,14 @@ final budgetForecastProvider = Provider<BudgetForecast?>((ref) {
   final displayCurrency = ref.watch(displayCurrencyProvider);
   final rates = ref.watch(exchangeRatesProvider).value;
   final service = ref.read(currencyServiceProvider);
+  final shareOf = ref.watch(myShareOfProvider);
 
   return BudgetForecast.forMonth(
     subscriptions: subscriptions,
     today: clock.now(),
+    // My share of each bill (D2), like every other personal total.
     convertedCharge: (sub) => service.convert(
-      amount: sub.chargePerRenewal,
+      amount: sub.chargePerRenewal * shareOf(sub),
       from: sub.currency,
       to: displayCurrency,
       rates: rates,

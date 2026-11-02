@@ -2,6 +2,7 @@ import 'package:clock/clock.dart';
 import 'package:hive/hive.dart';
 
 import '../utils/billing_cycle.dart';
+import '../utils/money.dart';
 import 'enums.dart';
 
 part 'subscription.g.dart';
@@ -338,7 +339,7 @@ class Subscription extends HiveObject { // For recently deleted feature
 
   /// [amount] in this sub's currency, e.g. "\$12.99".
   String formatAmount(double amount) =>
-      '$currencySymbol${amount.toStringAsFixed(2)}';
+      formatMoney(amount, currencySymbol, currencyCode: currency);
 
   /// Convert to JSON for Firebase
   Map<String, dynamic> toJson() {

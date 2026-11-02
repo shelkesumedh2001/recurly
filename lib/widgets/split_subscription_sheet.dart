@@ -9,6 +9,7 @@ import '../providers/household_providers.dart';
 import '../providers/preferences_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../services/split_service.dart';
+import '../utils/money.dart';
 import 'app_toast.dart';
 
 class SplitSubscriptionSheet extends ConsumerStatefulWidget {
@@ -48,8 +49,10 @@ class _SplitSubscriptionSheetState
     final theme = Theme.of(context);
     final sub = widget.subscription;
     final partnerLabel = ref.watch(partnerLabelProvider);
-    final partnerShare = sub.currentPrice * (_sharePercent / 100);
-    final myShare = sub.currentPrice - partnerShare;
+    // Partner's share rounded to the cent (what their copy shows); mine is
+    // the rest, so the two always add up to the price (BUG-14).
+    final partnerShare = roundCents(sub.currentPrice * (_sharePercent / 100));
+    final myShare = roundCents(sub.currentPrice) - partnerShare;
     final hasSplit = _existing != null;
 
     return Container(
@@ -137,14 +140,13 @@ class _SplitSubscriptionSheetState
                   _buildShareInfo(
                     theme,
                     label: 'Your share',
-                    amount: '${sub.currencySymbol}${myShare.toStringAsFixed(2)}',
+                    amount: sub.formatAmount(myShare),
                     percent: '${(100 - _sharePercent).round()}%',
                   ),
                   _buildShareInfo(
                     theme,
                     label: "$partnerLabel's share",
-                    amount:
-                        '${sub.currencySymbol}${partnerShare.toStringAsFixed(2)}',
+                    amount: sub.formatAmount(partnerShare),
                     percent: '${_sharePercent.round()}%',
                   ),
                 ],

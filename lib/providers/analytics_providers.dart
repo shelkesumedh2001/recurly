@@ -17,21 +17,14 @@ import 'subscription_providers.dart';
 /// mixed-currency subscriptions aggregate correctly).
 final categorySpendProvider = Provider<Map<SubscriptionCategory, double>>((ref) {
   final subscriptionsAsync = ref.watch(subscriptionProvider);
-  final displayCurrency = ref.watch(displayCurrencyProvider);
-  final rates = ref.watch(exchangeRatesProvider).value;
-  final currencyService = ref.watch(currencyServiceProvider);
+  final monthlyCost = ref.watch(myMonthlyCostProvider);
 
   return subscriptionsAsync.when(
     data: (subscriptions) {
       final Map<SubscriptionCategory, double> spendByCategory = {};
 
       for (final sub in subscriptions) {
-        final converted = currencyService.convert(
-          amount: sub.monthlyEquivalent,
-          from: sub.currency,
-          to: displayCurrency,
-          rates: rates,
-        );
+        final converted = monthlyCost(sub);
         final current = spendByCategory[sub.category] ?? 0.0;
         spendByCategory[sub.category] = current + converted;
       }
@@ -46,22 +39,14 @@ final categorySpendProvider = Provider<Map<SubscriptionCategory, double>>((ref) 
 /// Provider for the most expensive subscription
 final mostExpensiveSubscriptionProvider = Provider<Subscription?>((ref) {
   final subscriptionsAsync = ref.watch(subscriptionProvider);
-  final displayCurrency = ref.watch(displayCurrencyProvider);
-  final rates = ref.watch(exchangeRatesProvider).value;
-  final currencyService = ref.watch(currencyServiceProvider);
+  final convertedMonthly = ref.watch(myMonthlyCostProvider);
 
   return subscriptionsAsync.when(
     data: (subscriptions) {
       if (subscriptions.isEmpty) return null;
 
-      // Sort by monthly equivalent cost, converted to display currency so a
-      // high-value foreign-currency sub isn't ranked by its raw number.
-      double convertedMonthly(Subscription s) => currencyService.convert(
-            amount: s.monthlyEquivalent,
-            from: s.currency,
-            to: displayCurrency,
-            rates: rates,
-          );
+      // Ranked by what I pay per month in the display currency, so a
+      // foreign-currency sub isn't ranked by its raw number.
       final sorted = List<Subscription>.from(subscriptions)
         ..sort((a, b) => convertedMonthly(b).compareTo(convertedMonthly(a)));
 
@@ -206,11 +191,13 @@ final spendHistoryProvider = Provider<List<MonthSpend>>((ref) {
   final displayCurrency = ref.watch(displayCurrencyProvider);
   final rates = ref.watch(exchangeRatesProvider).value;
   final currencyService = ref.watch(currencyServiceProvider);
+  final shareOf = ref.watch(myShareOfProvider);
 
   return subscriptionsAsync.when(
     data: (subscriptions) => computeSpendHistory(
       subscriptions: subscriptions,
       now: clock.now(),
+      shareOf: shareOf,
       convert: (amount, from) => currencyService.convert(
         amount: amount,
         from: from,
@@ -232,43 +219,15 @@ class MonthlyComparison {
     required this.currentMonth,
     required this.lastMonth,
     required this.delta,
-    required this.percentChange,
+    this.percentChange,
   });
 
   final double currentMonth;
   final double lastMonth;
   final double delta;
-  final double percentChange;
-}
 
-/// Computes monthly spend for a target month using monthlyEquivalent
-/// (stable, no yearly billing spikes) with currency conversion.
-double _computeMonthSpend(
-  List<Subscription> subscriptions,
-  DateTime targetMonth, {
-  required String displayCurrency,
-  required dynamic currencyService,
-  required dynamic exchangeRates,
-}) {
-  final endOfMonth = DateTime(targetMonth.year, targetMonth.month + 1, 0, 23, 59, 59);
-  final startOfMonth = DateTime(targetMonth.year, targetMonth.month, 1);
-
-  double total = 0;
-  for (final sub in subscriptions) {
-    // Sub must have been created by end of target month
-    if (sub.createdAt.isAfter(endOfMonth)) continue;
-    // Sub must not have been deleted before start of target month
-    if (sub.deletedAt != null && sub.deletedAt!.isBefore(startOfMonth)) continue;
-    if (sub.isArchived) continue;
-
-    total += currencyService.convert(
-      amount: sub.monthlyEquivalent,
-      from: sub.currency,
-      to: displayCurrency,
-      rates: exchangeRates,
-    );
-  }
-  return total;
+  /// Null when last month was 0 (a percentage of nothing is meaningless).
+  final double? percentChange;
 }
 
 final monthlyComparisonProvider = Provider<MonthlyComparison?>((ref) {
@@ -276,6 +235,14 @@ final monthlyComparisonProvider = Provider<MonthlyComparison?>((ref) {
   final currencyService = ref.watch(currencyServiceProvider);
   final displayCurrency = ref.watch(displayCurrencyProvider);
   final exchangeRates = ref.watch(exchangeRatesProvider).value;
+  final shareOf = ref.watch(myShareOfProvider);
+
+  double convert(double amount, String from) => currencyService.convert(
+        amount: amount,
+        from: from,
+        to: displayCurrency,
+        rates: exchangeRates,
+      );
 
   return subscriptionsAsync.when(
     data: (subscriptions) {
@@ -285,27 +252,23 @@ final monthlyComparisonProvider = Provider<MonthlyComparison?>((ref) {
       final thisMonth = DateTime(now.year, now.month, 1);
       final lastMonth = DateTime(now.year, now.month - 1, 1);
 
-      final current = _computeMonthSpend(
+      final current = roundMoney(monthSpendRate(
         subscriptions, thisMonth,
-        displayCurrency: displayCurrency,
-        currencyService: currencyService,
-        exchangeRates: exchangeRates,
-      );
-      final previous = _computeMonthSpend(
+        shareOf: shareOf, convert: convert, today: now,
+      ),);
+      final previous = roundMoney(monthSpendRate(
         subscriptions, lastMonth,
-        displayCurrency: displayCurrency,
-        currencyService: currencyService,
-        exchangeRates: exchangeRates,
-      );
+        shareOf: shareOf, convert: convert, today: now,
+      ),);
 
-      final delta = current - previous;
-      final percentChange = previous > 0 ? (delta / previous) * 100 : 0.0;
-
+      final delta = roundMoney(current - previous);
       return MonthlyComparison(
         currentMonth: current,
         lastMonth: previous,
         delta: delta,
-        percentChange: percentChange,
+        // No percentage against nothing — "+$77.48 (0.0%)" read as "no
+        // change" (BUG-13).
+        percentChange: previous > 0 ? (delta / previous) * 100 : null,
       );
     },
     loading: () => null,
