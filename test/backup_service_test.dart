@@ -151,4 +151,105 @@ void main() {
       throwsFormatException,
     );
   });
+
+  // P3-5: restoring a household partner's backup used to overwrite the
+  // restorer's own sub with the partner's half-price copy of it.
+  test("restoring a partner's backup skips their copies and keeps mine",
+      () async {
+    await DatabaseService().deleteAllSubscriptions();
+    const a = 'uidA';
+    const b = 'uidB';
+    // B's copy of A's Gym (split 50% with B).
+    await DatabaseService().addSubscription(
+      makeSub('gym').copyWith(price: 25, ownerUid: a),
+    );
+    // B's own Disney+ at full price, split 50% with A.
+    final disney = makeSub('disney').copyWith(
+      price: 9.99,
+      ownerUid: b,
+      splitWith: [
+        {'uid': a, 'sharePercent': 50, 'accepted': true},
+      ],
+    );
+    await DatabaseService().addSubscription(disney);
+
+    // A's backup: A's own Gym (split with B) + A's copy of B's Disney+.
+    final backup = jsonEncode({
+      'app': 'recurly',
+      'formatVersion': 1,
+      'ownerUid': a,
+      'subscriptions': [
+        makeSub('gym')
+            .copyWith(price: 50, ownerUid: a, splitWith: [
+              {'uid': b, 'sharePercent': 50, 'accepted': true},
+            ],)
+            .toJson(),
+        makeSub('disney').copyWith(price: 4.995, ownerUid: b).toJson(),
+      ],
+    });
+
+    final result =
+        await BackupService().restoreFromJsonString(backup, myUid: b);
+
+    expect(result.subscriptions, 0);
+    expect(result.partnerCopies, 2);
+    final mine = DatabaseService().getSubscriptionById('disney')!;
+    expect(mine.price, 9.99, reason: "B's own sub untouched");
+    expect(mine.splitWith, isNotEmpty);
+    final gym = DatabaseService().getSubscriptionById('gym')!;
+    expect(gym.ownerUid, a, reason: "B's copy of A's Gym left alone");
+    expect(gym.price, 25);
+  });
+
+  test("restoring my old account's backup into a new account re-owns it",
+      () async {
+    await DatabaseService().deleteAllSubscriptions();
+    final backup = jsonEncode({
+      'app': 'recurly',
+      'formatVersion': 1,
+      'ownerUid': 'oldUid',
+      'subscriptions': [
+        makeSub('gym').copyWith(ownerUid: 'oldUid', splitWith: [
+          {'uid': 'exPartner', 'sharePercent': 50, 'accepted': true},
+        ],).toJson(),
+      ],
+    });
+    final result =
+        await BackupService().restoreFromJsonString(backup, myUid: 'newUid');
+    expect(result.subscriptions, 1);
+    final gym = DatabaseService().getSubscriptionById('gym')!;
+    expect(gym.ownerUid, 'newUid');
+    expect(gym.splitWith, isNull);
+  });
+
+  test('restoring my own backup keeps my splits and skips copies', () async {
+    await DatabaseService().deleteAllSubscriptions();
+    final backup = jsonEncode({
+      'app': 'recurly',
+      'formatVersion': 1,
+      // No header (pre-1.0.5 file): the owner is inferred from the subs.
+      'subscriptions': [
+        makeSub('gym').copyWith(ownerUid: 'uidA', splitWith: [
+          {'uid': 'uidB', 'sharePercent': 50, 'accepted': true},
+        ],).toJson(),
+        makeSub('icloud').copyWith(ownerUid: 'uidA').toJson(),
+        makeSub('disney').copyWith(ownerUid: 'uidB').toJson(),
+      ],
+    });
+
+    final result =
+        await BackupService().restoreFromJsonString(backup, myUid: 'uidA');
+
+    expect(result.subscriptions, 2);
+    expect(result.partnerCopies, 1);
+    expect(DatabaseService().getSubscriptionById('disney'), isNull);
+    expect(DatabaseService().getSubscriptionById('gym')!.splitWith,
+        isNotEmpty,);
+  });
+
+  test('the backup records whose data it is', () async {
+    final data =
+        jsonDecode(BackupService().buildBackupJson()) as Map<String, dynamic>;
+    expect(data.containsKey('ownerUid'), isTrue);
+  });
 }

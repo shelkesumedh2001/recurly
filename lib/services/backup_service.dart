@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:clock/clock.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -12,6 +13,7 @@ import '../models/credit_card.dart';
 import '../models/custom_category.dart';
 import '../models/subscription.dart';
 import '../utils/changelog.dart';
+import '../utils/split_copies.dart';
 import 'budget_service.dart';
 import 'credit_card_service.dart';
 import 'custom_category_service.dart';
@@ -25,6 +27,7 @@ class BackupRestoreResult {
     required this.cards,
     required this.budgetRestored,
     required this.skipped,
+    this.partnerCopies = 0,
   });
 
   final int subscriptions;
@@ -35,6 +38,10 @@ class BackupRestoreResult {
   /// Entries that failed to parse and were left out (rest still imports).
   final int skipped;
 
+  /// Copies of a household partner's split subs found in the file and left
+  /// out on purpose: they come from the partner's own data (P3-5).
+  final int partnerCopies;
+
   String get summary {
     final parts = <String>[
       '$subscriptions subscription${subscriptions == 1 ? '' : 's'}',
@@ -42,8 +49,13 @@ class BackupRestoreResult {
       if (cards > 0) '$cards cards',
       if (budgetRestored) 'budget',
     ];
+    final notes = [
+      if (partnerCopies > 0)
+        '$partnerCopies shared by your household partner left out',
+      if (skipped > 0) '$skipped entries skipped',
+    ];
     final base = 'Restored ${parts.join(', ')}';
-    return skipped > 0 ? '$base ($skipped entries skipped)' : base;
+    return notes.isEmpty ? base : '$base (${notes.join('; ')})';
   }
 }
 
@@ -73,6 +85,9 @@ class BackupService {
       'formatVersion': formatVersion,
       'exportedAt': now.toIso8601String(),
       'appBuild': kAppBuild,
+      // Whose data this is: restore uses it to tell the owner's subs from
+      // the partner copies the file also holds (P3-5).
+      'ownerUid': _signedInUid(),
       'subscriptions': DatabaseService()
           .getAllSubscriptions()
           .map((s) => s.toJson())
@@ -117,8 +132,21 @@ class BackupService {
     return restoreFromJsonString(await file.readAsString());
   }
 
-  /// Validate and merge a backup JSON string (also the unit-test seam).
-  Future<BackupRestoreResult> restoreFromJsonString(String json) async {
+  /// The signed-in account, or null (signed out / Firebase not set up).
+  static String? _signedInUid() {
+    try {
+      return FirebaseAuth.instance.currentUser?.uid;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Validate and merge a backup JSON string (also the unit-test seam;
+  /// [myUid] defaults to the signed-in account).
+  Future<BackupRestoreResult> restoreFromJsonString(
+    String json, {
+    String? myUid,
+  }) async {
     final Map<String, dynamic> data;
     try {
       data = jsonDecode(json) as Map<String, dynamic>;
@@ -135,21 +163,39 @@ class BackupService {
       );
     }
 
-    return _merge(data);
+    return _merge(data, myUid: myUid ?? _signedInUid());
   }
 
-  Future<BackupRestoreResult> _merge(Map<String, dynamic> data) async {
+  Future<BackupRestoreResult> _merge(
+    Map<String, dynamic> data, {
+    required String? myUid,
+  }) async {
     var skipped = 0;
     final now = clock.now();
 
     // Subscriptions: upsert by id. Bump updatedAt so LWW sync pushes the
     // restored version instead of resurrecting whatever remote holds.
-    var subCount = 0;
+    final parsed = <Subscription>[];
     for (final raw in data['subscriptions'] as List) {
       try {
-        final sub = Subscription.fromJson(raw as Map<String, dynamic>)
-            .copyWith(updatedAt: now);
-        await DatabaseService().updateSubscription(sub);
+        parsed.add(Subscription.fromJson(raw as Map<String, dynamic>));
+      } catch (_) {
+        skipped++;
+      }
+    }
+    // Only the backup owner's own subs, re-owned to this account (P3-5).
+    final plan = planRestore(
+      parsed,
+      backupOwner: backupOwnerOf(data, parsed),
+      myUid: myUid,
+      existingOwnerOf: (id) => DatabaseService().getSubscriptionById(id)?.ownerUid,
+    );
+    final partnerCopies = plan.skipped;
+
+    var subCount = 0;
+    for (final sub in plan.write) {
+      try {
+        await DatabaseService().updateSubscription(sub.copyWith(updatedAt: now));
         subCount++;
       } catch (_) {
         skipped++;
@@ -195,6 +241,7 @@ class BackupService {
       cards: cardCount,
       budgetRestored: budgetRestored,
       skipped: skipped,
+      partnerCopies: partnerCopies,
     );
   }
 

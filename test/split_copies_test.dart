@@ -236,4 +236,25 @@ void main() {
       expect(plan.isEmpty, isTrue);
     });
   });
+
+  group('foreignSubIds (P3-4)', () {
+    test("another account's subs and its partner copies go; mine and "
+        'never-synced ones stay', () {
+      final local = [
+        _sub('c-own', 10, owner: 'uidC'),
+        _sub('c-copy', 5, owner: 'uidD'),
+        _sub('mine', 7, owner: b),
+        Subscription(
+          id: 'local-only',
+          name: 'local',
+          price: 3,
+          billingCycle: BillingCycle.monthly,
+          firstBillDate: DateTime(2026, 10, 5),
+          category: SubscriptionCategory.other,
+          createdAt: DateTime(2026, 11, 2),
+        ),
+      ];
+      expect(foreignSubIds(local, b), unorderedEquals(['c-own', 'c-copy']));
+    });
+  });
 }

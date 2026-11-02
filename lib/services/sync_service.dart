@@ -64,6 +64,12 @@ class SyncService {
     syncStatus.value = SyncStatus.syncing;
 
     try {
+      // Another account's data left on this device (sign-out keeps local
+      // data) must not be merged into — or deleted from — this account.
+      await _dropForeignLocalData(uid);
+      _accountReadyUid = uid;
+      _runDeferredSplitSync();
+
       // Replay writes queued while offline BEFORE merging: a queued
       // hard-delete must remove the remote doc first, or the merge below
       // would see it as remote-only and resurrect it locally.
@@ -82,6 +88,31 @@ class SyncService {
     } catch (e) {
       debugPrint('Sync initialization error: $e');
       syncStatus.value = SyncStatus.error;
+    }
+  }
+
+  /// Uid whose local data has been checked by [_dropForeignLocalData];
+  /// [syncSplits] waits for it (P3-4: it raced the merge).
+  String? _accountReadyUid;
+  ({String uid, String? partnerUid, List<Subscription> docs})?
+      _deferredSplitSync;
+
+  Future<void> _dropForeignLocalData(String uid) async {
+    final ids = foreignSubIds(_db.getAllSubscriptions(), uid);
+    if (ids.isEmpty) return;
+    debugPrint('Sign-in as $uid: removing ${ids.length} subs of another '
+        'account from this device');
+    for (final id in ids) {
+      await _db.deleteSubscription(id);
+    }
+    remoteDataChangeTicker.value++;
+  }
+
+  void _runDeferredSplitSync() {
+    final d = _deferredSplitSync;
+    _deferredSplitSync = null;
+    if (d != null && d.uid == _accountReadyUid) {
+      unawaited(syncSplits(d.uid, partnerUid: d.partnerUid, partnerDocs: d.docs));
     }
   }
 
@@ -487,6 +518,13 @@ class SyncService {
     required String? partnerUid,
     List<Subscription> partnerDocs = const [],
   }) async {
+    if (_accountReadyUid != uid) {
+      // Sign-in still checking this device's data for another account's
+      // subs; run once it's done.
+      _deferredSplitSync =
+          (uid: uid, partnerUid: partnerUid, docs: partnerDocs);
+      return;
+    }
     if (_syncingSplits) {
       // Coalesce: run once more with the latest input when this finishes.
       _pendingSplitSync = (partnerUid: partnerUid, docs: partnerDocs);
@@ -629,6 +667,8 @@ class SyncService {
     _householdListener = null;
     _initialized = false;
     _currentUid = null;
+    _accountReadyUid = null;
+    _deferredSplitSync = null;
     syncStatus.value = SyncStatus.idle;
     partnerSubscriptions.value = [];
     // Per-session state — clear so a later sign-in under a different uid

@@ -226,3 +226,72 @@ SplitSyncPlan planSplitSync({
     updateOwn: own,
   );
 }
+
+/// Local subs that belong to a different account than [uid] — left on the
+/// device by an earlier sign-in (sign-out keeps local data). They must go
+/// before [uid]'s first merge: the merge would upload them into [uid]'s
+/// account, and the split sync would take them for copies and delete
+/// same-id docs from [uid]'s cloud (P3-4). Safe to drop: that account's own
+/// subs are in its cloud, partner copies are re-derived, and [uid]'s own
+/// subs come back from the merge. Never-synced subs (no owner) stay.
+List<String> foreignSubIds(List<Subscription> local, String uid) => [
+      for (final sub in local)
+        if (sub.ownerUid != null && sub.ownerUid != uid) sub.id,
+    ];
+
+/// Which uid a backup's subs belong to: the header's `ownerUid` (written
+/// since 1.0.5) or, for older files, the most common owner among its subs.
+String? backupOwnerOf(Map<String, dynamic> data, List<Subscription> subs) {
+  final header = data['ownerUid'];
+  if (header is String && header.isNotEmpty) return header;
+  final counts = <String, int>{};
+  for (final s in subs) {
+    final o = s.ownerUid;
+    if (o != null) counts[o] = (counts[o] ?? 0) + 1;
+  }
+  if (counts.isEmpty) return null;
+  return (counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value)))
+      .first
+      .key;
+}
+
+/// What a restore may write (P3-5). A backup holds its owner's subs AND
+/// their copies of a partner's split subs; restoring those copies by id
+/// overwrote the partner's real sub and silently ended the split.
+///
+/// - Subs owned by someone other than [backupOwner] (partner copies) are
+///   skipped — copies are always re-derived from the owner's live doc.
+/// - The rest become [myUid]'s (null when signed out: local-only data).
+/// - Restoring into a different account than the backup's drops their
+///   splits: those were with the other account's household partner.
+/// - A sub whose id this device already holds as someone else's (my copy
+///   of a partner's split sub) is left alone, not replaced by a re-owned
+///   full-price duplicate. [existingOwnerOf] gives the local doc's owner.
+({List<Subscription> write, int skipped}) planRestore(
+  List<Subscription> subs, {
+  required String? backupOwner,
+  required String? myUid,
+  String? Function(String id)? existingOwnerOf,
+}) {
+  final write = <Subscription>[];
+  var skipped = 0;
+  final otherAccount =
+      backupOwner != null && myUid != null && backupOwner != myUid;
+  for (final sub in subs) {
+    final owner = sub.ownerUid;
+    if (owner != null && backupOwner != null && owner != backupOwner) {
+      skipped++;
+      continue;
+    }
+    final existingOwner = existingOwnerOf?.call(sub.id);
+    if (existingOwner != null && existingOwner != (myUid ?? owner)) {
+      skipped++;
+      continue;
+    }
+    var restored = sub;
+    if (myUid != null) restored = restored.copyWith(ownerUid: myUid);
+    if (otherAccount) restored = restored.copyWith(clearSplitWith: true);
+    write.add(restored);
+  }
+  return (write: write, skipped: skipped);
+}

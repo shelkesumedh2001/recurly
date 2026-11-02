@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/subscription.dart';
 import '../../providers/currency_providers.dart';
 import '../../theme/app_tokens.dart';
+import '../../utils/money.dart';
 
 class CancelSimulatorSheet extends ConsumerStatefulWidget {
   const CancelSimulatorSheet({super.key, required this.subscription});
@@ -43,9 +44,11 @@ class _CancelSimulatorSheetState extends ConsumerState<CancelSimulatorSheet>
     final totalMonthly = ref.watch(convertedTotalSpendProvider);
 
     // What I'd stop paying: my share, in the display currency (D2).
-    final monthlyAmount = ref.watch(myMonthlyCostProvider)(sub);
-    final yearlyAmount = monthlyAmount * 12;
-    final fiveYearAmount = monthlyAmount * 60;
+    // Rounded to the cent first, then multiplied — the same rule as the
+    // Analytics totals, so $65.23/mo reads $782.76/yr, not $782.74 (P3-3).
+    final monthlyAmount = roundMoney(ref.watch(myMonthlyCostProvider)(sub));
+    final yearlyAmount = roundMoney(monthlyAmount * 12);
+    final fiveYearAmount = roundMoney(monthlyAmount * 60);
     final dailyAmount = monthlyAmount / 30;
     final percentOfTotal = totalMonthly > 0 ? (monthlyAmount / totalMonthly * 100) : 0.0;
 
