@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../models/subscription.dart';
+import '../providers/auth_providers.dart';
 import '../providers/credit_card_providers.dart';
 import '../providers/household_providers.dart';
 import '../providers/preferences_providers.dart';
@@ -38,8 +39,10 @@ class SubscriptionCard extends ConsumerWidget {
     final subscriptionId = subscription.id;
     final subscriptionName = subscription.name;
 
-    // Partner subs are read-only (no swipe, no context menu)
-    if (isPartnerSub) {
+    // Partner subs and my copies of their split subs are read-only (no
+    // swipe, no context menu): the owner edits them, and any local change
+    // to a copy would be overwritten by the owner's doc (BUG-4).
+    if (isPartnerSub || _isSplitCopy(ref)) {
       return _buildCardContent(context, ref, theme, urgencyColor);
     }
 
@@ -160,7 +163,7 @@ class SubscriptionCard extends ConsumerWidget {
                             TrialBadge(
                                 subscription: subscription, compact: true,),
                           ],
-                          if (_hasSplit()) ...[
+                          if (_hasSplit() || _isSplitCopy(ref)) ...[
                             const SizedBox(width: 6),
                             Icon(
                               Icons.call_split,
@@ -323,6 +326,14 @@ class SubscriptionCard extends ConsumerWidget {
   /// A trial that hasn't ended yet (still billed at the trial price).
   bool get _inTrial =>
       subscription.isFreeTrial && !subscription.isTrialExpired;
+
+  /// My copy of a sub my partner owns and splits with me (priced at my
+  /// share already).
+  bool _isSplitCopy(WidgetRef ref) {
+    final uid = ref.read(currentFirebaseUserProvider)?.uid;
+    final owner = subscription.ownerUid;
+    return owner != null && uid != null && owner != uid;
+  }
 
   bool _hasSplit() {
     return subscription.splitWith != null && subscription.splitWith!.isNotEmpty;
@@ -495,19 +506,33 @@ class SubscriptionCard extends ConsumerWidget {
                         'Card',
                         '${card.name} · payment due ${DateFormat('MMM d').format(card.nextDueDate)}',
                       ),
-                  if (_hasSplit()) ...[
+                  if (_isSplitCopy(ref))
                     DetailRow(
                       'Split',
-                      "${(subscription.splitWith!.first['sharePercent'] as num).toInt()}% ${ref.read(partnerLabelProvider)}'s share",
+                      '${ref.read(partnerLabelProvider)} pays the bill · price is your share',
+                    )
+                  else if (_hasSplit()) ...[
+                    DetailRow(
+                      'Split',
+                      "${(subscription.splitWith!.first['sharePercent'] as num).toInt()}% ${ref.read(partnerLabelProvider)}'s share"
+                          "${subscription.splitWith!.first['accepted'] == true ? '' : ' · waiting for ${ref.read(partnerLabelProvider)}'}",
                     ),
                     DetailRow(
                       'Your share',
-                      '${subscription.currencySymbol}${(subscription.price * (1 - (subscription.splitWith!.first['sharePercent'] as num) / 100)).toStringAsFixed(2)}',
+                      subscription.formatAmount(
+                        subscription.currentPrice *
+                            (1 -
+                                (subscription.splitWith!.first['sharePercent']
+                                        as num) /
+                                    100),
+                      ),
                     ),
                   ],
 
                   // Split button (only for own subs in a household)
-                  if (!isPartnerSub && ref.read(isInHouseholdProvider)) ...[
+                  if (!isPartnerSub &&
+                      !_isSplitCopy(ref) &&
+                      ref.read(isInHouseholdProvider)) ...[
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
@@ -537,7 +562,7 @@ class SubscriptionCard extends ConsumerWidget {
 
                   // Actions. The sheet dismisses by swipe/scrim, so own subs
                   // don't need a Close button.
-                  if (isPartnerSub)
+                  if (isPartnerSub || _isSplitCopy(ref))
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(

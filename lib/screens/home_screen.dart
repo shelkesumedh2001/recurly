@@ -21,6 +21,7 @@ import '../utils/changelog.dart';
 import '../utils/constants.dart';
 import '../utils/money.dart';
 import '../utils/review_prompt.dart';
+import '../utils/split_copies.dart';
 import '../widgets/add_subscription_sheet.dart';
 import '../widgets/analytics/category_pie_chart.dart';
 import '../widgets/analytics/renewal_forecast_timeline.dart';
@@ -159,21 +160,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     CurrencyService currencyService,
   ) {
     final subs = ref.watch(subscriptionProvider).value ?? [];
+    final currentUid = ref.watch(currentFirebaseUserProvider)?.uid;
     double total = 0;
     for (final sub in subs) {
-      double amount = sub.monthlyEquivalent;
-      if (sub.splitWith != null && sub.splitWith!.isNotEmpty) {
-        double myMultiplier = 1;
-        for (final split in sub.splitWith!) {
-          if (split['accepted'] == true) {
-            final partnerShare = (split['sharePercent'] as num).toDouble();
-            myMultiplier -= partnerShare / 100;
-          }
-        }
-        amount *= myMultiplier;
-      }
       total += currencyService.convert(
-        amount: amount,
+        amount: sub.monthlyEquivalent * myShareFraction(sub, currentUid),
         from: sub.currency,
         to: displayCurrency,
         rates: rates,
@@ -265,7 +256,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: subscriptionsAsync.when(
         data: (subscriptions) {
-          final isEmpty = subscriptions.isEmpty && partnerSubs.isEmpty;
+          // Partner subs are only listed in the Household view; in My share
+          // they don't fill the screen, so they mustn't hide the empty state
+          // (BUG-1).
+          final showsPartnerList = isInHousehold &&
+              spendViewMode == SpendViewMode.householdTotal &&
+              partnerSubs.isNotEmpty;
+          final isEmpty = subscriptions.isEmpty && !showsPartnerList;
           final hero =
               _buildHeroSection(context, formattedTotal, subscriptionCount);
 

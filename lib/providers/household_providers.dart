@@ -1,10 +1,8 @@
-import 'package:clock/clock.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/household.dart';
-import '../services/database_service.dart';
 import '../services/household_service.dart';
 import '../services/sync_service.dart';
 import 'auth_providers.dart';
@@ -69,20 +67,9 @@ final householdCleanupProvider = Provider<void>((ref) {
       // 2. Clean up own Firestore split data (proposals, reference subs, splitWith)
       HouseholdService().cleanupOwnSplitData(uid);
 
-      // 3. Clean up local Hive split data
-      final db = DatabaseService();
-      final localSubs = db.getActiveSubscriptions();
-      for (final sub in localSubs) {
-        if (sub.ownerUid != null && sub.ownerUid != uid) {
-          // Reference sub from a split — delete it entirely
-          db.deleteSubscription(sub.id);
-        } else if (sub.splitWith != null && sub.splitWith!.isNotEmpty) {
-          // Own sub with split — clear splitWith
-          db.updateSubscription(
-            sub.copyWith(clearSplitWith: true, updatedAt: clock.now()),
-          );
-        }
-      }
+      // 3. Clean up local split data (copies + splitWith, archived subs
+      //    too) and push it with a bumped updatedAt (BUG-10).
+      SyncService().syncSplits(uid, partnerUid: null);
 
       // 4. Stop household sync listener
       SyncService().disposeHouseholdSync();
