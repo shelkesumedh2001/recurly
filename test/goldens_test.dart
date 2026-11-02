@@ -9,6 +9,7 @@ import 'package:recurly/models/credit_card.dart';
 import 'package:recurly/models/enums.dart';
 import 'package:recurly/models/subscription.dart';
 import 'package:recurly/models/theme_preferences.dart';
+import 'package:recurly/providers/auth_providers.dart';
 import 'package:recurly/providers/credit_card_providers.dart';
 import 'package:recurly/providers/subscription_providers.dart';
 import 'package:recurly/services/credit_card_service.dart';
@@ -79,7 +80,9 @@ class _StubCreditCardNotifier extends CreditCardNotifier {
 
 Widget _harness(Widget child, {bool dark = false, List<Override> overrides = const []}) {
   return ProviderScope(
-    overrides: overrides,
+    // Signed out: the card asks who's signed in (split copies are
+    // read-only), which would otherwise reach the FirebaseAuth channel.
+    overrides: [currentFirebaseUserProvider.overrideWithValue(null), ...overrides],
     child: MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: dark

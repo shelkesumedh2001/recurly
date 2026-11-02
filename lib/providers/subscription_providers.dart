@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/subscription.dart';
@@ -33,6 +34,34 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
     // callback field) lets multiple notifier instances coexist — e.g. across
     // hot reload — without silently overwriting each other.
     SyncService().remoteDataChangeTicker.addListener(_onRemoteTick);
+    SyncService().splitCopiesChanged.addListener(_onSplitCopiesChanged);
+  }
+
+  /// Split copies follow the owner's doc (bill date, archive, delete), so
+  /// their reminders must follow too — otherwise the partner is reminded
+  /// on the old date or about a sub that's gone (BUG-6).
+  Future<void> _onSplitCopiesChanged() async {
+    final change = SyncService().splitCopiesChanged.value;
+    try {
+      for (final id in change.deleted) {
+        await _notificationService.cancelSubscriptionNotifications(id);
+      }
+      final preferences = _ref.read(preferencesProvider);
+      for (final id in change.upserted) {
+        final sub = _databaseService.getSubscriptionById(id);
+        if (sub == null) continue;
+        if (sub.isArchived || sub.deletedAt != null) {
+          await _notificationService.cancelSubscriptionNotifications(id);
+        } else {
+          await _notificationService.scheduleSubscriptionNotifications(
+            sub,
+            preferences,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Split copy reminder update failed: $e');
+    }
   }
 
   final DatabaseService _databaseService;
@@ -46,6 +75,7 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
   @override
   void dispose() {
     SyncService().remoteDataChangeTicker.removeListener(_onRemoteTick);
+    SyncService().splitCopiesChanged.removeListener(_onSplitCopiesChanged);
     super.dispose();
   }
 

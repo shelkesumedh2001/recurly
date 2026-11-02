@@ -35,6 +35,10 @@ service cloud.firestore {
         // Owner can create proposals in partner's subcollection
         allow create: if request.auth != null
           && request.resource.data.ownerUid == request.auth.uid;
+        // Owner can re-propose (change the share of) their own proposal
+        allow update: if request.auth != null
+          && resource.data.ownerUid == request.auth.uid
+          && request.resource.data.ownerUid == request.auth.uid;
         // Household members can delete (cleanup on disband/leave)
         allow delete: if request.auth != null
           && isHouseholdMember(uid, request.auth.uid);

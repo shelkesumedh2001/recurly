@@ -7,6 +7,7 @@ import '../services/currency_service.dart';
 import '../utils/billing_cycle.dart';
 import '../utils/money.dart';
 import '../utils/spend_history.dart';
+import '../utils/split_copies.dart';
 import 'auth_providers.dart';
 import 'currency_providers.dart';
 import 'household_providers.dart';
@@ -482,54 +483,19 @@ final householdSpendComparisonProvider = Provider<HouseholdSpendComparison?>((re
 
   if (ownSubs.isEmpty && partnerSubs.isEmpty) return null;
 
-  // My total: apply split multipliers (same as _convertedMyShare)
-  double myTotal = 0;
-  double partnerFromSplits = 0;
-  for (final sub in ownSubs) {
-    // Skip reference subs
-    if (sub.ownerUid != null && sub.ownerUid != currentUid) continue;
-    if (sub.isArchived || sub.deletedAt != null) continue;
-
-    double myMultiplier = 1;
-    if (sub.splitWith != null) {
-      for (final split in sub.splitWith!) {
-        if (split['accepted'] == true) {
-          final partnerShare = (split['sharePercent'] as num).toDouble();
-          myMultiplier -= partnerShare / 100;
-          // Track what partner pays from my subs
-          partnerFromSplits += currencyService.convert(
-            amount: sub.monthlyEquivalent * (partnerShare / 100),
-            from: sub.currency,
-            to: displayCurrency,
-            rates: exchangeRates,
-          );
-        }
-      }
-    }
-    myTotal += currencyService.convert(
-      amount: sub.monthlyEquivalent * myMultiplier,
-      from: sub.currency,
-      to: displayCurrency,
-      rates: exchangeRates,
-    );
-  }
-
-  // Partner total: their own subs + what they split from my subs
-  double partnerOwn = 0;
-  for (final sub in partnerSubs) {
-    // Skip references back to our subs
-    if (sub.ownerUid == currentUid) continue;
-    if (sub.isArchived || sub.deletedAt != null) continue;
-
-    partnerOwn += currencyService.convert(
+  final totals = householdSplitTotals(
+    ownSubs: ownSubs,
+    partnerSubs: partnerSubs,
+    myUid: currentUid,
+    monthly: (sub) => currencyService.convert(
       amount: sub.monthlyEquivalent,
       from: sub.currency,
       to: displayCurrency,
       rates: exchangeRates,
-    );
-  }
-
-  final partnerTotal = partnerOwn + partnerFromSplits;
+    ),
+  );
+  final myTotal = totals.mine;
+  final partnerTotal = totals.partner;
 
   if (myTotal == 0 && partnerTotal == 0) return null;
 
