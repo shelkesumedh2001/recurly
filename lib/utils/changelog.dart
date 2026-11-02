@@ -9,7 +9,7 @@ import 'constants.dart';
 /// each release, and a matching [ChangelogRelease] added to [kChangelog]
 /// (newest first). The sheet auto-shows once per upgrade: never on first
 /// install, never on downgrade (mirrors Minus's `decideChangelog` pattern).
-const String kAppBuild = '1.0.4+9';
+const String kAppBuild = '1.0.5+10';
 
 class ChangelogRelease {
   const ChangelogRelease({required this.build, required this.notes});
@@ -18,6 +18,16 @@ class ChangelogRelease {
 }
 
 const List<ChangelogRelease> kChangelog = [
+  ChangelogRelease(
+    build: '1.0.5+10',
+    notes: [
+      'New: Spending over time — see what you were billed each month, split by category, and tap a category to see just that one',
+      'Made for big screens: foldables, tablets and landscape now get side navigation, your list and summary side by side, and two-column analytics',
+      'Fixed: Projected spending showed later months lower than they really were — it’s been replaced by the new spending chart',
+      'Fixed: category chart slices now show the right proportions, and each category keeps the same colour in every chart',
+      'The next-renewal line on Home no longer gets cut off',
+    ],
+  ),
   ChangelogRelease(
     build: '1.0.4+9',
     notes: [
