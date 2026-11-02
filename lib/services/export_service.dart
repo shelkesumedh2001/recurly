@@ -8,9 +8,11 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 
+import '../models/custom_category.dart';
 import '../models/enums.dart';
 import '../models/exchange_rate.dart';
 import '../models/subscription.dart';
+import '../utils/money.dart';
 import 'currency_service.dart';
 
 /// Service for exporting subscription data to various formats
@@ -66,7 +68,7 @@ class ExportService {
     if (currencyCode == 'JPY' || currencyCode == 'KRW') {
       return '$symbol${amount.round()}';
     }
-    return '$symbol${amount.toStringAsFixed(2)}';
+    return formatMoney(amount, symbol);
   }
 
   /// Export subscriptions to CSV and share
@@ -75,6 +77,8 @@ class ExportService {
     required String displayCurrency,
     required CurrencyService currencyService,
     ExchangeRateCache? exchangeRates,
+    double Function(Subscription sub)? shareOf,
+    String Function(Subscription sub)? categoryName,
   }) async {
     try {
       final csvData = _generateCsvData(
@@ -82,6 +86,8 @@ class ExportService {
         displayCurrency: displayCurrency,
         currencyService: currencyService,
         exchangeRates: exchangeRates,
+        shareOf: shareOf,
+        categoryName: categoryName,
       );
       final csv = const ListToCsvConverter().convert(csvData);
 
@@ -107,21 +113,33 @@ class ExportService {
   Future<void> exportToPdf(
     List<Subscription> subscriptions, {
     required double totalMonthlySpend,
-    required Map<SubscriptionCategory, double> categorySpend,
+    required Map<UnifiedCategory, double> categorySpend,
     required String displayCurrency,
     required CurrencyService currencyService,
     ExchangeRateCache? exchangeRates,
+    double Function(Subscription sub)? shareOf,
+    String Function(Subscription sub)? categoryName,
   }) async {
     try {
       final pdf = pw.Document();
 
       // Sort subscriptions by monthly equivalent (highest first)
+      // Compared in the display currency (raw numbers mix currencies, BUG-21).
+      double cost(Subscription s) => currencyService.convert(
+            amount: s.monthlyEquivalent,
+            from: s.currency,
+            to: displayCurrency,
+            rates: exchangeRates,
+          );
       final sortedSubs = List<Subscription>.from(subscriptions)
-        ..sort((a, b) => b.monthlyEquivalent.compareTo(a.monthlyEquivalent));
+        ..sort((a, b) => cost(b).compareTo(cost(a)));
 
       // Calculate additional analytics
       final upcomingRenewals = _getUpcomingRenewals(subscriptions, 30);
-      final billingBreakdown = _getBillingCycleBreakdown(subscriptions, displayCurrency, currencyService, exchangeRates);
+      final billingBreakdown = _getBillingCycleBreakdown(
+        subscriptions, displayCurrency, currencyService, exchangeRates,
+        shareOf: shareOf,
+      );
       final avgCost = subscriptions.isEmpty
           ? 0.0
           : totalMonthlySpend / subscriptions.length;
@@ -157,7 +175,10 @@ class ExportService {
             pw.SizedBox(height: 24),
 
             // All subscriptions table
-            _buildPdfSubscriptionsTable(sortedSubs, displayCurrency, currencyService, exchangeRates),
+            _buildPdfSubscriptionsTable(
+              sortedSubs, displayCurrency, currencyService, exchangeRates,
+              categoryName: categoryName,
+            ),
           ],
           footer: (context) => pw.Container(
             alignment: pw.Alignment.centerRight,
@@ -213,14 +234,15 @@ class ExportService {
     List<Subscription> subscriptions,
     String displayCurrency,
     CurrencyService currencyService,
-    ExchangeRateCache? exchangeRates,
-  ) {
+    ExchangeRateCache? exchangeRates, {
+    double Function(Subscription sub)? shareOf,
+  }) {
     final breakdown = <BillingCycle, _BillingStats>{};
 
     for (final sub in subscriptions) {
-      // Convert to display currency
+      // What I pay, in the display currency (D2)
       final convertedMonthly = currencyService.convert(
-        amount: sub.monthlyEquivalent,
+        amount: sub.monthlyEquivalent * (shareOf?.call(sub) ?? 1),
         from: sub.currency,
         to: displayCurrency,
         rates: exchangeRates,
@@ -249,7 +271,10 @@ class ExportService {
     required String displayCurrency,
     required CurrencyService currencyService,
     ExchangeRateCache? exchangeRates,
+    double Function(Subscription sub)? shareOf,
+    String Function(Subscription sub)? categoryName,
   }) {
+    final nameOf = categoryName ?? (Subscription s) => s.category.displayName;
     final List<List<dynamic>> rows = [];
     final symbol = CurrencyInfo.getSymbol(displayCurrency);
 
@@ -259,7 +284,8 @@ class ExportService {
       'Price',
       'Currency',
       'Billing Cycle',
-      'Monthly Equivalent ($displayCurrency)',
+      // My share for split subs — the same figure as the app's totals (D2).
+      'Your Monthly Cost ($displayCurrency)',
       'Category',
       'Next Renewal',
       'Days Until Renewal',
@@ -277,7 +303,7 @@ class ExportService {
     // Data rows
     for (final sub in subscriptions) {
       final convertedMonthly = currencyService.convert(
-        amount: sub.monthlyEquivalent,
+        amount: sub.monthlyEquivalent * (shareOf?.call(sub) ?? 1),
         from: sub.currency,
         to: displayCurrency,
         rates: exchangeRates,
@@ -288,7 +314,7 @@ class ExportService {
       String priceHistoryStr = '';
       if (sub.priceHistory != null && sub.priceHistory!.isNotEmpty) {
         priceHistoryStr = sub.priceHistory!.map((entry) {
-          final price = (entry['price'] as num).toStringAsFixed(2);
+          final price = roundCents((entry['price'] as num).toDouble()).toStringAsFixed(2);
           final date = DateTime.parse(entry['date'] as String);
           return '$price@${DateFormat('yyyy-MM-dd').format(date)}';
         }).join('; ');
@@ -296,11 +322,11 @@ class ExportService {
 
       rows.add([
         sub.name,
-        sub.price.toStringAsFixed(2),
+        roundCents(sub.currentPrice).toStringAsFixed(2),
         sub.currency,
         sub.billingCycle.displayName,
-        convertedMonthly.toStringAsFixed(2),
-        sub.category.displayName,
+        roundCents(convertedMonthly).toStringAsFixed(2),
+        nameOf(sub),
         DateFormat('yyyy-MM-dd').format(sub.nextBillDate),
         sub.daysUntilRenewal,
         DateFormat('yyyy-MM-dd').format(sub.firstBillDate),
@@ -319,11 +345,13 @@ class ExportService {
       ])
       ..add([
         'Total Monthly Spend',
-        '$symbol${totalMonthly.toStringAsFixed(2)}',
+        // Same rounding as Analytics: round the monthly total, then x12,
+        // so the yearly figure matches the app to the cent (BUG-14).
+        formatMoney(totalMonthly, symbol),
       ])
       ..add([
         'Total Yearly Spend',
-        '$symbol${(totalMonthly * 12).toStringAsFixed(2)}',
+        formatMoney(roundMoney(roundMoney(totalMonthly) * 12), symbol),
     ]);
 
     return rows;
@@ -483,7 +511,7 @@ class ExportService {
 
               // Convert to display currency
               final convertedPrice = currencyService.convert(
-                amount: sub.price,
+                amount: sub.chargePerRenewal,
                 from: sub.currency,
                 to: displayCurrency,
                 rates: exchangeRates,
@@ -580,7 +608,7 @@ class ExportService {
 
   /// Build PDF category breakdown
   pw.Widget _buildPdfCategoryBreakdown(
-    Map<SubscriptionCategory, double> categorySpend,
+    Map<UnifiedCategory, double> categorySpend,
     double total,
     String displayCurrency,
   ) {
@@ -619,7 +647,7 @@ class ExportService {
                 pw.SizedBox(
                   width: 100,
                   child: pw.Text(
-                    entry.key.displayName,
+                    entry.key.name,
                     style: const pw.TextStyle(fontSize: 11),
                   ),
                 ),
@@ -666,8 +694,9 @@ class ExportService {
     List<Subscription> subscriptions,
     String displayCurrency,
     CurrencyService currencyService,
-    ExchangeRateCache? exchangeRates,
-  ) {
+    ExchangeRateCache? exchangeRates, {
+    String Function(Subscription sub)? categoryName,
+  }) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
@@ -712,7 +741,7 @@ class ExportService {
             ...subscriptions.map((sub) {
               // Convert to display currency
               final convertedPrice = currencyService.convert(
-                amount: sub.price,
+                amount: sub.currentPrice,
                 from: sub.currency,
                 to: displayCurrency,
                 rates: exchangeRates,
@@ -723,7 +752,9 @@ class ExportService {
                   _buildTableCell(sub.name),
                   _buildTableCell(_formatPdfAmount(convertedPrice, displayCurrency)),
                   _buildTableCell(sub.billingCycle.displayName),
-                  _buildTableCell(sub.category.displayName),
+                  _buildTableCell(
+                    categoryName?.call(sub) ?? sub.category.displayName,
+                  ),
                   _buildTableCell(DateFormat.MMMd().format(sub.nextBillDate)),
                 ],
               );
@@ -800,8 +831,8 @@ class ExportService {
                 return pw.TableRow(
                   children: [
                     _buildTableCell(sub.name),
-                    _buildTableCell('$symbol${oldPrice.toStringAsFixed(2)}'),
-                    _buildTableCell('$symbol${sub.price.toStringAsFixed(2)}'),
+                    _buildTableCell(formatMoney(oldPrice, symbol)),
+                    _buildTableCell(formatMoney(sub.price, symbol)),
                     _buildTableCell('${changePercent >= 0 ? '+' : ''}${changePercent.toStringAsFixed(1)}%'),
                     _buildTableCell(DateFormat.MMMd().format(changeDate)),
                   ],

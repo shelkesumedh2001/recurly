@@ -44,3 +44,22 @@ List<DateTime> occurrencesInRange(int day, DateTime from, DateTime to) {
   }
   return dates;
 }
+
+/// The cutoff (statement close) of the statement a charge on [charge]
+/// lands on: the first occurrence of [cutoffDay] on or after it — a charge
+/// on the cutoff day itself is still on that statement.
+DateTime statementCloseFor(int cutoffDay, DateTime charge) {
+  final day = DateTime(charge.year, charge.month, charge.day);
+  final thisMonth = occurrenceInMonth(day.year, day.month, cutoffDay);
+  if (!day.isAfter(thisMonth)) return thisMonth;
+  return occurrenceInMonth(day.year, day.month + 1, cutoffDay);
+}
+
+/// When a charge on [charge] is actually paid: the first [dueDay] after
+/// the statement it lands on closes.
+DateTime dueDateForCharge({
+  required int cutoffDay,
+  required int dueDay,
+  required DateTime charge,
+}) =>
+    nextOccurrenceOfDay(dueDay, statementCloseFor(cutoffDay, charge));

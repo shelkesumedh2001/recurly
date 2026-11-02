@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/custom_category.dart';
 import '../../models/enums.dart';
 import '../../models/subscription.dart';
+import '../../providers/category_providers.dart';
+import '../../providers/currency_providers.dart';
 import '../../providers/subscription_providers.dart';
 import '../../theme/app_tokens.dart';
+import '../category/category_icon.dart';
 import 'cancel_simulator_sheet.dart';
 
 /// Bottom sheet showing subscriptions in a specific category
@@ -16,7 +20,7 @@ class CategoryDetailSheet extends ConsumerWidget {
     required this.totalAmount,
   });
 
-  final SubscriptionCategory category;
+  final UnifiedCategory category;
   final int categoryIndex;
   final double totalAmount;
 
@@ -25,6 +29,12 @@ class CategoryDetailSheet extends ConsumerWidget {
     final theme = Theme.of(context);
     final subscriptionsAsync = ref.watch(subscriptionProvider);
     final color = AppTokens.of(context).chartColor(categoryIndex);
+    // Same basis as [totalAmount] (categorySpendProvider): what I pay per
+    // month in the display currency — not the sub's raw native amount.
+    final monthlyCost = ref.watch(myMonthlyCostProvider);
+    final categoryOf = ref.watch(categoryOfProvider);
+    final currencyService = ref.watch(currencyServiceProvider);
+    final displayCurrency = ref.watch(displayCurrencyProvider);
 
     return Container(
       constraints: BoxConstraints(
@@ -49,10 +59,7 @@ class CategoryDetailSheet extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Center(
-                        child: Text(
-                          category.icon,
-                          style: const TextStyle(fontSize: 24),
-                        ),
+                        child: CategoryIcon(category, color: color),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -61,14 +68,14 @@ class CategoryDetailSheet extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            category.displayName,
+                            category.name,
                             style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '\$${totalAmount.toStringAsFixed(2)}/month',
+                            '${currencyService.formatAmount(totalAmount, displayCurrency)}/month',
                             style: theme.textTheme.titleMedium?.copyWith(
                               color: color,
                               fontWeight: FontWeight.w600,
@@ -118,9 +125,9 @@ class CategoryDetailSheet extends ConsumerWidget {
             child: subscriptionsAsync.when(
               data: (allSubscriptions) {
                 final categorySubscriptions = allSubscriptions
-                    .where((sub) => sub.category == category)
+                    .where((sub) => categoryOf(sub) == category)
                     .toList()
-                  ..sort((a, b) => b.monthlyEquivalent.compareTo(a.monthlyEquivalent));
+                  ..sort((a, b) => monthlyCost(b).compareTo(monthlyCost(a)));
 
                 if (categorySubscriptions.isEmpty) {
                   return Padding(
@@ -143,7 +150,9 @@ class CategoryDetailSheet extends ConsumerWidget {
                   separatorBuilder: (_, __) => const SizedBox(height: 4),
                   itemBuilder: (context, index) {
                     final sub = categorySubscriptions[index];
-                    final percentage = sub.monthlyEquivalent / totalAmount * 100;
+                    final percentage = totalAmount > 0
+                        ? monthlyCost(sub) / totalAmount * 100
+                        : 0.0;
 
                     return GestureDetector(
                       onTap: () => showCancelSimulatorSheet(context, sub),
@@ -324,7 +333,7 @@ class _SubscriptionTile extends StatelessWidget {
 /// Show the category detail sheet
 void showCategoryDetailSheet(
   BuildContext context, {
-  required SubscriptionCategory category,
+  required UnifiedCategory category,
   required int categoryIndex,
   required double totalAmount,
 }) {

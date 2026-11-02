@@ -200,4 +200,30 @@ void main() {
       );
     });
   });
+
+  group('dueDateForCharge (BUG-18)', () {
+    // HDFC Visa from the test pass: statement closes 15th, due 5th.
+    DateTime due(DateTime charge) =>
+        dueDateForCharge(cutoffDay: 15, dueDay: 5, charge: charge);
+
+    test('Netflix on Nov 3 is paid Dec 5, not the card\'s next due Nov 5', () {
+      expect(due(DateTime(2026, 11, 3)), DateTime(2026, 12, 5));
+    });
+
+    test('a charge on the cutoff day is on that statement', () {
+      expect(due(DateTime(2026, 11, 15)), DateTime(2026, 12, 5));
+    });
+
+    test('a charge after the cutoff rolls to the next statement', () {
+      expect(due(DateTime(2026, 11, 16)), DateTime(2027, 1, 5));
+    });
+
+    test('cutoff 31 clamps in February', () {
+      expect(statementCloseFor(31, DateTime(2027, 2, 10)), DateTime(2027, 2, 28));
+      expect(
+        dueDateForCharge(cutoffDay: 31, dueDay: 20, charge: DateTime(2027, 2, 28)),
+        DateTime(2027, 3, 20),
+      );
+    });
+  });
 }

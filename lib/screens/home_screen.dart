@@ -16,17 +16,23 @@ import '../providers/subscription_providers.dart';
 import '../providers/sync_providers.dart';
 import '../services/currency_service.dart';
 import '../theme/app_tokens.dart';
+import '../utils/adaptive.dart';
 import '../utils/changelog.dart';
 import '../utils/constants.dart';
 import '../utils/money.dart';
 import '../utils/review_prompt.dart';
+import '../utils/split_copies.dart';
 import '../widgets/add_subscription_sheet.dart';
+import '../widgets/analytics/category_pie_chart.dart';
+import '../widgets/analytics/renewal_forecast_timeline.dart';
+import '../widgets/budget/budget_alert_banner.dart';
 import '../widgets/common/app_bottom_sheet.dart';
 import '../widgets/common/app_empty_state.dart';
 import '../widgets/notification_primer.dart';
 import '../widgets/rates_warning.dart';
 import '../widgets/subscription_card.dart';
 import '../widgets/sync_indicator.dart';
+import '../widgets/trial/trial_ended_banner.dart';
 import 'archived_screen.dart';
 import 'recently_deleted_screen.dart';
 import 'split_requests_screen.dart';
@@ -155,21 +161,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     CurrencyService currencyService,
   ) {
     final subs = ref.watch(subscriptionProvider).value ?? [];
+    final currentUid = ref.watch(currentFirebaseUserProvider)?.uid;
     double total = 0;
     for (final sub in subs) {
-      double amount = sub.monthlyEquivalent;
-      if (sub.splitWith != null && sub.splitWith!.isNotEmpty) {
-        double myMultiplier = 1;
-        for (final split in sub.splitWith!) {
-          if (split['accepted'] == true) {
-            final partnerShare = (split['sharePercent'] as num).toDouble();
-            myMultiplier -= partnerShare / 100;
-          }
-        }
-        amount *= myMultiplier;
-      }
       total += currencyService.convert(
-        amount: amount,
+        amount: sub.monthlyEquivalent * myShareFraction(sub, currentUid),
         from: sub.currency,
         to: displayCurrency,
         rates: rates,
@@ -261,88 +257,171 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: subscriptionsAsync.when(
         data: (subscriptions) {
-          return RefreshIndicator(
-            onRefresh: () async {
-              // Reload subscriptions from database
-              await ref.read(subscriptionProvider.notifier).loadSubscriptions();
-            },
-            child: CustomScrollView(
-              slivers: [
-              // Hero section
-              SliverToBoxAdapter(
-                child: _buildHeroSection(context, formattedTotal, subscriptionCount),
-              ),
+          // Partner subs are only listed in the Household view; in My share
+          // they don't fill the screen, so they mustn't hide the empty state
+          // (BUG-1).
+          final showsPartnerList = isInHousehold &&
+              spendViewMode == SpendViewMode.householdTotal &&
+              partnerSubs.isNotEmpty;
+          final isEmpty = subscriptions.isEmpty && !showsPartnerList;
+          final hero =
+              _buildHeroSection(context, formattedTotal, subscriptionCount);
 
-              // Subscriptions list or empty state
-              if (subscriptions.isEmpty && partnerSubs.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: _buildEmptyState(context, ref.watch(searchQueryProvider)),
-                )
-              else ...[
-                // Own subscriptions
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 8,
-                  ),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: SubscriptionCard(
-                            subscription: subscriptions[index],
-                            showSwipeHint: index == 0,
-                          ),
-                        );
-                      },
-                      childCount: subscriptions.length,
+          Future<void> refresh() async {
+            // Reload subscriptions from database
+            await ref.read(subscriptionProvider.notifier).loadSubscriptions();
+          }
+
+          final listSlivers = <Widget>[
+            // Budget alert (P3-2) and ended trials waiting for
+            // "still subscribed?" (BUG-24)
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
+              sliver: SliverToBoxAdapter(child: BudgetAlertBanner()),
+            ),
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 0),
+              sliver: SliverToBoxAdapter(child: TrialEndedBanners()),
+            ),
+            // Own subscriptions
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 8,
+              ),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: SubscriptionCard(
+                        subscription: subscriptions[index],
+                        showSwipeHint: index == 0,
+                      ),
+                    );
+                  },
+                  childCount: subscriptions.length,
+                ),
+              ),
+            ),
+            // Partner subscriptions (when in household)
+            if (isInHousehold &&
+                spendViewMode == SpendViewMode.householdTotal &&
+                partnerSubs.isNotEmpty) ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+                  child: Text(
+                    "${ref.watch(partnerLabelProvider)}'s subscriptions",
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                // Partner subscriptions (when in household)
-                if (isInHousehold &&
-                    spendViewMode == SpendViewMode.householdTotal &&
-                    partnerSubs.isNotEmpty) ...[
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
-                      child: Text(
-                        "${ref.watch(partnerLabelProvider)}'s subscriptions",
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                          fontWeight: FontWeight.w600,
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: SubscriptionCard(
+                          subscription: partnerSubs[index],
+                          isPartnerSub: true,
                         ),
-                      ),
-                    ),
+                      );
+                    },
+                    childCount: partnerSubs.length,
                   ),
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: SubscriptionCard(
-                              subscription: partnerSubs[index],
-                              isPartnerSub: true,
-                            ),
-                          );
-                        },
-                        childCount: partnerSubs.length,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-
-              // Bottom spacing for FAB
-              const SliverPadding(
-                padding: EdgeInsets.only(bottom: 100),
+                ),
               ),
             ],
-            ),
+            // Bottom spacing for FAB
+            const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
+          ];
+
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              // Wide windows (unfolded foldables, landscape): summary and
+              // what's coming up on one side, the list on the other — the
+              // panes meet at the fold on book-style foldables.
+              if (!isEmpty && constraints.maxWidth >= kTwoPaneMinWidth) {
+                return TwoPane(
+                  start: ListView(
+                    padding: const EdgeInsets.only(bottom: 32),
+                    children: [
+                      hero,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                        child: Text(
+                          'Coming up',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 20),
+                        child: RenewalForecastTimeline(),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),
+                        child: Text(
+                          'By category',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 20),
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainer,
+                          borderRadius: BorderRadius.circular(AppRadius.xl),
+                          border: Border.all(
+                            color: theme.colorScheme.outline
+                                .withValues(alpha: 0.06),
+                          ),
+                        ),
+                        child: const CategoryPieChart(),
+                      ),
+                    ],
+                  ),
+                  end: ReadableWidth(
+                    child: RefreshIndicator(
+                      onRefresh: refresh,
+                      child: CustomScrollView(slivers: listSlivers),
+                    ),
+                  ),
+                );
+              }
+
+              // Phones (and medium widths): one column, capped so cards
+              // don't stretch on an unfolded screen.
+              return ReadableWidth(
+                child: RefreshIndicator(
+                  onRefresh: refresh,
+                  child: CustomScrollView(
+                    slivers: [
+                      SliverToBoxAdapter(child: hero),
+                      if (isEmpty)
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: _buildEmptyState(
+                            context,
+                            ref.watch(searchQueryProvider),
+                          ),
+                        )
+                      else
+                        ...listSlivers,
+                    ],
+                  ),
+                ),
+              );
+            },
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -469,7 +548,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ? '$count ${count == 1 ? 'subscription' : 'subscriptions'}'
                 : '$count ${count == 1 ? 'subscription' : 'subscriptions'}'
                     '  ·  $nextRenewal',
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.55),

@@ -194,7 +194,9 @@ class ThemePresets {
     incomeColor: Color(0xFF80CBC4),
     warningColor: Color(0xFFFFE082),
     textColor: Color(0xFFE0F7FA),
-    subtextColor: Color(0xFF80DEEA),
+    // Blue-grey, not cyan: unselected nav tabs read as selected when
+    // this sat next to the aqua accent (BUG-19).
+    subtextColor: Color(0xFF90A4AE),
     chartColors: [
       Color(0xFF4DD0E1), // Aqua
       Color(0xFF7986CB), // Indigo
@@ -219,7 +221,8 @@ class ThemePresets {
     incomeColor: Color(0xFFA5D6A7),
     warningColor: Color(0xFFFFD54F),
     textColor: Color(0xFFE8F5E9),
-    subtextColor: Color(0xFFA5D6A7),
+    // Grey-green, not leaf green — same issue as Ocean (BUG-19).
+    subtextColor: Color(0xFFA3ADA5),
     chartColors: [
       Color(0xFF81C784), // Leaf green
       Color(0xFFAED581), // Spring green

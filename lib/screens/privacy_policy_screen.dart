@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/adaptive.dart';
 
 class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key});
@@ -10,26 +11,28 @@ class PrivacyPolicyScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Privacy policy'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Text(
-            'Last updated: March 2026',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+      body: ReadableWidth(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Text(
+              'Last updated: March 2026',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          _section(theme, 'Your Data, Your Device',
-              'Recurly is built offline-first. Your subscription data lives on your device and never leaves it unless you choose to sign in and enable cloud sync.',),
-          _section(theme, 'Cloud sync',
-              'If you sign in, your data is securely stored in Google Firebase to enable sync across devices and household sharing. Only you and your household partner can access your data.',),
-          _section(theme, 'No Ads, No Tracking',
-              'We don\'t run ads, we don\'t track you, and we don\'t sell or share your data with anyone. Period.',),
-          _section(theme, 'You\'re in Control',
-              'You can delete all your data anytime from Settings. Deleting your account removes everything from our servers permanently.',),
-          const SizedBox(height: 40),
-        ],
+            const SizedBox(height: 24),
+            _section(theme, 'Your Data, Your Device',
+                'Recurly is built offline-first. Your subscription data lives on your device and never leaves it unless you choose to sign in and enable cloud sync.',),
+            _section(theme, 'Cloud sync',
+                'If you sign in, your data is securely stored in Google Firebase to enable sync across devices and household sharing. Only you and your household partner can access your data.',),
+            _section(theme, 'No Ads, No Tracking',
+                'We don\'t run ads, we don\'t track you, and we don\'t sell or share your data with anyone. Period.',),
+            _section(theme, 'You\'re in Control',
+                'You can delete all your data anytime from Settings. Deleting your account removes everything from our servers permanently.',),
+            const SizedBox(height: 40),
+          ],
+        ),
       ),
     );
   }

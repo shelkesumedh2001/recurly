@@ -274,8 +274,12 @@ class HouseholdService {
           // Own subscription — clear splitWith if present
           final splitWith = data['splitWith'] as List<dynamic>?;
           if (splitWith != null && splitWith.isNotEmpty) {
-            writes.add((b) =>
-                b.update(doc.reference, {'splitWith': FieldValue.delete()}),);
+            // updatedAt so my other devices' last-write-wins listener
+            // takes the cleared split (BUG-10).
+            writes.add((b) => b.update(doc.reference, {
+                  'splitWith': FieldValue.delete(),
+                  'updatedAt': DateTime.now().toIso8601String(),
+                }),);
           }
         }
       }

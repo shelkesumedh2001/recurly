@@ -9,7 +9,7 @@ import 'constants.dart';
 /// each release, and a matching [ChangelogRelease] added to [kChangelog]
 /// (newest first). The sheet auto-shows once per upgrade: never on first
 /// install, never on downgrade (mirrors Minus's `decideChangelog` pattern).
-const String kAppBuild = '1.0.4+9';
+const String kAppBuild = '1.0.5+10';
 
 class ChangelogRelease {
   const ChangelogRelease({required this.build, required this.notes});
@@ -18,6 +18,20 @@ class ChangelogRelease {
 }
 
 const List<ChangelogRelease> kChangelog = [
+  ChangelogRelease(
+    build: '1.0.5+10',
+    notes: [
+      'New: Spending over time — see what you were billed each month, split by category, and tap a category to see just that one',
+      'New: your own categories now work — file any subscription under a category you create and see it in charts, budgets and exports',
+      'Made for big screens: foldables, tablets and landscape now get side navigation, your list and summary side by side, and two-column analytics',
+      'Free trials: when a trial ends, Recurly counts the price you actually pay from then on and asks whether you kept it',
+      'Household splits: price, date and archive changes now reach your partner straight away, you can change or stop a split, and leaving a household cleans up properly',
+      'Analytics, budgets and exports now count your share of split subscriptions, so every screen agrees with Home',
+      'Budget alerts now show on Home when you get close to your limit',
+      'Fixed: Projected spending (replaced by the new spending chart), category chart proportions and colours, and the cut-off next-renewal line on Home',
+      'Fixed: category emoji picker, card payment due dates, sorting by price across currencies, chart tooltips that vanished on tap, and amounts that were a cent off between screens',
+    ],
+  ),
   ChangelogRelease(
     build: '1.0.4+9',
     notes: [
@@ -104,48 +118,75 @@ Future<void> showChangelogIfUpdated(BuildContext context) async {
   final release = decideChangelog(kAppBuild, lastSeen);
   await box.put(_lastSeenKey, kAppBuild);
   if (release == null || !context.mounted) return;
+  await showChangelogSheet(context, release);
+}
 
+/// The "What's new" sheet for [release].
+Future<void> showChangelogSheet(
+  BuildContext context,
+  ChangelogRelease release,
+) async {
   await showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
+    // Scroll-controlled + a scrolling notes list: the default sheet caps at
+    // 9/16 of the screen and clipped "Got it" under the gesture bar on
+    // ordinary phones once the notes got long (P3-1).
+    isScrollControlled: true,
     builder: (sheetContext) {
       final theme = Theme.of(sheetContext);
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "What's new in ${release.build.split('+').first}",
-                style: theme.textTheme.headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 16),
-              ...release.notes.map(
-                (note) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('•  ', style: theme.textTheme.bodyLarge),
-                      Expanded(
-                        child: Text(note, style: theme.textTheme.bodyLarge),
-                      ),
-                    ],
+      return ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(sheetContext).size.height * 0.85,
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "What's new in ${release.build.split('+').first}",
+                  style: theme.textTheme.headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 16),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final note in release.notes)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('•  ', style: theme.textTheme.bodyLarge),
+                                Expanded(
+                                  child: Text(
+                                    note,
+                                    style: theme.textTheme.bodyLarge,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton(
-                  onPressed: () => Navigator.pop(sheetContext),
-                  child: const Text('Got it'),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(sheetContext),
+                    child: const Text('Got it'),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );

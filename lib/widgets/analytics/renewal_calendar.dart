@@ -397,7 +397,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
             ),
           ),
           Text(
-            sub.formattedPrice,
+            sub.formatAmount(sub.chargePerRenewal),
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
               color: AppTokens.of(context).danger,
@@ -479,7 +479,7 @@ class _RenewalCalendarState extends ConsumerState<RenewalCalendar> {
 
     for (final sub in subscriptions) {
       final converted = currencyService.convert(
-        amount: sub.price,
+        amount: sub.chargePerRenewal,
         from: sub.currency,
         to: displayCurrency,
         rates: rates,

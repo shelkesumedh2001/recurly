@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../models/custom_category.dart';
+import '../models/enums.dart';
 import '../providers/category_providers.dart';
+import '../providers/subscription_providers.dart';
+import '../utils/adaptive.dart';
+import '../widgets/app_toast.dart';
 import '../widgets/category/icon_picker_sheet.dart';
 
 class CategoryManagementScreen extends ConsumerWidget {
@@ -26,65 +31,67 @@ class CategoryManagementScreen extends ConsumerWidget {
         onPressed: () => _showAddCategorySheet(context, ref),
         child: const Icon(Icons.add),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Built-in categories section
-          Text(
-            'Built-in Categories',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'These categories cannot be modified',
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-
-          ...builtInCategories.map((category) => _buildBuiltInCategoryCard(
-                context,
-                category,
-              ),),
-
-          const SizedBox(height: 32),
-
-          // Custom categories section
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Custom Categories',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${customCategories.length} custom ${customCategories.length == 1 ? 'category' : 'categories'}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
+      body: ReadableWidth(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Built-in categories section
+            Text(
+              'Built-in Categories',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'These categories cannot be modified',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
 
-          if (customCategories.isEmpty)
-            _buildEmptyState(context)
-          else
-            ...customCategories.map((category) => _buildCustomCategoryCard(
+            ...builtInCategories.map((category) => _buildBuiltInCategoryCard(
                   context,
-                  ref,
                   category,
                 ),),
 
-          const SizedBox(height: 80), // Space for FAB
-        ],
+            const SizedBox(height: 32),
+
+            // Custom categories section
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Custom Categories',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${customCategories.length} custom ${customCategories.length == 1 ? 'category' : 'categories'}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            if (customCategories.isEmpty)
+              _buildEmptyState(context)
+            else
+              ...customCategories.map((category) => _buildCustomCategoryCard(
+                    context,
+                    ref,
+                    category,
+                  ),),
+
+            const SizedBox(height: 80), // Space for FAB
+          ],
+        ),
       ),
     );
   }
@@ -414,24 +421,21 @@ class CategoryManagementScreen extends ConsumerWidget {
                           onPressed: () async {
                             final name = nameController.text.trim();
                             if (name.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Please enter a name')),
-                              );
+                              // Toast: a SnackBar would sit behind this sheet.
+                              showAppToast('Please enter a name');
                               return;
                             }
                             if (selectedIcon.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Please select an icon')),
-                              );
+                              // Toast: a SnackBar would sit behind this sheet.
+                              showAppToast('Please select an icon');
                               return;
                             }
 
                             // Check for duplicate name
                             final service = ref.read(customCategoryServiceProvider);
                             if (service.categoryNameExists(name, excludeId: excludeId)) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('A category with this name already exists')),
-                              );
+                              // Toast: a SnackBar would sit behind this sheet.
+                              showAppToast('A category with this name already exists');
                               return;
                             }
 
@@ -476,11 +480,23 @@ class CategoryManagementScreen extends ConsumerWidget {
               await ref
                   .read(customCategoriesProvider.notifier)
                   .deleteCategory(category.id);
+              // Keep the promise above: re-file its subscriptions under
+              // "Other" (synced) instead of leaving a dangling id.
+              final notifier = ref.read(subscriptionProvider.notifier);
+              final filed = (ref.read(subscriptionProvider).value ?? [])
+                  .where((s) => s.customCategoryId == category.id)
+                  .toList();
+              for (final sub in filed) {
+                await notifier.updateSubscription(
+                  sub.copyWith(
+                    category: SubscriptionCategory.other,
+                    clearCustomCategoryId: true,
+                  ),
+                );
+              }
               if (context.mounted) {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('"${category.name}" deleted')),
-                );
+                showAppToast('"${category.name}" deleted');
               }
             },
             style: TextButton.styleFrom(

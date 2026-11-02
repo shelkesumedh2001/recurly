@@ -1,37 +1,36 @@
 import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/enums.dart';
+
+import '../models/custom_category.dart';
 import '../models/exchange_rate.dart';
 import '../models/subscription.dart';
 import '../services/currency_service.dart';
 import '../utils/billing_cycle.dart';
 import '../utils/money.dart';
+import '../utils/spend_history.dart';
+import '../utils/split_copies.dart';
 import 'auth_providers.dart';
+import 'category_providers.dart';
 import 'currency_providers.dart';
 import 'household_providers.dart';
 import 'subscription_providers.dart';
 
 /// Provider for spending by category (converted to display currency so
 /// mixed-currency subscriptions aggregate correctly).
-final categorySpendProvider = Provider<Map<SubscriptionCategory, double>>((ref) {
+/// Keyed by the category each sub is filed under, custom ones included.
+final categorySpendProvider = Provider<Map<UnifiedCategory, double>>((ref) {
   final subscriptionsAsync = ref.watch(subscriptionProvider);
-  final displayCurrency = ref.watch(displayCurrencyProvider);
-  final rates = ref.watch(exchangeRatesProvider).value;
-  final currencyService = ref.watch(currencyServiceProvider);
+  final monthlyCost = ref.watch(myMonthlyCostProvider);
+  final categoryOf = ref.watch(categoryOfProvider);
 
   return subscriptionsAsync.when(
     data: (subscriptions) {
-      final Map<SubscriptionCategory, double> spendByCategory = {};
+      final Map<UnifiedCategory, double> spendByCategory = {};
 
       for (final sub in subscriptions) {
-        final converted = currencyService.convert(
-          amount: sub.monthlyEquivalent,
-          from: sub.currency,
-          to: displayCurrency,
-          rates: rates,
-        );
-        final current = spendByCategory[sub.category] ?? 0.0;
-        spendByCategory[sub.category] = current + converted;
+        final converted = monthlyCost(sub);
+        final category = categoryOf(sub);
+        spendByCategory[category] = (spendByCategory[category] ?? 0) + converted;
       }
 
       return spendByCategory.map((k, v) => MapEntry(k, roundMoney(v)));
@@ -44,22 +43,14 @@ final categorySpendProvider = Provider<Map<SubscriptionCategory, double>>((ref) 
 /// Provider for the most expensive subscription
 final mostExpensiveSubscriptionProvider = Provider<Subscription?>((ref) {
   final subscriptionsAsync = ref.watch(subscriptionProvider);
-  final displayCurrency = ref.watch(displayCurrencyProvider);
-  final rates = ref.watch(exchangeRatesProvider).value;
-  final currencyService = ref.watch(currencyServiceProvider);
+  final convertedMonthly = ref.watch(myMonthlyCostProvider);
 
   return subscriptionsAsync.when(
     data: (subscriptions) {
       if (subscriptions.isEmpty) return null;
 
-      // Sort by monthly equivalent cost, converted to display currency so a
-      // high-value foreign-currency sub isn't ranked by its raw number.
-      double convertedMonthly(Subscription s) => currencyService.convert(
-            amount: s.monthlyEquivalent,
-            from: s.currency,
-            to: displayCurrency,
-            rates: rates,
-          );
+      // Ranked by what I pay per month in the display currency, so a
+      // foreign-currency sub isn't ranked by its raw number.
       final sorted = List<Subscription>.from(subscriptions)
         ..sort((a, b) => convertedMonthly(b).compareTo(convertedMonthly(a)));
 
@@ -77,7 +68,7 @@ final yearlyProjectedSpendProvider = Provider<double>((ref) {
 });
 
 /// Provider for category with highest spend
-final topCategoryProvider = Provider<MapEntry<SubscriptionCategory, double>?>((ref) {
+final topCategoryProvider = Provider<MapEntry<UnifiedCategory, double>?>((ref) {
   final spendByCategory = ref.watch(categorySpendProvider);
   
   if (spendByCategory.isEmpty) return null;
@@ -87,15 +78,6 @@ final topCategoryProvider = Provider<MapEntry<SubscriptionCategory, double>?>((r
 
   return sortedEntries.first;
 });
-
-/// Data class for monthly spending projection
-class MonthlySpendingData {
-  MonthlySpendingData(this.month, this.year, this.amount);
-
-  final int month; // 1-12
-  final int year;
-  final double amount;
-}
 
 /// Data class for subscription count over time
 class SubscriptionCountData {
@@ -176,7 +158,7 @@ double? computeTotalPriceChangeImpact({
     final diff = sub.price - oldPrice;
     // Build a temporary sub with the diff as price so monthlyEquivalent
     // applies the right multiplier (including customDays for custom cycles).
-    final monthlyDiff = sub.copyWith(price: diff).monthlyEquivalent;
+    final monthlyDiff = sub.monthlyEquivalentOf(diff);
     final converted = currencyService.convertOrNull(
       amount: monthlyDiff,
       from: sub.currency,
@@ -205,157 +187,33 @@ final totalPriceChangeImpactProvider = Provider<double?>((ref) {
   );
 });
 
-/// Provider for projected monthly spending for the next 12 months
-/// (each subscription's amount converted to the display currency).
-final spendingTrendProvider = Provider<List<MonthlySpendingData>>((ref) {
+/// Actual bills per month for the past 12 months (incl. this month), split
+/// by category and converted to the display currency. Active subs only —
+/// archived subs have no recorded end date to stop their history at.
+final spendHistoryProvider = Provider<List<MonthSpend>>((ref) {
   final subscriptionsAsync = ref.watch(subscriptionProvider);
   final displayCurrency = ref.watch(displayCurrencyProvider);
   final rates = ref.watch(exchangeRatesProvider).value;
   final currencyService = ref.watch(currencyServiceProvider);
+  final shareOf = ref.watch(myShareOfProvider);
 
   return subscriptionsAsync.when(
-    data: (subscriptions) {
-      final now = clock.now();
-      final List<MonthlySpendingData> trendData = [];
-
-      // Calculate for next 6 months
-      for (int i = 0; i < 6; i++) {
-        final targetDate = DateTime(now.year, now.month + i, 1);
-        double monthlyTotal = 0;
-
-        for (final sub in subscriptions) {
-          final amount = _calculateMonthlyAmount(sub, targetDate);
-          monthlyTotal += currencyService.convert(
-            amount: amount,
-            from: sub.currency,
-            to: displayCurrency,
-            rates: rates,
-          );
-        }
-        trendData.add(MonthlySpendingData(targetDate.month, targetDate.year, roundMoney(monthlyTotal)));
-      }
-
-      return trendData;
-    },
+    data: (subscriptions) => computeSpendHistory(
+      subscriptions: subscriptions,
+      now: clock.now(),
+      shareOf: shareOf,
+      categoryOf: ref.watch(categoryOfProvider),
+      convert: (amount, from) => currencyService.convert(
+        amount: amount,
+        from: from,
+        to: displayCurrency,
+        rates: rates,
+      ),
+    ),
     loading: () => [],
     error: (_, __) => [],
   );
 });
-
-/// Calculate how much a subscription will cost in a specific month
-double _calculateMonthlyAmount(Subscription sub, DateTime targetMonth) {
-  final firstDayOfMonth = DateTime(targetMonth.year, targetMonth.month, 1);
-  final lastDayOfMonth = DateTime(targetMonth.year, targetMonth.month + 1, 0);
-
-  switch (sub.billingCycle) {
-    case BillingCycle.monthly:
-      // Monthly subscriptions bill once per month
-      return sub.price;
-
-    case BillingCycle.yearly:
-      // Yearly subscriptions: check if anniversary falls in this month
-      if (_willBillInMonth(sub, targetMonth)) {
-        return sub.price;
-      }
-      return 0;
-
-    case BillingCycle.weekly:
-      // Weekly subscriptions: count how many times it bills in this month
-      var currentBillDate = sub.firstBillDate;
-
-      // Fast forward to near the target month
-      final daysDiff = targetMonth.difference(currentBillDate).inDays;
-      if (daysDiff > 0) {
-        final weeksPassed = daysDiff ~/ 7;
-        currentBillDate = currentBillDate.add(Duration(days: weeksPassed * 7));
-      }
-
-      // Go back a bit to ensure we don't miss any
-      currentBillDate = currentBillDate.subtract(const Duration(days: 28));
-
-      // Count billings in this month
-      int billingCount = 0;
-      for (int i = 0; i < 6; i++) {
-        if (currentBillDate.isAfter(firstDayOfMonth.subtract(const Duration(days: 1))) &&
-            currentBillDate.isBefore(lastDayOfMonth.add(const Duration(days: 1)))) {
-          billingCount++;
-        }
-        currentBillDate = currentBillDate.add(const Duration(days: 7));
-      }
-
-      return sub.price * billingCount;
-
-    case BillingCycle.custom:
-      // Use monthlyEquivalent which already factors in customDays
-      // (30.44 / customDays per-month rate). Approximation: doesn't
-      // simulate per-month spikes, but accurate on average.
-      return sub.monthlyEquivalent;
-  }
-}
-
-/// Helper to check if a subscription bills in a specific month
-bool _willBillInMonth(Subscription sub, DateTime targetMonth) {
-  // Calculate the first and last day of the target month
-  final firstDayOfMonth = DateTime(targetMonth.year, targetMonth.month, 1);
-  final lastDayOfMonth = DateTime(targetMonth.year, targetMonth.month + 1, 0);
-
-  switch (sub.billingCycle) {
-    case BillingCycle.monthly:
-      // Monthly subscriptions always bill every month
-      return true;
-
-    case BillingCycle.yearly:
-      // Yearly subscriptions bill once per year on the same month/day
-      // Check if the billing anniversary falls in this target month
-      var billingDate = DateTime(
-        targetMonth.year,
-        sub.firstBillDate.month,
-        sub.firstBillDate.day,
-      );
-
-      // If the billing date is before the subscription started, try next year
-      if (billingDate.isBefore(sub.firstBillDate)) {
-        billingDate = DateTime(
-          targetMonth.year + 1,
-          sub.firstBillDate.month,
-          sub.firstBillDate.day,
-        );
-      }
-
-      // Check if this billing date falls within the target month
-      return billingDate.isAfter(firstDayOfMonth.subtract(const Duration(days: 1))) &&
-          billingDate.isBefore(lastDayOfMonth.add(const Duration(days: 1)));
-
-    case BillingCycle.weekly:
-      // Weekly subscriptions: check if any billing date falls in target month
-      // Start from the first bill date
-      var currentBillDate = sub.firstBillDate;
-
-      // Fast forward to target month (approximately)
-      final daysDiff = targetMonth.difference(currentBillDate).inDays;
-      if (daysDiff > 0) {
-        final weeksPassed = daysDiff ~/ 7;
-        currentBillDate = currentBillDate.add(Duration(days: weeksPassed * 7));
-      }
-
-      // Check if any weekly billing falls in the target month
-      // (Go back a few weeks to be safe, then check forward)
-      currentBillDate = currentBillDate.subtract(const Duration(days: 28));
-
-      for (int i = 0; i < 6; i++) { // Check 6 weeks worth
-        if (currentBillDate.isAfter(firstDayOfMonth.subtract(const Duration(days: 1))) &&
-            currentBillDate.isBefore(lastDayOfMonth.add(const Duration(days: 1)))) {
-          return true; // At least one billing falls in this month
-        }
-        currentBillDate = currentBillDate.add(const Duration(days: 7));
-      }
-      return false;
-
-    case BillingCycle.custom:
-      // Custom is treated as monthly for now
-      return true;
-  }
-}
 
 // ============================================================
 // Feature 4: Monthly Comparison
@@ -366,43 +224,15 @@ class MonthlyComparison {
     required this.currentMonth,
     required this.lastMonth,
     required this.delta,
-    required this.percentChange,
+    this.percentChange,
   });
 
   final double currentMonth;
   final double lastMonth;
   final double delta;
-  final double percentChange;
-}
 
-/// Computes monthly spend for a target month using monthlyEquivalent
-/// (stable, no yearly billing spikes) with currency conversion.
-double _computeMonthSpend(
-  List<Subscription> subscriptions,
-  DateTime targetMonth, {
-  required String displayCurrency,
-  required dynamic currencyService,
-  required dynamic exchangeRates,
-}) {
-  final endOfMonth = DateTime(targetMonth.year, targetMonth.month + 1, 0, 23, 59, 59);
-  final startOfMonth = DateTime(targetMonth.year, targetMonth.month, 1);
-
-  double total = 0;
-  for (final sub in subscriptions) {
-    // Sub must have been created by end of target month
-    if (sub.createdAt.isAfter(endOfMonth)) continue;
-    // Sub must not have been deleted before start of target month
-    if (sub.deletedAt != null && sub.deletedAt!.isBefore(startOfMonth)) continue;
-    if (sub.isArchived) continue;
-
-    total += currencyService.convert(
-      amount: sub.monthlyEquivalent,
-      from: sub.currency,
-      to: displayCurrency,
-      rates: exchangeRates,
-    );
-  }
-  return total;
+  /// Null when last month was 0 (a percentage of nothing is meaningless).
+  final double? percentChange;
 }
 
 final monthlyComparisonProvider = Provider<MonthlyComparison?>((ref) {
@@ -410,6 +240,14 @@ final monthlyComparisonProvider = Provider<MonthlyComparison?>((ref) {
   final currencyService = ref.watch(currencyServiceProvider);
   final displayCurrency = ref.watch(displayCurrencyProvider);
   final exchangeRates = ref.watch(exchangeRatesProvider).value;
+  final shareOf = ref.watch(myShareOfProvider);
+
+  double convert(double amount, String from) => currencyService.convert(
+        amount: amount,
+        from: from,
+        to: displayCurrency,
+        rates: exchangeRates,
+      );
 
   return subscriptionsAsync.when(
     data: (subscriptions) {
@@ -419,27 +257,23 @@ final monthlyComparisonProvider = Provider<MonthlyComparison?>((ref) {
       final thisMonth = DateTime(now.year, now.month, 1);
       final lastMonth = DateTime(now.year, now.month - 1, 1);
 
-      final current = _computeMonthSpend(
+      final current = roundMoney(monthSpendRate(
         subscriptions, thisMonth,
-        displayCurrency: displayCurrency,
-        currencyService: currencyService,
-        exchangeRates: exchangeRates,
-      );
-      final previous = _computeMonthSpend(
+        shareOf: shareOf, convert: convert, today: now,
+      ),);
+      final previous = roundMoney(monthSpendRate(
         subscriptions, lastMonth,
-        displayCurrency: displayCurrency,
-        currencyService: currencyService,
-        exchangeRates: exchangeRates,
-      );
+        shareOf: shareOf, convert: convert, today: now,
+      ),);
 
-      final delta = current - previous;
-      final percentChange = previous > 0 ? (delta / previous) * 100 : 0.0;
-
+      final delta = roundMoney(current - previous);
       return MonthlyComparison(
         currentMonth: current,
         lastMonth: previous,
         delta: delta,
-        percentChange: percentChange,
+        // No percentage against nothing — "+$77.48 (0.0%)" read as "no
+        // change" (BUG-13).
+        percentChange: previous > 0 ? (delta / previous) * 100 : null,
       );
     },
     loading: () => null,
@@ -486,7 +320,9 @@ final upcomingRenewalsProvider = Provider<List<UpcomingRenewal>>((ref) {
         // Collect dates within the 30-day window
         while (!billDate.isAfter(cutoff)) {
           final converted = currencyService.convert(
-            amount: sub.price,
+            // What each bill charges — a trial's bills (from trial end)
+            // are at the post-trial price, not the trial price (BUG-15).
+            amount: sub.chargePerRenewal,
             from: sub.currency,
             to: displayCurrency,
             rates: exchangeRates,
@@ -615,54 +451,19 @@ final householdSpendComparisonProvider = Provider<HouseholdSpendComparison?>((re
 
   if (ownSubs.isEmpty && partnerSubs.isEmpty) return null;
 
-  // My total: apply split multipliers (same as _convertedMyShare)
-  double myTotal = 0;
-  double partnerFromSplits = 0;
-  for (final sub in ownSubs) {
-    // Skip reference subs
-    if (sub.ownerUid != null && sub.ownerUid != currentUid) continue;
-    if (sub.isArchived || sub.deletedAt != null) continue;
-
-    double myMultiplier = 1;
-    if (sub.splitWith != null) {
-      for (final split in sub.splitWith!) {
-        if (split['accepted'] == true) {
-          final partnerShare = (split['sharePercent'] as num).toDouble();
-          myMultiplier -= partnerShare / 100;
-          // Track what partner pays from my subs
-          partnerFromSplits += currencyService.convert(
-            amount: sub.monthlyEquivalent * (partnerShare / 100),
-            from: sub.currency,
-            to: displayCurrency,
-            rates: exchangeRates,
-          );
-        }
-      }
-    }
-    myTotal += currencyService.convert(
-      amount: sub.monthlyEquivalent * myMultiplier,
-      from: sub.currency,
-      to: displayCurrency,
-      rates: exchangeRates,
-    );
-  }
-
-  // Partner total: their own subs + what they split from my subs
-  double partnerOwn = 0;
-  for (final sub in partnerSubs) {
-    // Skip references back to our subs
-    if (sub.ownerUid == currentUid) continue;
-    if (sub.isArchived || sub.deletedAt != null) continue;
-
-    partnerOwn += currencyService.convert(
+  final totals = householdSplitTotals(
+    ownSubs: ownSubs,
+    partnerSubs: partnerSubs,
+    myUid: currentUid,
+    monthly: (sub) => currencyService.convert(
       amount: sub.monthlyEquivalent,
       from: sub.currency,
       to: displayCurrency,
       rates: exchangeRates,
-    );
-  }
-
-  final partnerTotal = partnerOwn + partnerFromSplits;
+    ),
+  );
+  final myTotal = totals.mine;
+  final partnerTotal = totals.partner;
 
   if (myTotal == 0 && partnerTotal == 0) return null;
 
