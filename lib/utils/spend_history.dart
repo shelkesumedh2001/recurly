@@ -69,6 +69,7 @@ List<MonthSpend> computeSpendHistory({
   required DateTime now,
   required ConvertToDisplay convert,
   int months = 12,
+  double Function(Subscription sub)? shareOf,
 }) {
   final result = <MonthSpend>[];
   for (var i = months - 1; i >= 0; i--) {
@@ -80,8 +81,10 @@ List<MonthSpend> computeSpendHistory({
       for (final billDate in sub.renewalsInRange(start, end)) {
         final charge = priceOn(sub, billDate);
         if (charge.price <= 0) continue;
-        byCategory[sub.category] =
-            (byCategory[sub.category] ?? 0) + convert(charge.price, charge.currency);
+        // My share of the bill (D2); 1 for unsplit subs.
+        final share = shareOf?.call(sub) ?? 1;
+        byCategory[sub.category] = (byCategory[sub.category] ?? 0) +
+            convert(charge.price * share, charge.currency);
       }
     }
 
@@ -95,4 +98,55 @@ List<MonthSpend> computeSpendHistory({
     );
   }
   return result;
+}
+
+/// What I paid per month (monthly-equivalent, my share, display currency)
+/// for subs that were billing in [targetMonth].
+///
+/// "Billing" follows the same chain as Spending over time — from the first
+/// bill (trial end for trials), priced as of that month via price history —
+/// not `createdAt`: a sub added today whose last bill was in October did
+/// cost something in October (BUG-13).
+double monthSpendRate(
+  List<Subscription> subscriptions,
+  DateTime targetMonth, {
+  required double Function(Subscription) shareOf,
+  required double Function(double amount, String from) convert,
+  DateTime? today,
+}) {
+  final endOfMonth = DateTime(targetMonth.year, targetMonth.month + 1, 0);
+  // "Still in its trial?" is judged today for the current month — the same
+  // moment the hero total uses — and at month end for past months.
+  final asOf = today != null && today.isBefore(endOfMonth)
+      ? DateTime(today.year, today.month, today.day)
+      : endOfMonth;
+  final startOfMonth = DateTime(targetMonth.year, targetMonth.month, 1);
+
+  double total = 0;
+  for (final sub in subscriptions) {
+    if (sub.deletedAt != null && sub.deletedAt!.isBefore(startOfMonth)) continue;
+    if (sub.isArchived) continue;
+
+    final trialEnd = sub.isFreeTrial ? sub.trialEndDate : null;
+    final ({double price, String currency}) charge;
+    if (trialEnd != null &&
+        DateTime(trialEnd.year, trialEnd.month, trialEnd.day)
+            .isAfter(asOf)) {
+      // Still in its trial that month: the trial price, once it existed
+      // (same as the hero counts a running trial).
+      if (sub.createdAt.isAfter(endOfMonth)) continue;
+      charge = (price: sub.price, currency: sub.currency);
+    } else {
+      final firstBill = trialEnd ?? sub.firstBillDate;
+      final firstBillDay =
+          DateTime(firstBill.year, firstBill.month, firstBill.day);
+      if (firstBillDay.isAfter(endOfMonth)) continue;
+      charge = priceOn(sub, endOfMonth);
+    }
+    total += convert(
+      sub.monthlyEquivalentOf(charge.price) * shareOf(sub),
+      charge.currency,
+    );
+  }
+  return total;
 }

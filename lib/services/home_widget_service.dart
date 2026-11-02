@@ -1,7 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:home_widget/home_widget.dart';
+
 import '../models/subscription.dart';
 import '../services/currency_service.dart';
+import '../utils/split_copies.dart';
 import 'database_service.dart';
 import 'preferences_service.dart';
 
@@ -47,11 +50,18 @@ class HomeWidgetService {
       // Get display currency from preferences if not provided
       displayCurrency ??= PreferencesService().getPreferences().displayCurrency;
 
-      // Calculate total monthly spend
+      // What I pay per month — my share of split subs, like Home and
+      // Analytics (D2 / BUG-12).
+      String? uid;
+      try {
+        uid = FirebaseAuth.instance.currentUser?.uid;
+      } catch (_) {
+        uid = null; // Firebase not initialized (tests) — nothing is split
+      }
       double totalMonthly = 0;
       for (final sub in subscriptions) {
         final converted = currencyService.convert(
-          amount: sub.monthlyEquivalent,
+          amount: sub.monthlyEquivalent * myShareFraction(sub, uid),
           from: sub.currency,
           to: displayCurrency,
           rates: currencyService.getCachedRates(),

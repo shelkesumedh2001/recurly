@@ -497,7 +497,7 @@ class SubscriptionCard extends ConsumerWidget {
                   ),
                   DetailRow(
                     'Monthly cost',
-                    '${subscription.currencySymbol}${subscription.monthlyEquivalent.toStringAsFixed(2)}',
+                    subscription.formatAmount(subscription.monthlyEquivalent),
                   ),
                   if (subscription.cardId != null)
                     if (ref.read(cardByIdProvider(subscription.cardId))

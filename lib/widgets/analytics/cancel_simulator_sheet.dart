@@ -42,13 +42,8 @@ class _CancelSimulatorSheetState extends ConsumerState<CancelSimulatorSheet>
     final displayCurrency = ref.watch(displayCurrencyProvider);
     final totalMonthly = ref.watch(convertedTotalSpendProvider);
 
-    // Convert to display currency
-    final monthlyAmount = currencyService.convert(
-      amount: sub.monthlyEquivalent,
-      from: sub.currency,
-      to: displayCurrency,
-      rates: ref.watch(exchangeRatesProvider).value,
-    );
+    // What I'd stop paying: my share, in the display currency (D2).
+    final monthlyAmount = ref.watch(myMonthlyCostProvider)(sub);
     final yearlyAmount = monthlyAmount * 12;
     final fiveYearAmount = monthlyAmount * 60;
     final dailyAmount = monthlyAmount / 30;

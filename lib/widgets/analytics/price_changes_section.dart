@@ -6,6 +6,7 @@ import '../../models/subscription.dart';
 import '../../providers/analytics_providers.dart';
 import '../../providers/currency_providers.dart';
 import '../../theme/app_tokens.dart';
+import '../../utils/money.dart';
 
 class PriceChangesSection extends ConsumerStatefulWidget {
   const PriceChangesSection({super.key});
@@ -200,7 +201,7 @@ class _PriceChangeCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '$symbol${oldPrice.toStringAsFixed(2)} → $symbol${subscription.price.toStringAsFixed(2)}',
+                  '${formatMoney(oldPrice, symbol)} → ${formatMoney(subscription.price, symbol)}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                   ),
@@ -219,7 +220,7 @@ class _PriceChangeCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${isIncrease ? '+' : ''}$symbol${changeAmount.toStringAsFixed(2)}',
+                '${isIncrease ? '+' : ''}${formatMoney(changeAmount, symbol)}',
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: color,
