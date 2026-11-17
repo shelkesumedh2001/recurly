@@ -12,9 +12,12 @@ import '../models/enums.dart';
 import '../models/exchange_rate.dart';
 import '../models/subscription.dart';
 import '../models/subscription_template.dart';
+import '../providers/auth_providers.dart';
 import '../providers/category_providers.dart';
 import '../providers/credit_card_providers.dart';
 import '../providers/currency_providers.dart';
+import '../providers/household_providers.dart';
+import '../providers/preferences_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../providers/template_providers.dart';
 import '../theme/app_tokens.dart';
@@ -92,6 +95,17 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
 
   bool get _isEditMode => widget.subscription != null;
 
+  /// Whether the household can see this sub (only shown in a household).
+  /// New subs follow the "what the household sees" choice.
+  late bool _householdVisible =
+      ref.read(preferencesProvider).householdShareAll;
+
+  bool get _isSplit =>
+      (widget.subscription?.splitWith?.isNotEmpty ?? false) ||
+      (widget.subscription?.ownerUid != null &&
+          widget.subscription?.ownerUid !=
+              ref.read(currentFirebaseUserProvider)?.uid);
+
   @override
   void initState() {
     super.initState();
@@ -111,6 +125,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       _logoUrl = sub.logoUrl;
       _templateColor = sub.color;
       _selectedCardId = sub.cardId;
+      _householdVisible = sub.householdVisible;
       _showTemplates = false; // Don't show templates when editing
       // Trial fields
       _isFreeTrial = sub.isFreeTrial;
@@ -458,6 +473,25 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
                 _buildTrialSection(context, theme),
                 const SizedBox(height: AppConstants.spacing16),
 
+                if (ref.watch(isInHouseholdProvider)) ...[
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Visible to household'),
+                    subtitle: Text(
+                      _isSplit
+                          ? 'Split subscriptions are always visible'
+                          : _householdVisible
+                              ? 'Everyone in your household can see it'
+                              : 'Only you can see it',
+                    ),
+                    value: _isSplit || _householdVisible,
+                    onChanged: _isSplit
+                        ? null
+                        : (v) => setState(() => _householdVisible = v),
+                  ),
+                  const SizedBox(height: AppConstants.spacing16),
+                ],
+
                 // Save Button
                 FilledButton(
                   onPressed: _isLoading ? null : _saveSubscription,
@@ -793,6 +827,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           clearCustomDays: _selectedBillingCycle != BillingCycle.custom,
           cardId: _selectedCardId,
           clearCardId: _selectedCardId == null,
+          householdVisible: _isSplit || _householdVisible,
           customCategoryId:
               _selectedCategory.isCustom ? _selectedCategory.id : null,
           // An unchanged pick keeps a custom id this device can't resolve
@@ -819,6 +854,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           cardId: _selectedCardId,
           customCategoryId:
               _selectedCategory.isCustom ? _selectedCategory.id : null,
+          householdVisible: _householdVisible,
         );
       }
 

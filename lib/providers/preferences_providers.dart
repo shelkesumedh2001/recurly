@@ -113,6 +113,10 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     await updatePreferences(updated);
   }
 
+  Future<void> setHouseholdShareAll(bool shareAll) async {
+    await updatePreferences(state.copyWith(householdShareAll: shareAll));
+  }
+
   /// Set the label this user uses for the other household member. Blank
   /// input falls back to the default so the UI never shows an empty name.
   Future<void> setPartnerLabel(String label) async {

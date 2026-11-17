@@ -312,7 +312,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
                   child: Text(
-                    "${ref.watch(partnerLabelProvider)}'s subscriptions",
+                    ref.watch(othersLabelProvider) == 'Others'
+                        ? 'Household subscriptions'
+                        : "${ref.watch(othersLabelProvider)}'s subscriptions",
                     style: theme.textTheme.labelLarge?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       fontWeight: FontWeight.w600,

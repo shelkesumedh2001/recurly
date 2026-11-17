@@ -54,7 +54,7 @@ class BackupRestoreResult {
     ];
     final notes = [
       if (partnerCopies > 0)
-        '$partnerCopies shared by your household partner left out',
+        '$partnerCopies shared by household members left out',
       if (skipped > 0) '$skipped entries skipped',
     ];
     final base = 'Restored ${parts.join(', ')}';

@@ -25,14 +25,23 @@ double? acceptedShareFor(Subscription ownerSub, String myUid) {
 /// partner's split sub (already priced at my share — any `splitWith` it
 /// carries from older versions is ignored, BUG-3), 1 minus the accepted
 /// partner shares for my own subs. The single rule for "what I pay".
-double myShareFraction(Subscription sub, String? myUid) {
+///
+/// [includePending] also takes out shares still waiting for acceptance —
+/// what I'll pay once everyone accepts (the split sheet / details view).
+double myShareFraction(
+  Subscription sub,
+  String? myUid, {
+  bool includePending = false,
+}) {
   final isCopy =
       sub.ownerUid != null && myUid != null && sub.ownerUid != myUid;
   if (isCopy) return 1;
   var mine = 1.0;
   for (final entry in sub.splitWith ?? const <Map<String, dynamic>>[]) {
     final pct = entry['sharePercent'];
-    if (entry['accepted'] == true && pct is num) mine -= pct / 100;
+    if ((includePending || entry['accepted'] == true) && pct is num) {
+      mine -= pct / 100;
+    }
   }
   return mine.clamp(0.0, 1.0);
 }
@@ -76,6 +85,8 @@ double myShareFraction(Subscription sub, String? myUid) {
 /// The copy carries no `splitWith`: it's already priced at my share, and a
 /// copied `splitWith` made every share calculation apply the split a
 /// second time (BUG-3, BUG-4). Card links are the owner's, local-only.
+/// The custom category id is kept: household members can read the owner's
+/// categories (1.0.6) and fall back to [Subscription.category] otherwise.
 Subscription? partnerCopyFor(
   Subscription ownerSub, {
   required String ownerUid,
@@ -112,6 +123,8 @@ Subscription? partnerCopyFor(
             },)
         .toList(),
     customDays: ownerSub.customDays,
+    // The owner's custom category: resolved from their synced categories.
+    customCategoryId: ownerSub.customCategoryId,
     updatedAt: clock.now(),
   );
 }
@@ -166,27 +179,31 @@ class SplitSyncPlan {
 
 /// Plan the sync for [myUid] given my [local] subs (Hive, all of them).
 ///
-/// [partnerUid] null = I have no partner right now (not in a household, or
-/// alone in one): every copy goes and every split on my subs is cleared.
-/// Otherwise [partnerDocs] must be the partner's household-visible subs
-/// from a server-confirmed snapshot (never a cache-only one — an empty
-/// cache would read as "the owner deleted everything").
+/// [members] are the OTHER people in my household right now; empty = not
+/// in a household, or alone in one: every copy goes and every split on my
+/// subs is cleared. [ownerDocs] holds, per member, their household-visible
+/// subs from a server-confirmed snapshot (never a cache-only one — an
+/// empty cache would read as "the owner deleted everything"). A member
+/// whose docs haven't arrived yet is left alone: their copies stay as they
+/// are until their snapshot is in.
 SplitSyncPlan planSplitSync({
   required String myUid,
-  required String? partnerUid,
+  required Set<String> members,
   required List<Subscription> local,
-  List<Subscription> partnerDocs = const [],
+  Map<String, List<Subscription>> ownerDocs = const {},
 }) {
   final upserts = <Subscription>[];
   final deletes = <String>[];
   final own = <Subscription>[];
 
   final desired = <String, Subscription>{};
-  if (partnerUid != null) {
-    for (final doc in partnerDocs) {
-      // The partner's collection also holds THEIR copies of MY subs.
-      if ((doc.ownerUid ?? partnerUid) != partnerUid) continue;
-      final copy = partnerCopyFor(doc, ownerUid: partnerUid, myUid: myUid);
+  for (final entry in ownerDocs.entries) {
+    final ownerUid = entry.key;
+    if (!members.contains(ownerUid)) continue;
+    for (final doc in entry.value) {
+      // A member's collection also holds THEIR copies of others' subs.
+      if ((doc.ownerUid ?? ownerUid) != ownerUid) continue;
+      final copy = partnerCopyFor(doc, ownerUid: ownerUid, myUid: myUid);
       if (copy != null) desired[doc.id] = copy;
     }
   }
@@ -194,9 +211,13 @@ SplitSyncPlan planSplitSync({
   final localIds = <String>{};
   for (final sub in local) {
     localIds.add(sub.id);
-    final isCopy = sub.ownerUid != null && sub.ownerUid != myUid;
+    final owner = sub.ownerUid;
+    final isCopy = owner != null && owner != myUid;
     if (isCopy) {
-      final want = sub.ownerUid == partnerUid ? desired[sub.id] : null;
+      if (members.contains(owner) && !ownerDocs.containsKey(owner)) {
+        continue; // owner's snapshot not in yet
+      }
+      final want = members.contains(owner) ? desired[sub.id] : null;
       if (want == null) {
         deletes.add(sub.id);
       } else if (sub.deletedAt != null || copyDiffers(sub, want)) {
@@ -207,7 +228,7 @@ SplitSyncPlan planSplitSync({
 
     final splits = sub.splitWith;
     if (splits == null || splits.isEmpty) continue;
-    final kept = splits.where((e) => e['uid'] == partnerUid).toList();
+    final kept = splits.where((e) => members.contains(e['uid'])).toList();
     if (kept.length != splits.length) {
       own.add(
         kept.isEmpty

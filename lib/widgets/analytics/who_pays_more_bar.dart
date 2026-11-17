@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/analytics_providers.dart';
 import '../../providers/currency_providers.dart';
-import '../../providers/preferences_providers.dart';
+import '../../providers/household_providers.dart';
 
 class WhoPaysMoresBar extends ConsumerStatefulWidget {
   const WhoPaysMoresBar({super.key});
@@ -85,7 +85,7 @@ class _WhoPaysMoresBarState extends ConsumerState<WhoPaysMoresBar>
                   // Partner
                   _buildBar(
                     theme,
-                    label: ref.watch(partnerLabelProvider),
+                    label: ref.watch(othersLabelProvider),
                     amount: currencyService.formatAmount(comparison.partnerTotal, displayCurrency),
                     percent: comparison.partnerPercent,
                     color: partnerColor,

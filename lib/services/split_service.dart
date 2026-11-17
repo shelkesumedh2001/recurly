@@ -41,52 +41,65 @@ class SplitService {
         createdAt: now,
       );
 
-  /// Propose a split to a partner
+  /// Propose (or change) how [subId] is split: [shares] maps each member
+  /// to their share in percent; the owner pays the rest.
+  ///
+  /// Members whose share is unchanged and already accepted keep their
+  /// acceptance; everyone else gets a fresh proposal. Members dropped from
+  /// the split lose their proposal and copy. A split sub is always visible
+  /// to the household — members must be able to read it to follow it.
   Future<void> proposeSplit({
     required String ownerUid,
     required String subId,
-    required String partnerUid,
-    required double sharePercent,
+    required Map<String, double> shares,
   }) async {
     final sub = _db.getSubscriptionById(subId);
     if (sub == null) throw Exception('Subscription not found');
+    final plan = planSplitChange(sub.splitWith, shares);
+    final now = DateTime.now();
 
-    final proposal = buildProposal(
-      sub,
-      ownerUid: ownerUid,
-      partnerUid: partnerUid,
-      sharePercent: sharePercent,
-      now: DateTime.now(),
-    );
-
-    // Store proposal under partner's split_proposals subcollection
-    await _timed(_firestore
-        .collection('users')
-        .doc(partnerUid)
-        .collection('split_proposals')
-        .doc(subId)
-        .set(proposal.toJson()),);
-
-    // Update the subscription's splitWith field
-    final splitEntry = {
-      'uid': partnerUid,
-      'sharePercent': sharePercent,
-      'accepted': false,
-    };
-
+    // Owner's doc first: the proposal is useless if the member can't read
+    // the (now visible) sub when accepting.
     final updatedSub = sub.copyWith(
-      splitWith: [splitEntry],
-      updatedAt: DateTime.now(),
+      splitWith: plan.entries,
+      householdVisible: true,
+      updatedAt: now,
     );
     await _db.updateSubscription(updatedSub);
-
-    // Push to owner's Firestore
     await _timed(_firestore
         .collection('users')
         .doc(ownerUid)
         .collection('subscriptions')
         .doc(subId)
         .set(updatedSub.toJson(), SetOptions(merge: true)),);
+
+    for (final partnerUid in plan.propose) {
+      final proposal = buildProposal(
+        sub,
+        ownerUid: ownerUid,
+        partnerUid: partnerUid,
+        sharePercent: shares[partnerUid]!,
+        now: now,
+      );
+      await _timed(_firestore
+          .collection('users')
+          .doc(partnerUid)
+          .collection('split_proposals')
+          .doc(subId)
+          .set(proposal.toJson()),);
+    }
+    for (final partnerUid in plan.removed) {
+      await _dropMember(partnerUid, subId);
+    }
+  }
+
+  /// A member's copy and proposal of [subId] (household members may delete
+  /// both). Their device would also drop the copy on its own once the
+  /// owner's doc no longer names them.
+  Future<void> _dropMember(String partnerUid, String subId) async {
+    final user = _firestore.collection('users').doc(partnerUid);
+    await _timed(user.collection('subscriptions').doc(subId).delete());
+    await _timed(user.collection('split_proposals').doc(subId).delete());
   }
 
   /// Accept a split proposal
@@ -183,53 +196,42 @@ class SplitService {
     }
   }
 
-  /// Remove a split from a subscription
+  /// Stop splitting [subId] with everyone.
   Future<void> removeSplit({
     required String ownerUid,
     required String subId,
-    required String partnerUid,
   }) async {
-    // Remove from owner's subscription
     final ownerSubRef = _firestore
         .collection('users')
         .doc(ownerUid)
         .collection('subscriptions')
         .doc(subId);
+    final local = _db.getSubscriptionById(subId);
+    final members = <String>{
+      for (final e in local?.splitWith ?? const <Map<String, dynamic>>[])
+        if (e['uid'] is String) e['uid'] as String,
+    };
 
     final ownerSubDoc = await _timed(ownerSubRef.get());
     if (ownerSubDoc.exists) {
-      final data = ownerSubDoc.data()!;
-      final splitWith = (data['splitWith'] as List<dynamic>?)
-              ?.where((e) => (e as Map)['uid'] != partnerUid)
-              .toList() ??
-          [];
+      for (final e in (ownerSubDoc.data()!['splitWith'] as List<dynamic>?) ??
+          const []) {
+        final uid = (e as Map)['uid'];
+        if (uid is String) members.add(uid);
+      }
       await _timed(ownerSubRef.update({
-        'splitWith': splitWith.isEmpty ? FieldValue.delete() : splitWith,
+        'splitWith': FieldValue.delete(),
         'updatedAt': DateTime.now().toIso8601String(),
       }),);
     }
 
-    // Delete partner's reference subscription
-    await _timed(_firestore
-        .collection('users')
-        .doc(partnerUid)
-        .collection('subscriptions')
-        .doc(subId)
-        .delete(),);
+    for (final uid in members) {
+      await _dropMember(uid, subId);
+    }
 
-    // Delete proposal
-    await _timed(_firestore
-        .collection('users')
-        .doc(partnerUid)
-        .collection('split_proposals')
-        .doc(subId)
-        .delete(),);
-
-    // Update local Hive
-    final localSub = _db.getSubscriptionById(subId);
-    if (localSub != null) {
+    if (local != null) {
       await _db.updateSubscription(
-        localSub.copyWith(clearSplitWith: true, updatedAt: DateTime.now()),
+        local.copyWith(clearSplitWith: true, updatedAt: DateTime.now()),
       );
     }
   }
@@ -262,4 +264,37 @@ class SplitService {
       return SplitProposal.fromJson(doc.data());
     }).toList();
   }
+}
+
+/// How a split changes when the owner picks new [shares] (member uid →
+/// percent) for a sub whose split is [current].
+({List<Map<String, dynamic>> entries, List<String> propose, List<String> removed})
+    planSplitChange(
+  List<Map<String, dynamic>>? current,
+  Map<String, double> shares,
+) {
+  final before = {
+    for (final e in current ?? const <Map<String, dynamic>>[])
+      if (e['uid'] is String) e['uid'] as String: e,
+  };
+  final entries = <Map<String, dynamic>>[];
+  final propose = <String>[];
+  for (final MapEntry(key: uid, value: pct) in shares.entries) {
+    final old = before[uid];
+    final oldPct = old?['sharePercent'];
+    final keep = old != null &&
+        old['accepted'] == true &&
+        oldPct is num &&
+        (oldPct - pct).abs() < 1e-9;
+    entries.add({'uid': uid, 'sharePercent': pct, 'accepted': keep});
+    if (!keep) propose.add(uid);
+  }
+  return (
+    entries: entries,
+    propose: propose,
+    removed: [
+      for (final uid in before.keys)
+        if (!shares.containsKey(uid)) uid,
+    ],
+  );
 }

@@ -155,9 +155,9 @@ void main() {
       final raised = netflix.copyWith(price: 17.99);
       final plan = planSplitSync(
         myUid: b,
-        partnerUid: a,
+        members: {a},
         local: [...bOwn, stale],
-        partnerDocs: [raised, spotify, icloud, gym],
+        ownerDocs: {a: [raised, spotify, icloud, gym]},
       );
       final byId = {for (final c in plan.upsertCopies) c.id: c};
       expect(byId.keys, unorderedEquals(['netflix', 'spotify']));
@@ -169,9 +169,9 @@ void main() {
     test('nothing to do when copies are current', () {
       final plan = planSplitSync(
         myUid: b,
-        partnerUid: a,
+        members: {a},
         local: [...bOwn, ...copiesFor(b, a, aOwn)],
-        partnerDocs: [...aOwn, ...copiesFor(a, b, bOwn)],
+        ownerDocs: {a: [...aOwn, ...copiesFor(a, b, bOwn)]},
       );
       expect(plan.isEmpty, isTrue);
     });
@@ -180,10 +180,10 @@ void main() {
         () {
       final plan = planSplitSync(
         myUid: b,
-        partnerUid: a,
+        members: {a},
         local: [...bOwn, ...copiesFor(b, a, aOwn)],
         // Spotify deleted (absent), Netflix split removed.
-        partnerDocs: [netflix.copyWith(clearSplitWith: true), icloud, gym],
+        ownerDocs: {a: [netflix.copyWith(clearSplitWith: true), icloud, gym]},
       );
       expect(plan.deleteCopyIds, unorderedEquals(['netflix', 'spotify']));
     });
@@ -191,9 +191,9 @@ void main() {
     test("partner's copies of MY subs in their collection are ignored", () {
       final plan = planSplitSync(
         myUid: a,
-        partnerUid: b,
+        members: {b},
         local: [...aOwn, ...copiesFor(a, b, bOwn)],
-        partnerDocs: [...bOwn, ...copiesFor(b, a, aOwn)],
+        ownerDocs: {b: [...bOwn, ...copiesFor(b, a, aOwn)]},
       );
       expect(plan.isEmpty, isTrue);
     });
@@ -204,7 +204,7 @@ void main() {
           splitWith: _split(b, 50), archived: true,);
       final plan = planSplitSync(
         myUid: a,
-        partnerUid: null,
+        members: const {},
         local: [...aOwn, archivedSplit, ...copiesFor(a, b, bOwn)],
       );
       expect(plan.deleteCopyIds, unorderedEquals(['youtube', 'disney']));
@@ -217,7 +217,7 @@ void main() {
     test('new partner: splits and copies from the old one go (BUG-10)', () {
       final plan = planSplitSync(
         myUid: a,
-        partnerUid: 'uidC',
+        members: {'uidC'},
         local: [...aOwn, ...copiesFor(a, b, bOwn)],
       );
       expect(plan.deleteCopyIds, unorderedEquals(['youtube', 'disney']));
@@ -229,11 +229,59 @@ void main() {
       final pending = _sub('p', 10, splitWith: _split(b, 50, accepted: false));
       final plan = planSplitSync(
         myUid: a,
-        partnerUid: b,
+        members: {b},
         local: [pending],
-        partnerDocs: const [],
+        ownerDocs: {b: const []},
       );
       expect(plan.isEmpty, isTrue);
+    });
+  });
+
+  group('planSplitSync with 3+ members', () {
+    const c = 'uidC';
+
+    test('copies from two owners are derived independently', () {
+      final cSub = _sub('hulu', 12, owner: c, splitWith: _split(b, 50));
+      final plan = planSplitSync(
+        myUid: b,
+        members: {a, c},
+        local: bOwn,
+        ownerDocs: {a: aOwn, c: [cSub]},
+      );
+      expect(
+        plan.upsertCopies.map((s) => s.id),
+        unorderedEquals(['netflix', 'spotify', 'hulu']),
+      );
+      expect(plan.upsertCopies.firstWhere((s) => s.id == 'hulu').ownerUid, c);
+    });
+
+    test("a member whose snapshot hasn't arrived keeps their copies", () {
+      final cSub = _sub('hulu', 12, owner: c, splitWith: _split(b, 50));
+      final cCopy = partnerCopyFor(cSub, ownerUid: c, myUid: b)!;
+      final plan = planSplitSync(
+        myUid: b,
+        members: {a, c},
+        local: [...bOwn, cCopy, ...copiesFor(b, a, aOwn)],
+        ownerDocs: {a: aOwn},
+      );
+      expect(plan.isEmpty, isTrue);
+    });
+
+    test('one member leaves: only their splits and copies go', () {
+      final cSub = _sub('hulu', 12, owner: c, splitWith: _split(b, 50));
+      final cCopy = partnerCopyFor(cSub, ownerUid: c, myUid: b)!;
+      final mine = _sub('rent', 30, owner: b, splitWith: [
+        ..._split(a, 30),
+        ..._split(c, 30),
+      ],);
+      final plan = planSplitSync(
+        myUid: b,
+        members: {a},
+        local: [mine, cCopy, ...copiesFor(b, a, aOwn)],
+        ownerDocs: {a: aOwn},
+      );
+      expect(plan.deleteCopyIds, ['hulu']);
+      expect(plan.updateOwn.single.splitWith!.single['uid'], a);
     });
   });
 

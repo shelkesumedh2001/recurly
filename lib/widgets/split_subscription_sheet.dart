@@ -12,6 +12,15 @@ import '../services/split_service.dart';
 import '../utils/money.dart';
 import 'app_toast.dart';
 
+/// Shares (percent) for a split with [members]: the slider value for a
+/// single member, equal parts with the owner for several.
+Map<String, double> splitShares(List<String> members, double singleShare) {
+  if (members.isEmpty) return const {};
+  if (members.length == 1) return {members.single: singleShare};
+  final each = 100 / (members.length + 1);
+  return {for (final m in members) m: each};
+}
+
 class SplitSubscriptionSheet extends ConsumerStatefulWidget {
   const SplitSubscriptionSheet({
     super.key,
@@ -30,34 +39,57 @@ class _SplitSubscriptionSheetState
   double _sharePercent = 50;
   bool _isLoading = false;
 
-  /// The partner's entry in this sub's split, if it has one.
-  Map<String, dynamic>? get _existing {
-    final splits = widget.subscription.splitWith;
-    return (splits == null || splits.isEmpty) ? null : splits.first;
-  }
+  /// Members picked for the split, in household order.
+  final Set<String> _selected = {};
+
+  List<Map<String, dynamic>> get _existing =>
+      widget.subscription.splitWith ?? const [];
 
   @override
   void initState() {
     super.initState();
-    // Changing a split starts from the current share, not 50%.
-    final pct = _existing?['sharePercent'];
-    if (pct is num) _sharePercent = pct.toDouble().clamp(10, 90);
+    // Changing a split starts from the current one, not 50% / nobody.
+    for (final e in _existing) {
+      if (e['uid'] is String) _selected.add(e['uid'] as String);
+    }
+    if (_existing.length == 1) {
+      final pct = _existing.single['sharePercent'];
+      if (pct is num) _sharePercent = pct.toDouble().clamp(10, 90);
+    }
+  }
+
+  List<String> _others() {
+    final me = ref.read(currentFirebaseUserProvider)?.uid;
+    return ref.watch(householdMembersProvider).where((m) => m != me).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final sub = widget.subscription;
-    final partnerLabel = ref.watch(partnerLabelProvider);
-    // Partner's share rounded to the cent (what their copy shows); mine is
-    // the rest, so the two always add up to the price (BUG-14).
+    final nameOf = ref.watch(memberNameProvider);
+    final others = _others();
+    // With one other member, they're the obvious pick.
+    if (_selected.isEmpty && _existing.isEmpty && others.length == 1) {
+      _selected.add(others.single);
+    }
+    final picked = others.where(_selected.contains).toList();
+    final shares = splitShares(picked, _sharePercent);
+
     // A running trial is split at its post-trial price (chargePerRenewal);
     // splitting $0 showed "$0.00 / $0.00".
     final inTrial = sub.isFreeTrial && !sub.isTrialExpired;
     final base = sub.chargePerRenewal;
-    final partnerShare = roundCents(base * (_sharePercent / 100));
-    final myShare = roundCents(base) - partnerShare;
-    final hasSplit = _existing != null;
+    // Members' shares rounded to the cent (what their copies show); mine
+    // is the rest, so it all adds up to the price (BUG-14).
+    final memberAmounts = {
+      for (final e in shares.entries) e.key: roundCents(base * e.value / 100),
+    };
+    final myShare = roundCents(base) -
+        memberAmounts.values.fold<double>(0, (a, b) => a + b);
+    final myPercent =
+        100 - shares.values.fold<double>(0, (a, b) => a + b);
+    final hasSplit = _existing.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.all(12),
@@ -66,7 +98,7 @@ class _SplitSubscriptionSheetState
         borderRadius: BorderRadius.circular(24),
       ),
       child: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -104,10 +136,13 @@ class _SplitSubscriptionSheetState
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      sub.name,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
+                    Flexible(
+                      child: Text(
+                        sub.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                     Text(
@@ -132,47 +167,82 @@ class _SplitSubscriptionSheetState
               ],
               const SizedBox(height: 24),
 
-              // Slider
-              Text(
-                "$partnerLabel's share: ${_sharePercent.round()}%",
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+              if (others.length > 1) ...[
+                Text(
+                  'Split with',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              Slider(
-                value: _sharePercent,
-                min: 10,
-                max: 90,
-                divisions: 16,
-                label: '${_sharePercent.round()}%',
-                onChanged: (value) => setState(() => _sharePercent = value),
-              ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final m in others)
+                      FilterChip(
+                        label: Text(nameOf(m)),
+                        selected: _selected.contains(m),
+                        onSelected: (on) => setState(() {
+                          on ? _selected.add(m) : _selected.remove(m);
+                        }),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              if (others.isEmpty)
+                Text(
+                  'Nobody else is in your household yet.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                )
+              else if (picked.length == 1) ...[
+                Text(
+                  "${nameOf(picked.single)}'s share: ${_sharePercent.round()}%",
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Slider(
+                  value: _sharePercent,
+                  min: 10,
+                  max: 90,
+                  divisions: 16,
+                  label: '${_sharePercent.round()}%',
+                  onChanged: (value) => setState(() => _sharePercent = value),
+                ),
+              ] else if (picked.length > 1)
+                Text(
+                  'Split equally between you and ${picked.length} others.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
 
               // Share breakdown
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildShareInfo(
+              if (picked.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _shareRow(theme, 'You', sub.formatAmount(myShare), myPercent),
+                for (final m in picked)
+                  _shareRow(
                     theme,
-                    label: 'Your share',
-                    amount: sub.formatAmount(myShare),
-                    percent: '${(100 - _sharePercent).round()}%',
+                    nameOf(m),
+                    sub.formatAmount(memberAmounts[m]!),
+                    shares[m]!,
                   ),
-                  _buildShareInfo(
-                    theme,
-                    label: "$partnerLabel's share",
-                    amount: sub.formatAmount(partnerShare),
-                    percent: '${_sharePercent.round()}%',
-                  ),
-                ],
-              ),
+              ],
               const SizedBox(height: 24),
 
               // Propose button
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _isLoading ? null : _proposeSplit,
+                  onPressed: _isLoading || picked.isEmpty
+                      ? null
+                      : () => _proposeSplit(shares),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
@@ -215,84 +285,79 @@ class _SplitSubscriptionSheetState
     );
   }
 
-  Widget _buildShareInfo(
-    ThemeData theme, {
-    required String label,
-    required String amount,
-    required String percent,
-  }) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+  Widget _shareRow(ThemeData theme, String label, String amount, double pct) {
+    final percent = (pct - pct.roundToDouble()).abs() < 0.05
+        ? '${pct.round()}%'
+        : '${pct.toStringAsFixed(1)}%';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          amount,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
+          Text(
+            percent,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        Text(
-          percent,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.primary,
-            fontWeight: FontWeight.w600,
+          const SizedBox(width: 12),
+          Text(
+            amount,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  /// The other household member, or null (shows why in a toast).
-  String? _partnerUid(String myUid) {
-    final members = ref.read(householdMembersProvider);
-    final partnerUid =
-        members.firstWhere((m) => m != myUid, orElse: () => '');
-    if (partnerUid.isEmpty) {
-      showAppToast('No ${ref.read(partnerLabelProvider)} found in the household');
-      return null;
-    }
-    return partnerUid;
-  }
-
-  Future<void> _proposeSplit() async {
+  Future<void> _proposeSplit(Map<String, double> shares) async {
     final user = ref.read(currentFirebaseUserProvider);
     if (user == null) return;
-    final partnerUid = _partnerUid(user.uid);
-    if (partnerUid == null) return;
+    final nameOf = ref.read(memberNameProvider);
+    final waitingOn = shares.length == 1
+        ? nameOf(shares.keys.single)
+        : 'everyone';
 
     await _run(
       () => SplitService().proposeSplit(
         ownerUid: user.uid,
         subId: widget.subscription.id,
-        partnerUid: partnerUid,
-        sharePercent: _sharePercent,
+        shares: shares,
       ),
-      done: _existing != null
-          ? 'New split sent — ${ref.read(partnerLabelProvider)} needs to accept it'
+      done: _existing.isNotEmpty
+          ? 'New split sent — $waitingOn needs to accept it'
           : 'Split proposed',
     );
   }
 
-  /// Ends the split for both people: the owner's splitWith goes, and the
-  /// partner's copy + proposal are deleted (BUG-7).
+  /// Ends the split for everyone: the owner's splitWith goes, and each
+  /// member's copy + proposal are deleted (BUG-7).
   Future<void> _stopSplitting() async {
     final user = ref.read(currentFirebaseUserProvider);
     if (user == null) return;
-    final partnerUid =
-        _existing?['uid'] as String? ?? _partnerUid(user.uid);
-    if (partnerUid == null) return;
 
     await _run(
-      () => SplitService().removeSplit(
-        ownerUid: user.uid,
-        subId: widget.subscription.id,
-        partnerUid: partnerUid,
-      ),
+      () async {
+        await SplitService().removeSplit(
+          ownerUid: user.uid,
+          subId: widget.subscription.id,
+        );
+        // "Only what I split": an unsplit sub goes private again.
+        if (!ref.read(preferencesProvider).householdShareAll) {
+          await ref
+              .read(subscriptionProvider.notifier)
+              .applyHouseholdVisibility(shareAll: false);
+        }
+      },
       done: 'Stopped splitting ${widget.subscription.name}',
     );
   }

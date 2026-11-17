@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/custom_category.dart';
 import '../models/enums.dart';
@@ -147,15 +149,39 @@ final builtInCategoriesProvider = Provider<List<UnifiedCategory>>((ref) {
       .toList();
 });
 
+/// Other household members' custom categories, by id (live).
+final memberCategoriesProvider =
+    StreamProvider<Map<String, CustomCategory>>((ref) {
+  final notifier = SyncService().memberCategories;
+  final controller = StreamController<Map<String, CustomCategory>>()
+    ..add(notifier.value);
+  void listener() {
+    if (!controller.isClosed) controller.add(notifier.value);
+  }
+
+  notifier.addListener(listener);
+  ref.onDispose(() {
+    notifier.removeListener(listener);
+    controller.close();
+  });
+  return controller.stream;
+});
+
 /// The category a subscription is filed under: its custom category when
-/// that id exists on this device, else its built-in [Subscription.category].
+/// that id exists on this device — or, for a household member's sub, among
+/// that member's categories — else its built-in [Subscription.category].
 /// The one place Home, Analytics, budgets and export decide this (BUG-17).
 final categoryOfProvider = Provider<UnifiedCategory Function(Subscription)>((ref) {
   final customs = ref.watch(customCategoriesProvider);
+  final members = ref.watch(memberCategoriesProvider).value ?? const {};
   final byId = {
     for (var i = 0; i < customs.length; i++)
       customs[i].id: UnifiedCategory.fromCustom(customs[i], order: i),
   };
+  var order = customs.length;
+  for (final c in members.values) {
+    byId.putIfAbsent(c.id, () => UnifiedCategory.fromCustom(c, order: order++));
+  }
   return (sub) {
     final customId = sub.customCategoryId;
     return (customId == null ? null : byId[customId]) ??
