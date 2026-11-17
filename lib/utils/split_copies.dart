@@ -1,6 +1,7 @@
 import 'package:clock/clock.dart';
 
 import '../models/subscription.dart';
+import 'money.dart';
 
 /// Partner's "copy" of a split subscription.
 ///
@@ -44,6 +45,19 @@ double myShareFraction(
     }
   }
   return mine.clamp(0.0, 1.0);
+}
+
+/// What the owner pays per bill of [price] split by [splitWith] (pending
+/// shares included): each member's share rounded to the cent — what their
+/// copy shows — and the owner pays the rest, so it all adds up to the price
+/// (same rule as the split sheet; BUG-14).
+double ownerShareAmount(double price, List<Map<String, dynamic>>? splitWith) {
+  var members = 0.0;
+  for (final e in splitWith ?? const <Map<String, dynamic>>[]) {
+    final pct = e['sharePercent'];
+    if (pct is num) members += roundCents(price * pct / 100);
+  }
+  return roundCents(roundCents(price) - members);
 }
 
 /// Who pays what across the household, per month: every household sub
