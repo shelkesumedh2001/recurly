@@ -117,15 +117,7 @@ Recurly uses Firebase for Authentication (Google + Email/Password + Apple) and C
 4. Download `google-services.json` → place at `android/app/google-services.json`
 5. Enable Authentication providers: **Google**, **Email/Password**, optionally **Apple** (iOS)
 6. Create a Firestore database (Production mode)
-7. Deploy security rules from `firestore.rules` via Firebase Console → Firestore → Rules → paste → Publish
-
-### Verifying Firestore rules
-
-The repo's `firestore.rules` is the canonical version. Key invariants:
-- Reads/writes on `/users/{uid}/*` require `request.auth.uid == uid`, **plus** an `isHouseholdMember(uid)` allowance for partner updates to subscriptions and profile (used by household disband/leave flows)
-- Open reads on `/households` and `/invites` (needed for invite-code lookup)
-- Disjoint-branch writes on `/households` for create / join / leave / creator-refresh / delete
-- Collection listeners filter on `householdVisible == true` to align with the read rule
+7. Write and publish your own Firestore security rules (Firebase Console → Firestore → Rules). The project's production rules are not part of this repository.
 
 ---
 
