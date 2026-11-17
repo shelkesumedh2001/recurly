@@ -14,7 +14,22 @@ class CustomCategory extends HiveObject {
     this.colorHex,
     DateTime? createdAt,
     this.sortOrder = 0,
+    this.updatedAt,
+    this.ownerUid,
   }) : createdAt = createdAt ?? DateTime.now();
+
+  /// Firestore / backup form. [ownerUid] stays local (the doc path says
+  /// whose it is).
+  factory CustomCategory.fromJson(Map<String, dynamic> json) => CustomCategory(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        icon: json['icon'] as String,
+        isEmoji: json['isEmoji'] as bool? ?? true,
+        colorHex: json['colorHex'] as String?,
+        createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
+        sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+        updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? ''),
+      );
 
   /// Unique identifier
   @HiveField(0)
@@ -44,6 +59,29 @@ class CustomCategory extends HiveObject {
   @HiveField(6)
   int sortOrder;
 
+  /// Last local change; newest wins when devices disagree (sync, 1.0.6).
+  @HiveField(7)
+  DateTime? updatedAt;
+
+  /// Account this category was synced to; null until first synced. A
+  /// category of another account left on the device is dropped at sign-in,
+  /// like subscriptions (P3-4).
+  @HiveField(8)
+  String? ownerUid;
+
+  DateTime get changedAt => updatedAt ?? createdAt;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'icon': icon,
+        'isEmoji': isEmoji,
+        'colorHex': colorHex,
+        'createdAt': createdAt.toIso8601String(),
+        'sortOrder': sortOrder,
+        'updatedAt': changedAt.toIso8601String(),
+      };
+
   /// Get display icon (handles both emoji and Material icons)
   String get displayIcon => icon;
 
@@ -57,6 +95,8 @@ class CustomCategory extends HiveObject {
     DateTime? createdAt,
     int? sortOrder,
     bool clearColor = false,
+    DateTime? updatedAt,
+    String? ownerUid,
   }) {
     return CustomCategory(
       id: id ?? this.id,
@@ -66,6 +106,8 @@ class CustomCategory extends HiveObject {
       colorHex: clearColor ? null : (colorHex ?? this.colorHex),
       createdAt: createdAt ?? this.createdAt,
       sortOrder: sortOrder ?? this.sortOrder,
+      updatedAt: updatedAt ?? this.updatedAt,
+      ownerUid: ownerUid ?? this.ownerUid,
     );
   }
 

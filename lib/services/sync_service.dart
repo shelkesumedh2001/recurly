@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import '../models/subscription.dart';
 import '../models/sync_status.dart';
 import '../utils/split_copies.dart';
+import 'category_sync.dart';
+import 'custom_category_service.dart';
 import 'database_service.dart';
 import 'sync_queue.dart';
 
@@ -24,6 +26,13 @@ class SyncService {
       debugFirestoreOverride ?? FirebaseFirestore.instance;
 
   final DatabaseService _db = DatabaseService();
+
+  /// Custom categories across the account's devices (1.0.6).
+  late final CategorySync categorySync =
+      CategorySync(() => _firestore, CustomCategoryService());
+
+  /// Signed-in uid sync is running for, or null.
+  String? get currentUid => _currentUid;
 
   StreamSubscription<QuerySnapshot>? _syncListener;
   StreamSubscription<QuerySnapshot>? _householdListener;
@@ -68,6 +77,9 @@ class SyncService {
       // data) must not be merged into — or deleted from — this account.
       await _dropForeignLocalData(uid);
       _accountReadyUid = uid;
+      unawaited(categorySync.start(uid).catchError(
+            (Object e) => debugPrint('Category sync start failed: $e'),
+          ),);
       _runDeferredSplitSync();
 
       // Replay writes queued while offline BEFORE merging: a queued
@@ -659,6 +671,7 @@ class SyncService {
   /// Dispose listeners on sign-out. Safe to call repeatedly — all operations
   /// are idempotent.
   void dispose() {
+    unawaited(categorySync.stop());
     _drainRetryTimer?.cancel();
     _drainRetryTimer = null;
     _syncListener?.cancel();
