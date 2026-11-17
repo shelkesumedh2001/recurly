@@ -531,12 +531,10 @@ class SubscriptionCard extends ConsumerWidget {
                     DetailRow(
                       'Your share',
                       subscription.formatAmount(
-                        subscription.currentPrice *
-                            myShareFraction(
-                              subscription,
-                              ref.read(currentFirebaseUserProvider)?.uid,
-                              includePending: true,
-                            ),
+                        ownerShareAmount(
+                          subscription.currentPrice,
+                          subscription.splitWith,
+                        ),
                       ),
                     ),
                   ],

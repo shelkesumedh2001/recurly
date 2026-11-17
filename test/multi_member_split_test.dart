@@ -115,5 +115,14 @@ void main() {
       expect(p.propose, ['c']);
     });
   });
-}
 
+  test('owner share in details = price minus members\' rounded shares', () {
+    final entries = [
+      {'uid': 'b', 'sharePercent': 50, 'accepted': true},
+      {'uid': 'c', 'sharePercent': 20, 'accepted': false},
+    ];
+    // 7.75 + 3.10 for members → owner 4.64 (not 0.3 × 15.49 = 4.65).
+    expect(ownerShareAmount(15.49, entries), closeTo(4.64, 1e-9));
+    expect(ownerShareAmount(15.49, null), closeTo(15.49, 1e-9));
+  });
+}
