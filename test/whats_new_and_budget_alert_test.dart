@@ -6,7 +6,7 @@ import 'package:recurly/services/budget_service.dart';
 import 'package:recurly/utils/changelog.dart';
 
 void main() {
-  // P3-1: on a 411dp-wide phone the default sheet (max 9/16 of the screen)
+  // On a 411dp-wide phone the default sheet (max 9/16 of the screen)
   // clipped "Got it" under the gesture bar once the notes got long.
   testWidgets("What's new: 'Got it' is reachable on a phone", (tester) async {
     tester.view
@@ -40,7 +40,7 @@ void main() {
     expect(gotIt, findsNothing);
   });
 
-  // P3-2: the alert logic existed but nothing showed it; Home now does.
+  // The alert logic existed but nothing showed it; Home now does.
   group('budget alert timing', () {
     final service = BudgetService();
     BudgetSettings settings({DateTime? last, bool enabled = true}) =>

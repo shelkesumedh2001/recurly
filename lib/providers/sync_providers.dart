@@ -48,7 +48,7 @@ final syncInitProvider = Provider<void>((ref) {
 
   if (user == null) return;
 
-  // A sign-up that lost the network can leave no users/{uid} doc (Lead L1);
+  // A sign-up that lost the network can leave no users/{uid} doc;
   // repair it on every auth change, retrying until the connection is back.
   unawaited(ref.read(authServiceProvider).ensureProfileWithRetry(user));
 
@@ -87,8 +87,8 @@ final syncInitProvider = Provider<void>((ref) {
 
 /// Reactive household sync provider — (re)initializes when my householdId
 /// changes AND when the household's member list changes, so the creator
-/// starts seeing a partner the moment they join (BUG-11) and the one who
-/// stays is cleaned up the moment the other leaves (BUG-9).
+/// starts seeing a partner the moment they join and the one who
+/// stays is cleaned up the moment the other leaves.
 final householdSyncProvider = Provider<void>((ref) {
   final profile = ref.watch(currentUserProfileProvider).value;
   final user = ref.watch(currentFirebaseUserProvider);
@@ -105,7 +105,7 @@ final householdSyncProvider = Provider<void>((ref) {
   if (profile.householdId == null) {
     syncService.disposeHouseholdSync();
     // Not in a household (left, disbanded, or never joined): no split can
-    // stand. Idempotent — a no-op when there's nothing to clean (BUG-10).
+    // stand. Idempotent — a no-op when there's nothing to clean.
     unawaited(syncService.syncSplitsIfNotInHousehold(user.uid));
     return;
   }

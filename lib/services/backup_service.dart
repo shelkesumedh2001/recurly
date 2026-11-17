@@ -42,7 +42,7 @@ class BackupRestoreResult {
   final int skipped;
 
   /// Copies of a household partner's split subs found in the file and left
-  /// out on purpose: they come from the partner's own data (P3-5).
+  /// out on purpose: they come from the partner's own data.
   final int partnerCopies;
 
   String get summary {
@@ -89,7 +89,7 @@ class BackupService {
       'exportedAt': now.toIso8601String(),
       'appBuild': kAppBuild,
       // Whose data this is: restore uses it to tell the owner's subs from
-      // the partner copies the file also holds (P3-5).
+      // the partner copies the file also holds.
       'ownerUid': _signedInUid(),
       'subscriptions': DatabaseService()
           .getAllSubscriptions()
@@ -186,7 +186,7 @@ class BackupService {
         skipped++;
       }
     }
-    // Only the backup owner's own subs, re-owned to this account (P3-5).
+    // Only the backup owner's own subs, re-owned to this account.
     final plan = planRestore(
       parsed,
       backupOwner: backupOwnerOf(data, parsed),

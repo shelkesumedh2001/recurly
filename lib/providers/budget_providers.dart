@@ -123,7 +123,7 @@ final categorySpendByNameProvider = Provider<Map<String, double>>((ref) {
   final Map<String, double> categorySpend = {};
   for (final sub in subscriptions) {
     if (!sub.isArchived && sub.deletedAt == null) {
-      // Custom category name when the sub is filed under one (BUG-17).
+      // Custom category name when the sub is filed under one.
       final categoryName = categoryOf(sub).name;
       final converted = monthlyCost(sub);
       categorySpend[categoryName] = (categorySpend[categoryName] ?? 0) + converted;
@@ -220,7 +220,7 @@ final budgetForecastProvider = Provider<BudgetForecast?>((ref) {
   return BudgetForecast.forMonth(
     subscriptions: subscriptions,
     today: clock.now(),
-    // My share of each bill (D2), like every other personal total.
+    // My share of each bill, like every other personal total.
     convertedCharge: (sub) => service.convert(
       amount: sub.chargePerRenewal * shareOf(sub),
       from: sub.currency,

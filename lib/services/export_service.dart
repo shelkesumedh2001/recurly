@@ -124,7 +124,7 @@ class ExportService {
       final pdf = pw.Document();
 
       // Sort subscriptions by monthly equivalent (highest first)
-      // Compared in the display currency (raw numbers mix currencies, BUG-21).
+      // Compared in the display currency (raw numbers mix currencies).
       double cost(Subscription s) => currencyService.convert(
             amount: s.monthlyEquivalent,
             from: s.currency,
@@ -240,7 +240,7 @@ class ExportService {
     final breakdown = <BillingCycle, _BillingStats>{};
 
     for (final sub in subscriptions) {
-      // What I pay, in the display currency (D2)
+      // What I pay, in the display currency
       final convertedMonthly = currencyService.convert(
         amount: sub.monthlyEquivalent * (shareOf?.call(sub) ?? 1),
         from: sub.currency,
@@ -284,14 +284,14 @@ class ExportService {
       'Price',
       'Currency',
       'Billing Cycle',
-      // My share for split subs — the same figure as the app's totals (D2).
+      // My share for split subs — the same figure as the app's totals.
       'Your Monthly Cost ($displayCurrency)',
       'Category',
       'Next Renewal',
       'Days Until Renewal',
       // `firstBillDate` is the billing anchor: the true first bill for
       // legacy data, but the last bill before tracking began for subs
-      // added via the next-bill form — "first known" is the honest common
+      // added via the next-bill form — "first known" is the accurate common
       // label, "First Bill Date" was not.
       'First Known Bill',
       'Notes',
@@ -346,7 +346,7 @@ class ExportService {
       ..add([
         'Total Monthly Spend',
         // Same rounding as Analytics: round the monthly total, then x12,
-        // so the yearly figure matches the app to the cent (BUG-14).
+        // so the yearly figure matches the app to the cent.
         formatMoney(totalMonthly, symbol),
       ])
       ..add([

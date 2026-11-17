@@ -96,7 +96,7 @@ final householdCleanupProvider = Provider<void>((ref) {
       HouseholdService().cleanupOwnSplitData(uid);
 
       // 3. Clean up local split data (copies + splitWith, archived subs
-      //    too) and push it with a bumped updatedAt (BUG-10).
+      //    too) and push it with a bumped updatedAt.
       SyncService().syncSplits(uid, members: const {});
 
       // 4. Stop household sync listener

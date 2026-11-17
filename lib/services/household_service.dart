@@ -59,7 +59,7 @@ class HouseholdService {
   Future<Household> createHousehold(String uid, String name) async {
     await _ensureOnline(uid);
     // Both write householdId with update(), which needs the profile doc
-    // (missing after an interrupted sign-up — Lead L1).
+    // (missing after an interrupted sign-up).
     await _timed(AuthService().ensureProfileFor(uid));
     final inviteCode = generateInviteCode();
     final householdId = _firestore.collection('households').doc().id;
@@ -109,7 +109,7 @@ class HouseholdService {
   Future<Household> joinHousehold(String uid, String code) async {
     await _ensureOnline(uid);
     // Both write householdId with update(), which needs the profile doc
-    // (missing after an interrupted sign-up — Lead L1).
+    // (missing after an interrupted sign-up).
     await _timed(AuthService().ensureProfileFor(uid));
     final codeUpper = code.toUpperCase().trim();
 
@@ -299,7 +299,7 @@ class HouseholdService {
           final splitWith = data['splitWith'] as List<dynamic>?;
           if (splitWith != null && splitWith.isNotEmpty) {
             // updatedAt so my other devices' last-write-wins listener
-            // takes the cleared split (BUG-10).
+            // takes the cleared split.
             writes.add((b) => b.update(doc.reference, {
                   'splitWith': FieldValue.delete(),
                   'updatedAt': DateTime.now().toIso8601String(),

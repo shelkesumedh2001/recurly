@@ -156,7 +156,7 @@ final myShareOfProvider = Provider<double Function(Subscription)>((ref) {
 
 /// What I pay per month for [Subscription], in the display currency.
 ///
-/// D2 (BUG-12): every personal total — Analytics, budgets, home widget,
+/// Every personal total — Analytics, budgets, home widget,
 /// export — counts my share of a split sub, the same rule as Home
 /// "My share", for owner and partner alike. Only the household views
 /// count full prices.

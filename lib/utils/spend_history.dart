@@ -98,7 +98,7 @@ List<MonthSpend> computeSpendHistory({
       for (final billDate in sub.renewalsInRange(start, lastDay)) {
         final charge = priceOn(sub, billDate);
         if (charge.price <= 0) continue;
-        // My share of the bill (D2); 1 for unsplit subs.
+        // My share of the bill; 1 for unsplit subs.
         final share = shareOf?.call(sub) ?? 1;
         final category = categoryFor(sub);
         byCategory[category] = (byCategory[category] ?? 0) +
@@ -124,7 +124,7 @@ List<MonthSpend> computeSpendHistory({
 /// "Billing" follows the same chain as Spending over time — from the first
 /// bill (trial end for trials), priced as of that month via price history —
 /// not `createdAt`: a sub added today whose last bill was in October did
-/// cost something in October (BUG-13).
+/// cost something in October.
 double monthSpendRate(
   List<Subscription> subscriptions,
   DateTime targetMonth, {

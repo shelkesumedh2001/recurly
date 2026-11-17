@@ -216,7 +216,7 @@ class _BudgetSettingsScreenState extends ConsumerState<BudgetSettingsScreen> {
             const SizedBox(height: 16),
 
             // Category list
-            // Built-in and custom categories (BUG-17); budgets are keyed
+            // Built-in and custom categories; budgets are keyed
             // by name, the same key categorySpendByNameProvider uses.
             ...ref.watch(allCategoriesProvider).map((category) {
               final spend = categorySpend[category.name] ?? 0.0;

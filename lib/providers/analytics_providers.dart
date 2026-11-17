@@ -283,7 +283,7 @@ final monthlyComparisonProvider = Provider<MonthlyComparison?>((ref) {
         lastMonth: previous,
         delta: delta,
         // No percentage against nothing — "+$77.48 (0.0%)" read as "no
-        // change" (BUG-13).
+        // change".
         percentChange: previous > 0 ? (delta / previous) * 100 : null,
       );
     },
@@ -332,7 +332,7 @@ final upcomingRenewalsProvider = Provider<List<UpcomingRenewal>>((ref) {
         while (!billDate.isAfter(cutoff)) {
           final converted = currencyService.convert(
             // What each bill charges — a trial's bills (from trial end)
-            // are at the post-trial price, not the trial price (BUG-15).
+            // are at the post-trial price, not the trial price.
             amount: sub.chargePerRenewal,
             from: sub.currency,
             to: displayCurrency,

@@ -142,7 +142,7 @@ Future<void> showChangelogSheet(
     showDragHandle: true,
     // Scroll-controlled + a scrolling notes list: the default sheet caps at
     // 9/16 of the screen and clipped "Got it" under the gesture bar on
-    // ordinary phones once the notes got long (P3-1).
+    // ordinary phones once the notes got long.
     isScrollControlled: true,
     builder: (sheetContext) {
       final theme = Theme.of(sheetContext);

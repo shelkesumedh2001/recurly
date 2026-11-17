@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /// Emoji choices for custom categories, written as `\u{…}` escapes on
 /// purpose: the literal characters were once stripped from this file by a
-/// tool, leaving 80 blank tiles that all looked selected (BUG-16).
+/// tool, leaving 80 blank tiles that all looked selected.
 @visibleForTesting
 const List<String> kCategoryEmojis = [
   // Entertainment

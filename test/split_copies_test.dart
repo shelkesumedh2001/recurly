@@ -3,8 +3,8 @@ import 'package:recurly/models/enums.dart';
 import 'package:recurly/models/subscription.dart';
 import 'package:recurly/utils/split_copies.dart';
 
-/// Group B (splits/household) — numbers are the hand-calculated ones from
-/// the 2026-11-02 test pass (REPORT.md H2–H10).
+/// Household splits and members' copies. Expected values are
+/// hand-calculated.
 const a = 'uidA';
 const b = 'uidB';
 
@@ -62,7 +62,7 @@ void main() {
       );
 
   group('partnerCopyFor', () {
-    test('priced at my share, no splitWith, no card (BUG-3/BUG-4)', () {
+    test('priced at my share, no splitWith, no card', () {
       final copy = partnerCopyFor(netflix, ownerUid: a, myUid: b)!;
       expect(copy.price, closeTo(7.745, 1e-9));
       expect(copy.splitWith, isNull);
@@ -77,7 +77,7 @@ void main() {
       expect(partnerCopyFor(netflix, ownerUid: a, myUid: 'uidC'), isNull);
     });
 
-    test('follows owner edits: price, date, archive (BUG-6)', () {
+    test('follows owner edits: price, date, archive', () {
       final edited = netflix.copyWith(
         price: 17.99,
         firstBillDate: DateTime(2026, 10, 7),
@@ -117,15 +117,15 @@ void main() {
       expect(myShare(bLocal, b), closeTo(32.43, 0.005));
     });
 
-    test('a legacy copy carrying the owner splitWith is not halved twice '
-        '(BUG-3)', () {
+    test('a legacy copy carrying the owner splitWith is not halved twice',
+        () {
       final legacy = partnerCopyFor(netflix, ownerUid: a, myUid: b)!
           .copyWith(splitWith: _split(b, 50));
       expect(myShareFraction(legacy, b), 1);
     });
   });
 
-  group('householdSplitTotals (BUG-5)', () {
+  group('householdSplitTotals', () {
     double monthly(Subscription s) => s.monthlyEquivalent;
 
     test('A and B cards agree with Home My share and sum to the total', () {
@@ -150,7 +150,7 @@ void main() {
   });
 
   group('planSplitSync', () {
-    test('creates a missing copy and fixes a stale one (BUG-6)', () {
+    test('creates a missing copy and fixes a stale one', () {
       final stale = partnerCopyFor(netflix, ownerUid: a, myUid: b)!;
       final raised = netflix.copyWith(price: 17.99);
       final plan = planSplitSync(
@@ -176,7 +176,7 @@ void main() {
       expect(plan.isEmpty, isTrue);
     });
 
-    test('owner deleted or stopped the split → copy removed (BUG-6/BUG-7)',
+    test('owner deleted or stopped the split → copy removed',
         () {
       final plan = planSplitSync(
         myUid: b,
@@ -198,7 +198,7 @@ void main() {
       expect(plan.isEmpty, isTrue);
     });
 
-    test('no partner: every copy goes, every split is cleared (BUG-9/10)',
+    test('no partner: every copy goes, every split is cleared',
         () {
       final archivedSplit = _sub('times', 13.40,
           splitWith: _split(b, 50), archived: true,);
@@ -214,7 +214,7 @@ void main() {
       expect(plan.upsertCopies, isEmpty);
     });
 
-    test('new partner: splits and copies from the old one go (BUG-10)', () {
+    test('new partner: splits and copies from the old one go', () {
       final plan = planSplitSync(
         myUid: a,
         members: {'uidC'},
@@ -285,7 +285,7 @@ void main() {
     });
   });
 
-  group('foreignSubIds (P3-4)', () {
+  group('foreignSubIds', () {
     test("another account's subs and its partner copies go; mine and "
         'never-synced ones stay', () {
       final local = [

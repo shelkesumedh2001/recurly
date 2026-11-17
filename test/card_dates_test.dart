@@ -201,8 +201,8 @@ void main() {
     });
   });
 
-  group('dueDateForCharge (BUG-18)', () {
-    // HDFC Visa from the test pass: statement closes 15th, due 5th.
+  group('dueDateForCharge', () {
+    // A card whose statement closes on the 15th and is due on the 5th.
     DateTime due(DateTime charge) =>
         dueDateForCharge(cutoffDay: 15, dueDay: 5, charge: charge);
 

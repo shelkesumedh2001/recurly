@@ -43,9 +43,9 @@ class _CancelSimulatorSheetState extends ConsumerState<CancelSimulatorSheet>
     final displayCurrency = ref.watch(displayCurrencyProvider);
     final totalMonthly = ref.watch(convertedTotalSpendProvider);
 
-    // What I'd stop paying: my share, in the display currency (D2).
+    // What I'd stop paying: my share, in the display currency.
     // Rounded to the cent first, then multiplied — the same rule as the
-    // Analytics totals, so $65.23/mo reads $782.76/yr, not $782.74 (P3-3).
+    // Analytics totals, so $65.23/mo reads $782.76/yr, not $782.74.
     final monthlyAmount = roundMoney(ref.watch(myMonthlyCostProvider)(sub));
     final yearlyAmount = roundMoney(monthlyAmount * 12);
     final fiveYearAmount = roundMoney(monthlyAmount * 60);

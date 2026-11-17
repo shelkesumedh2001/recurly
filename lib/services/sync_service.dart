@@ -123,7 +123,7 @@ class SyncService {
   }
 
   /// Uid whose local data has been checked by [_dropForeignLocalData];
-  /// [syncSplits] waits for it (P3-4: it raced the merge).
+  /// [syncSplits] waits for it so it can't race the merge.
   String? _accountReadyUid;
   ({String uid, Set<String> members, Map<String, List<Subscription>> docs})?
       _deferredSplitSync;
@@ -470,7 +470,7 @@ class SyncService {
   /// owners' docs.
   ///
   /// Re-run whenever the household's member list changes (someone joins
-  /// or leaves), not only when my own profile changes (BUG-11).
+  /// or leaves), not only when my own profile changes.
   Future<void> initializeHouseholdSync(
       String uid, String householdId,) async {
     try {
@@ -504,7 +504,7 @@ class SyncService {
 
       if (members.isEmpty) {
         // Alone in the household (everyone left, or nobody joined yet): no
-        // split can stand — drop copies and clear names from mine (BUG-9).
+        // split can stand — drop copies and clear names from mine.
         await syncSplits(uid, members: const {});
         return;
       }
@@ -599,7 +599,7 @@ class SyncService {
   /// Bring my split data in line with the household (see [planSplitSync]):
   /// copies follow the owner's docs, splits with an ex-partner go.
   /// Writes Hive and my own Firestore docs, always bumping `updatedAt` so
-  /// my other devices' last-write-wins listener takes the change (BUG-10).
+  /// my other devices' last-write-wins listener takes the change.
   Future<void> syncSplits(
     String uid, {
     required Set<String> members,

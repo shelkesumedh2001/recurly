@@ -44,7 +44,7 @@ class SubscriptionCard extends ConsumerWidget {
 
     // Partner subs and my copies of their split subs are read-only (no
     // swipe, no context menu): the owner edits them, and any local change
-    // to a copy would be overwritten by the owner's doc (BUG-4).
+    // to a copy would be overwritten by the owner's doc.
     if (isPartnerSub || _isSplitCopy(ref)) {
       return _buildCardContent(context, ref, theme, urgencyColor);
     }

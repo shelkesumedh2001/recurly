@@ -45,7 +45,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   final _priceController = TextEditingController();
 
   BillingCycle _selectedBillingCycle = BillingCycle.monthly;
-  /// Built-in or custom (BUG-17). Saved as [Subscription.category] (the
+  /// Built-in or custom. Saved as [Subscription.category] (the
   /// built-in, `other` for custom ones) + [Subscription.customCategoryId].
   UnifiedCategory _selectedCategory =
       UnifiedCategory.fromEnum(SubscriptionCategory.entertainment);

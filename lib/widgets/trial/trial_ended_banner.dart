@@ -9,7 +9,7 @@ import '../../providers/trial_providers.dart';
 import '../../theme/app_tokens.dart';
 import '../app_toast.dart';
 
-/// One card per ended trial the user hasn't confirmed yet (BUG-24, D1).
+/// One card per ended trial the user hasn't confirmed yet.
 ///
 /// The trial is already counted at its post-trial price everywhere
 /// ([Subscription.currentPrice]); this asks whether that's true. "Still

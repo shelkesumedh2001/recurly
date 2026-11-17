@@ -40,7 +40,7 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
 
   /// Split copies follow the owner's doc (bill date, archive, delete), so
   /// their reminders must follow too — otherwise the partner is reminded
-  /// on the old date or about a sub that's gone (BUG-6).
+  /// on the old date or about a sub that's gone.
   Future<void> _onSplitCopiesChanged() async {
     final change = SyncService().splitCopiesChanged.value;
     try {
@@ -121,7 +121,7 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
 
   /// Monthly cost in the display currency: price sort must compare like
   /// with like — "₹44.84 weekly" (~$2/mo) ranked above "€47.58 every 10
-  /// days" (~$162/mo) when raw numbers were compared (BUG-21).
+  /// days" (~$162/mo) when raw numbers were compared.
   double Function(Subscription) _monthlyInDisplayCurrency() {
     final service = _ref.read(currencyServiceProvider);
     final displayCurrency = _ref.read(displayCurrencyProvider);

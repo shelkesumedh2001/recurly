@@ -4,7 +4,7 @@ import 'package:recurly/theme/app_tokens.dart';
 import 'package:recurly/theme/theme_presets.dart';
 
 void main() {
-  // BUG-19: Ocean's cyan subtext made unselected nav tabs look selected
+  // Ocean's cyan subtext made unselected nav tabs look selected
   // next to the aqua accent (Forest had the same with greens). Secondary
   // text must stay near-neutral so only the accent reads as "selected".
   test('every preset keeps secondary text near-neutral', () {
@@ -14,7 +14,7 @@ void main() {
     }
   });
 
-  // BUG-17 follow-up: custom categories come after the 6 built-ins; the
+  // Custom categories come after the 6 built-ins; the
   // palette used to wrap, so the first custom category was drawn in
   // Entertainment's colour.
   test('custom-category colours differ from every built-in colour', () {

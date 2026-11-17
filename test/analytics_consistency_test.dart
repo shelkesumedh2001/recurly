@@ -5,8 +5,8 @@ import 'package:recurly/utils/money.dart';
 import 'package:recurly/utils/spend_history.dart';
 import 'package:recurly/utils/split_copies.dart';
 
-/// Group C — analytics consistency (BUG-12, BUG-13, BUG-14, BUG-22).
-/// Numbers from the 2026-11-02 test pass (REPORT.md).
+/// Analytics consistency: every screen counts the same "what I pay" total.
+/// Expected values are hand-calculated.
 const a = 'uidA';
 const b = 'uidB';
 
@@ -35,7 +35,7 @@ Subscription _sub(
 double identity(double amount, String from) => amount;
 
 void main() {
-  group('roundCents / formatMoney (BUG-14, BUG-22)', () {
+  group('roundCents / formatMoney', () {
     test('split shares add up to the price (was 7.75 + 7.75 = 15.50)', () {
       // Same derivation as SplitSubscriptionSheet.
       final partner = roundCents(15.49 * 0.5);
@@ -82,8 +82,8 @@ void main() {
     });
   });
 
-  group('what I pay, owner and partner alike (BUG-12, D2)', () {
-    // H2: A owns Netflix 15.49 split 50% with B; A also has Spotify 11.99,
+  group('what I pay, owner and partner alike', () {
+    // A owns Netflix 15.49 split 50% with B; A also has Spotify 11.99,
     // iCloud 120/y, Gym 40. B has YouTube 22.99 + Disney 9.99 + A's copy.
     final netflix = _sub('netflix', 15.49, splitWith: [
       {'uid': b, 'sharePercent': 50, 'accepted': true},
@@ -123,7 +123,7 @@ void main() {
     });
   });
 
-  group('monthSpendRate — last month (BUG-13)', () {
+  group('monthSpendRate — last month', () {
     double share(Subscription s) => 1;
 
     test('a sub added today whose last bill was in October counts in '

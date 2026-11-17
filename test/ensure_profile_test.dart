@@ -14,7 +14,7 @@ void main() {
         now: DateTime(2026, 11, 17),
       );
 
-  test('creates a missing profile (interrupted sign-up, Lead L1)', () async {
+  test('creates a missing profile (interrupted sign-up)', () async {
     await ensure();
     final doc = await fs.collection('users').doc('u1').get();
     expect(doc.exists, isTrue);

@@ -118,7 +118,7 @@ class _SplitSubscriptionSheetState
     final inTrial = sub.isFreeTrial && !sub.isTrialExpired;
     final base = sub.chargePerRenewal;
     // Members' shares rounded to the cent (what their copies show); mine
-    // is the rest, so it all adds up to the price (BUG-14).
+    // is the rest, so it all adds up to the price.
     final memberAmounts = {
       // A half-typed field (NaN) counts as 0 here; [error] blocks sending.
       for (final e in shares.entries)
@@ -131,8 +131,8 @@ class _SplitSubscriptionSheetState
     final hasSplit = _existing.isNotEmpty;
 
     return Container(
-      // Lift the sheet above the keyboard: the share fields sit at the
-      // bottom and were typed into blind (F2, 1.0.6 test pass).
+      // Lift the sheet above the keyboard so the share fields at the
+      // bottom stay visible while typing.
       margin: EdgeInsets.fromLTRB(
         12,
         12,
@@ -477,7 +477,7 @@ class _SplitSubscriptionSheetState
   }
 
   /// Ends the split for everyone: the owner's splitWith goes, and each
-  /// member's copy + proposal are deleted (BUG-7).
+  /// member's copy + proposal are deleted.
   Future<void> _stopSplitting() async {
     final user = ref.read(currentFirebaseUserProvider);
     if (user == null) return;
@@ -489,7 +489,7 @@ class _SplitSubscriptionSheetState
           subId: widget.subscription.id,
         );
         // "Only what I split": this sub goes private again — only this
-        // one; others the user chose to show stay visible (F4).
+        // one; others the user chose to show stay visible.
         if (!ref.read(preferencesProvider).householdShareAll) {
           await ref
               .read(subscriptionProvider.notifier)
@@ -502,7 +502,7 @@ class _SplitSubscriptionSheetState
 
   /// Runs a split write. Feedback goes through [showAppToast] (root
   /// overlay): a SnackBar lands on the Scaffold *behind* this sheet, which
-  /// is how failures used to vanish silently (BUG-7).
+  /// is how failures used to vanish silently.
   Future<void> _run(Future<void> Function() action, {required String done}) async {
     setState(() => _isLoading = true);
     try {

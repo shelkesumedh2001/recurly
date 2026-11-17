@@ -596,7 +596,7 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
   /// Drop my split copies and clear splitWith on my subs (archived ones
   /// too), then reload the list — the old version wrote Hive but never
   /// refreshed the provider, so stale splits stayed on screen and in the
-  /// totals until a restart (BUG-10).
+  /// totals until a restart.
   Future<void> _clearLocalSplitData() async {
     final uid = ref.read(currentFirebaseUserProvider)?.uid;
     if (uid == null) return;

@@ -5,8 +5,8 @@ import 'package:recurly/models/enums.dart';
 import 'package:recurly/models/subscription.dart';
 import 'package:recurly/services/notification_service.dart';
 
-/// BUG-24 / BUG-15 / BUG-20: what a trial costs before and after it ends.
-/// Numbers are the ones from the 2026-11-02 test pass (account C).
+/// What a free trial costs before and after it ends: totals, upcoming
+/// charges and reminders.
 Subscription _trial({
   required String name,
   required double price,
@@ -39,7 +39,7 @@ void main() {
   final duolingo =
       _trial(name: 'Duolingo', price: 0, after: 9.99, end: DateTime(2026, 11, 16));
 
-  group('currentPrice / monthlyEquivalent (BUG-24)', () {
+  group('currentPrice / monthlyEquivalent', () {
     test('during the trial the trial price counts', () {
       _on(DateTime(2026, 11, 8, 12), () {
         expect(canva.currentPrice, 15);
@@ -102,7 +102,7 @@ void main() {
     });
   });
 
-  group('upcoming charges use chargePerRenewal (BUG-15)', () {
+  group('upcoming charges use chargePerRenewal', () {
     test('trial-end bill is the post-trial price', () {
       _on(DateTime(2026, 11, 2), () {
         expect(duolingo.nextBillDate, DateTime(2026, 11, 16));
@@ -112,7 +112,7 @@ void main() {
     });
   });
 
-  group('convertedFromTrial (D1 "Still subscribed")', () {
+  group('convertedFromTrial ("Still subscribed?")', () {
     test('becomes a normal sub on the same billing chain', () {
       _on(DateTime(2026, 11, 17), () {
         final before = duolingo.nextBillDate;
@@ -135,7 +135,7 @@ void main() {
     });
   });
 
-  group('renewal reminder skips the trial-end bill (BUG-20)', () {
+  group('renewal reminder skips the trial-end bill', () {
     test('skipped when a trial reminder covers it', () {
       expect(
         NotificationService.isCoveredByTrialReminder(

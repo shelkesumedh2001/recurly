@@ -65,7 +65,7 @@ class CustomCategory extends HiveObject {
 
   /// Account this category was synced to; null until first synced. A
   /// category of another account left on the device is dropped at sign-in,
-  /// like subscriptions (P3-4).
+  /// like subscriptions.
   @HiveField(8)
   String? ownerUid;
 
@@ -119,7 +119,7 @@ class CustomCategory extends HiveObject {
 
 /// Unified category representation (combines enum + custom categories)
 /// A category as the user sees it — built-in or their own. Used to file,
-/// group, colour and label subscriptions (BUG-17).
+/// group, colour and label subscriptions.
 class UnifiedCategory {
   const UnifiedCategory({
     required this.id,

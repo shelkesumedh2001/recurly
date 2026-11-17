@@ -169,7 +169,7 @@ class Subscription extends HiveObject { // For recently deleted feature
   /// User-made category (CustomCategory.id) this sub is filed under.
   /// Custom categories are local to the device (and backups); where the id
   /// doesn't resolve — another device, a partner's copy, an older app —
-  /// [category] is the fallback, which is `other` for custom picks (BUG-17).
+  /// [category] is the fallback, which is `other` for custom picks.
   @HiveField(24)
   String? customCategoryId;
 
@@ -309,7 +309,7 @@ class Subscription extends HiveObject { // For recently deleted feature
   /// for a normal sub), the post-trial price once the trial has ended.
   /// Expired trials keep `isFreeTrial` until the user confirms they're
   /// still subscribed (or archives), but they're charged from trial end,
-  /// so every total must count what's actually being paid (BUG-24).
+  /// so every total must count what's actually being paid.
   double get currentPrice => isTrialExpired ? chargePerRenewal : price;
 
   /// Convert price to monthly equivalent for comparison.

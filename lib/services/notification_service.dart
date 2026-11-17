@@ -108,7 +108,7 @@ class NotificationService {
     for (var occurrence = 0; occurrence < lookAheadCycles; occurrence++) {
       // The trial-end bill already gets "trial ends — cancel before…"
       // reminders; a second "renews" one for the same charge contradicts
-      // it (BUG-20). Only skipped when those trial reminders exist.
+      // it. Only skipped when those trial reminders exist.
       if (isCoveredByTrialReminder(subscription, preferences, billDate)) {
         billDate = addOneCycle(
           subscription.billingCycle,
@@ -165,7 +165,7 @@ class NotificationService {
     // the reminder says which card is about to be charged.
     final cardSuffix = _cardSuffix(subscription);
     // What this bill charges: for a trial every bill from trial end is at
-    // the post-trial price, never the trial price (BUG-20).
+    // the post-trial price, never the trial price.
     final amount = subscription.formatAmount(subscription.chargePerRenewal);
     final billText = DateFormat.yMMMd().format(billDate);
 

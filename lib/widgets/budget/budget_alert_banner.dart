@@ -6,7 +6,7 @@ import '../../providers/currency_providers.dart';
 import '../../screens/budget_settings_screen.dart';
 import 'budget_alert_card.dart';
 
-/// Home's budget alert (P3-2): shown when "Budget alerts" is on and this
+/// Home's budget alert: shown when "Budget alerts" is on and this
 /// month's spend (my share) reaches the warning threshold or the budget.
 /// Dismissing hides it for a day; tapping opens the budget screen.
 class BudgetAlertBanner extends ConsumerWidget {

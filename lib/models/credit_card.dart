@@ -67,7 +67,7 @@ class CreditCardInfo extends HiveObject {
 
   /// When a charge on [charge] gets paid — the due date of the statement
   /// that charge lands on, which isn't [nextDueDate] when the charge falls
-  /// after the current cutoff (BUG-18).
+  /// after the current cutoff.
   DateTime dueDateForCharge(DateTime charge) => card_dates.dueDateForCharge(
         cutoffDay: cutoffDay,
         dueDay: dueDay,

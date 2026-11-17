@@ -73,7 +73,7 @@ class AuthService {
       password: password,
     );
     // The account exists and the user is signed in from here on: a dropped
-    // network in the steps below must not show "sign-up failed" (Lead L1).
+    // network in the steps below must not show "sign-up failed".
     // ensureProfile() retries on the next auth change / app start.
     final user = userCredential.user!;
     _pendingDisplayNames[user.uid] = displayName;

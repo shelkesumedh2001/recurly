@@ -13,7 +13,7 @@ import 'package:recurly/utils/spend_history.dart';
 import 'package:recurly/utils/split_copies.dart';
 import 'package:recurly/widgets/category/icon_picker_sheet.dart';
 
-/// BUG-17 (D4: custom categories wired into subscriptions) and BUG-16.
+/// Custom categories wired into subscriptions, and the emoji picker.
 class _FakeCustomCategories extends CustomCategoryNotifier {
   _FakeCustomCategories(List<CustomCategory> categories)
       : super(CustomCategoryService()) {
@@ -41,7 +41,7 @@ Subscription _sub(String id, double price, {String? customId}) => Subscription(
     );
 
 void main() {
-  test('BUG-16: every emoji tile has an emoji, none repeated', () {
+  test('every emoji tile has an emoji, none repeated', () {
     expect(kCategoryEmojis, hasLength(80));
     expect(kCategoryEmojis.where((e) => e.isEmpty), isEmpty);
     expect(kCategoryEmojis.toSet(), hasLength(kCategoryEmojis.length));

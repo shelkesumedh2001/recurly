@@ -51,7 +51,7 @@ class HomeWidgetService {
       displayCurrency ??= PreferencesService().getPreferences().displayCurrency;
 
       // What I pay per month — my share of split subs, like Home and
-      // Analytics (D2 / BUG-12).
+      // Analytics.
       String? uid;
       try {
         uid = FirebaseAuth.instance.currentUser?.uid;

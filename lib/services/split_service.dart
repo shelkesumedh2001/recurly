@@ -157,7 +157,7 @@ class SplitService {
     }
     // (No local "owner" update here: this runs on the acceptor's device,
     // where the only local doc with this id is the copy above. Flipping
-    // its splitWith is what double-applied the share — BUG-3.)
+    // its splitWith is what double-applied the share.)
   }
 
   /// Reject a split proposal
@@ -188,7 +188,7 @@ class SplitService {
               .toList() ??
           [];
       // updatedAt: the owner's listener is last-write-wins on it; without
-      // the bump the decline never reaches the owner's device (BUG-8).
+      // the bump the decline never reaches the owner's device.
       await _timed(ownerSubRef.update({
         'splitWith': splitWith.isEmpty ? FieldValue.delete() : splitWith,
         'updatedAt': DateTime.now().toIso8601String(),

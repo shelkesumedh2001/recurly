@@ -258,8 +258,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: subscriptionsAsync.when(
         data: (subscriptions) {
           // Partner subs are only listed in the Household view; in My share
-          // they don't fill the screen, so they mustn't hide the empty state
-          // (BUG-1).
+          // they don't fill the screen, so they mustn't hide the empty state.
           final showsPartnerList = isInHousehold &&
               spendViewMode == SpendViewMode.householdTotal &&
               partnerSubs.isNotEmpty;
@@ -273,8 +272,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           }
 
           final listSlivers = <Widget>[
-            // Budget alert (P3-2) and ended trials waiting for
-            // "still subscribed?" (BUG-24)
+            // Budget alert and ended trials waiting for
+            // "still subscribed?"
             const SliverPadding(
               padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
               sliver: SliverToBoxAdapter(child: BudgetAlertBanner()),
@@ -821,7 +820,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-/// One line of the empty-state feature preview: quiet icon + short claim.
+/// One line of the empty-state feature preview: quiet icon + short line.
 class _FeatureHint extends StatelessWidget {
   const _FeatureHint({required this.icon, required this.text});
 

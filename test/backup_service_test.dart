@@ -152,7 +152,7 @@ void main() {
     );
   });
 
-  // P3-5: restoring a household partner's backup used to overwrite the
+  // Restoring a household partner's backup used to overwrite the
   // restorer's own sub with the partner's half-price copy of it.
   test("restoring a partner's backup skips their copies and keeps mine",
       () async {

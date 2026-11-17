@@ -170,7 +170,7 @@ final memberCategoriesProvider =
 /// The category a subscription is filed under: its custom category when
 /// that id exists on this device — or, for a household member's sub, among
 /// that member's categories — else its built-in [Subscription.category].
-/// The one place Home, Analytics, budgets and export decide this (BUG-17).
+/// The one place Home, Analytics, budgets and export decide this.
 final categoryOfProvider = Provider<UnifiedCategory Function(Subscription)>((ref) {
   final customs = ref.watch(customCategoriesProvider);
   final members = ref.watch(memberCategoriesProvider).value ?? const {};

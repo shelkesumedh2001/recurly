@@ -35,7 +35,7 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
   /// Month whose tooltip is pinned open. Tap a bar to show it; it stays
   /// until the next tap (same bar or empty space hides, another bar moves
   /// it). fl_chart's built-in touches only showed it while the finger was
-  /// down, so a quick tap showed nothing (BUG-23, D5).
+  /// down, so a quick tap showed nothing.
   int? _selected;
 
   void _onTouch(FlTouchEvent event, BarTouchResponse? response) {
@@ -73,7 +73,7 @@ class _SpendHistoryChartState extends ConsumerState<SpendHistoryChart>
     String money(double v) => currencyService.formatAmount(v, displayCurrency);
 
     // Categories that billed anything in the window: built-ins in enum
-    // order, then custom categories (BUG-17).
+    // order, then custom categories.
     final present = {
       for (final m in history)
         for (final e in m.byCategory.entries)

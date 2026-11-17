@@ -9,7 +9,7 @@ import 'money.dart';
 /// at B's share. A owns the real doc; B's device derives the copy from it
 /// (B already listens to A's household-visible subs) so every owner edit —
 /// price, bill date, cycle, trial, archive, delete, restore, share change —
-/// reaches the copy without the owner writing into B's data (BUG-6).
+/// reaches the copy without the owner writing into B's data.
 
 /// The accepted share (0..1) that [ownerSub] gives to [myUid], or null.
 double? acceptedShareFor(Subscription ownerSub, String myUid) {
@@ -24,7 +24,7 @@ double? acceptedShareFor(Subscription ownerSub, String myUid) {
 
 /// Fraction (0..1) of [sub]'s cost that [myUid] pays: 1 for my copy of a
 /// partner's split sub (already priced at my share — any `splitWith` it
-/// carries from older versions is ignored, BUG-3), 1 minus the accepted
+/// carries from older versions is ignored), 1 minus the accepted
 /// partner shares for my own subs. The single rule for "what I pay".
 ///
 /// [includePending] also takes out shares still waiting for acceptance —
@@ -50,7 +50,7 @@ double myShareFraction(
 /// What the owner pays per bill of [price] split by [splitWith] (pending
 /// shares included): each member's share rounded to the cent — what their
 /// copy shows — and the owner pays the rest, so it all adds up to the price
-/// (same rule as the split sheet; BUG-14).
+/// (same rule as the split sheet).
 double ownerShareAmount(double price, List<Map<String, dynamic>>? splitWith) {
   var members = 0.0;
   for (final e in splitWith ?? const <Map<String, dynamic>>[]) {
@@ -64,7 +64,7 @@ double ownerShareAmount(double price, List<Map<String, dynamic>>? splitWith) {
 /// counted once at full price from its owner's doc ([monthly] converts it
 /// to the display currency), then divided by the accepted shares. My
 /// copies of the partner's subs are skipped — their own doc stands for
-/// them, so nothing is counted twice or dropped (BUG-5).
+/// them, so nothing is counted twice or dropped.
 ({double mine, double partner}) householdSplitTotals({
   required List<Subscription> ownSubs,
   required List<Subscription> partnerSubs,
@@ -98,7 +98,7 @@ double ownerShareAmount(double price, List<Map<String, dynamic>>? splitWith) {
 ///
 /// The copy carries no `splitWith`: it's already priced at my share, and a
 /// copied `splitWith` made every share calculation apply the split a
-/// second time (BUG-3, BUG-4). Card links are the owner's, local-only.
+/// second time. Card links are the owner's, local-only.
 /// The custom category id is kept: household members can read the owner's
 /// categories (1.0.6) and fall back to [Subscription.category] otherwise.
 Subscription? partnerCopyFor(
@@ -184,7 +184,7 @@ class SplitSyncPlan {
   final List<String> deleteCopyIds;
 
   /// My own subs whose `splitWith` names someone who is no longer my
-  /// partner (they left, or the household was disbanded) — BUG-9/BUG-10.
+  /// partner (they left, or the household was disbanded).
   final List<Subscription> updateOwn;
 
   bool get isEmpty =>
@@ -267,7 +267,7 @@ SplitSyncPlan planSplitSync({
 /// device by an earlier sign-in (sign-out keeps local data). They must go
 /// before [uid]'s first merge: the merge would upload them into [uid]'s
 /// account, and the split sync would take them for copies and delete
-/// same-id docs from [uid]'s cloud (P3-4). Safe to drop: that account's own
+/// same-id docs from [uid]'s cloud. Safe to drop: that account's own
 /// subs are in its cloud, partner copies are re-derived, and [uid]'s own
 /// subs come back from the merge. Never-synced subs (no owner) stay.
 List<String> foreignSubIds(List<Subscription> local, String uid) => [
@@ -291,7 +291,7 @@ String? backupOwnerOf(Map<String, dynamic> data, List<Subscription> subs) {
       .key;
 }
 
-/// What a restore may write (P3-5). A backup holds its owner's subs AND
+/// What a restore may write. A backup holds its owner's subs AND
 /// their copies of a partner's split subs; restoring those copies by id
 /// overwrote the partner's real sub and silently ended the split.
 ///

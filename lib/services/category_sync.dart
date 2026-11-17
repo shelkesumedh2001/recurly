@@ -62,7 +62,7 @@ CategorySyncPlan planCategorySync({
   final localById = <String, CustomCategory>{};
   for (final c in local) {
     if (c.ownerUid != null && c.ownerUid != uid) {
-      deleteLocal.add(c.id); // another account's (P3-4 rule)
+      deleteLocal.add(c.id); // left by another account
     } else {
       localById[c.id] = c;
     }
