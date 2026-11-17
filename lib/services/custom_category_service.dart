@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../models/custom_category.dart';
@@ -18,6 +19,22 @@ class CustomCategoryService {
     _categoryBox = await Hive.openBox<CustomCategory>(
       AppConstants.customCategoriesBox,
     );
+  }
+
+  @visibleForTesting
+  // ignore: use_setters_to_change_properties
+  void debugSetBox(Box<CustomCategory>? box) => _categoryBox = box;
+
+  /// Write a category as received from sync — no `updatedAt` stamp, so the
+  /// remote change time is kept.
+  Future<void> putFromSync(CustomCategory category) async {
+    await _categoryBox?.put(category.id, category);
+  }
+
+  /// Remove a category because sync said so (deleted elsewhere, or it
+  /// belongs to another account).
+  Future<void> deleteFromSync(String id) async {
+    await _categoryBox?.delete(id);
   }
 
   /// Get all custom categories
@@ -47,6 +64,7 @@ class CustomCategoryService {
       isEmoji: isEmoji,
       colorHex: colorHex,
       sortOrder: getAllCustomCategories().length,
+      updatedAt: DateTime.now(),
     );
 
     await _categoryBox?.put(category.id, category);
@@ -55,6 +73,7 @@ class CustomCategoryService {
 
   /// Update an existing category
   Future<void> updateCategory(CustomCategory category) async {
+    category.updatedAt = DateTime.now();
     await _categoryBox?.put(category.id, category);
   }
 

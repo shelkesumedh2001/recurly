@@ -40,6 +40,83 @@ List<double> _totals(List<MonthSpend> h, [SubscriptionCategory? c]) =>
 UnifiedCategory _u(SubscriptionCategory c) => UnifiedCategory.fromEnum(c);
 
 void main() {
+  group('archived subs (archivedAt)', () {
+    test('count up to the archive day, then stop', () {
+      final sub = _sub(firstBill: DateTime(2026, 5, 10)).copyWith(
+        isArchived: true,
+        archivedAt: DateTime(2026, 8, 15, 18),
+      );
+      final h = computeSpendHistory(
+        subscriptions: [sub],
+        now: _now,
+        convert: _identity,
+      );
+      // May..Aug billed (Aug 10 is before the Aug 15 archive), Sep/Oct not.
+      expect(_totals(h), [0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 0, 0]);
+    });
+
+    test('a bill after the archive day in the same month is not counted', () {
+      final sub = _sub(firstBill: DateTime(2026, 5, 20)).copyWith(
+        isArchived: true,
+        archivedAt: DateTime(2026, 8, 15),
+      );
+      final h = computeSpendHistory(
+        subscriptions: [sub],
+        now: _now,
+        convert: _identity,
+      );
+      expect(_totals(h), [0, 0, 0, 0, 0, 0, 5, 5, 5, 0, 0, 0]);
+    });
+
+    test('archived without a date (pre-1.0.6) and deleted subs are skipped',
+        () {
+      final legacy =
+          _sub(id: 'a', firstBill: DateTime(2026, 5, 10)).copyWith(isArchived: true);
+      final deleted = _sub(id: 'd', firstBill: DateTime(2026, 5, 10))
+          .copyWith(deletedAt: DateTime(2026, 10, 1));
+      final h = computeSpendHistory(
+        subscriptions: [legacy, deleted],
+        now: _now,
+        convert: _identity,
+      );
+      expect(_totals(h).every((t) => t == 0), isTrue);
+    });
+
+    test('monthSpendRate counts whole months before the archive month only',
+        () {
+      final sub = _sub(firstBill: DateTime(2026, 5, 10)).copyWith(
+        isArchived: true,
+        archivedAt: DateTime(2026, 10, 5),
+      );
+      double one(Subscription s) => 1;
+      expect(
+        monthSpendRate([sub], DateTime(2026, 9),
+            shareOf: one, convert: _identity,),
+        5,
+      );
+      expect(
+        monthSpendRate([sub], DateTime(2026, 10),
+            shareOf: one, convert: _identity, today: _now,),
+        0,
+      );
+    });
+
+    test('archivedAt round-trips through JSON and clears on unarchive', () {
+      final sub = _sub(firstBill: DateTime(2026, 5, 10)).copyWith(
+        isArchived: true,
+        archivedAt: DateTime(2026, 8, 15, 9, 30),
+      );
+      final back = Subscription.fromJson(sub.toJson());
+      expect(back.archivedAt, DateTime(2026, 8, 15, 9, 30));
+      expect(
+        back.copyWith(isArchived: false, clearArchivedAt: true).archivedAt,
+        isNull,
+      );
+      expect(Subscription.fromJson(_sub(firstBill: _now).toJson()).archivedAt,
+          isNull,);
+    });
+  });
+
   group('computeSpendHistory', () {
     test('12 months, oldest first, ending with the current month', () {
       final h = computeSpendHistory(

@@ -9,9 +9,9 @@ import '../providers/auth_providers.dart';
 import '../providers/category_providers.dart';
 import '../providers/credit_card_providers.dart';
 import '../providers/household_providers.dart';
-import '../providers/preferences_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../theme/app_tokens.dart';
+import '../utils/split_copies.dart';
 import 'add_subscription_sheet.dart';
 import 'app_toast.dart';
 import 'category/category_icon.dart';
@@ -334,6 +334,22 @@ class SubscriptionCard extends ConsumerWidget {
     return owner != null && uid != null && owner != uid;
   }
 
+  /// "Sam 50%" / "Sam 33%, Alex 33% · waiting for Alex".
+  String _splitSummary(WidgetRef ref) {
+    final nameOf = ref.read(memberNameProvider);
+    final entries = subscription.splitWith ?? const <Map<String, dynamic>>[];
+    String pct(Object? p) => p is num ? '${p.round()}%' : '';
+    final parts = [
+      for (final e in entries) '${nameOf(e['uid'] as String?)} ${pct(e['sharePercent'])}',
+    ];
+    final waiting = [
+      for (final e in entries)
+        if (e['accepted'] != true) nameOf(e['uid'] as String?),
+    ];
+    return '${parts.join(', ')}'
+        '${waiting.isEmpty ? '' : ' · waiting for ${waiting.join(', ')}'}';
+  }
+
   bool _hasSplit() {
     return subscription.splitWith != null && subscription.splitWith!.isNotEmpty;
   }
@@ -474,7 +490,7 @@ class SubscriptionCard extends ConsumerWidget {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            "${ref.read(partnerLabelProvider)}'s subscription",
+                            "${ref.read(memberNameProvider)(subscription.ownerUid)}'s subscription",
                             style: theme.textTheme.labelMedium?.copyWith(
                               color: theme.colorScheme.tertiary,
                               fontWeight: FontWeight.w600,
@@ -508,22 +524,17 @@ class SubscriptionCard extends ConsumerWidget {
                   if (_isSplitCopy(ref))
                     DetailRow(
                       'Split',
-                      '${ref.read(partnerLabelProvider)} pays the bill · price is your share',
+                      '${ref.read(memberNameProvider)(subscription.ownerUid)} pays the bill · price is your share',
                     )
                   else if (_hasSplit()) ...[
-                    DetailRow(
-                      'Split',
-                      "${(subscription.splitWith!.first['sharePercent'] as num).toInt()}% ${ref.read(partnerLabelProvider)}'s share"
-                          "${subscription.splitWith!.first['accepted'] == true ? '' : ' · waiting for ${ref.read(partnerLabelProvider)}'}",
-                    ),
+                    DetailRow('Split', _splitSummary(ref)),
                     DetailRow(
                       'Your share',
                       subscription.formatAmount(
-                        subscription.currentPrice *
-                            (1 -
-                                (subscription.splitWith!.first['sharePercent']
-                                        as num) /
-                                    100),
+                        ownerShareAmount(
+                          subscription.currentPrice,
+                          subscription.splitWith,
+                        ),
                       ),
                     ),
                   ],
@@ -551,7 +562,9 @@ class SubscriptionCard extends ConsumerWidget {
                         label: Text(
                           _hasSplit()
                               ? 'Manage split'
-                              : 'Split with ${ref.read(partnerLabelProvider)}',
+                              : ref.read(othersLabelProvider) == 'Others'
+                                  ? 'Split'
+                                  : 'Split with ${ref.read(othersLabelProvider)}',
                         ),
                       ),
                     ),

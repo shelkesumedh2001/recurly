@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/custom_category.dart';
 import '../models/enums.dart';
 import '../models/subscription.dart';
 import '../services/custom_category_service.dart';
+import '../services/sync_service.dart';
 import 'subscription_providers.dart';
 
 /// Built-in categories sorted by how often the user actually uses them
@@ -32,9 +35,25 @@ final customCategoryServiceProvider = Provider<CustomCategoryService>((ref) {
 class CustomCategoryNotifier extends StateNotifier<List<CustomCategory>> {
   CustomCategoryNotifier(this._service) : super([]) {
     _loadCategories();
+    SyncService().categorySync.changed.addListener(_loadCategories);
   }
 
   final CustomCategoryService _service;
+
+  @override
+  void dispose() {
+    SyncService().categorySync.changed.removeListener(_loadCategories);
+    super.dispose();
+  }
+
+  /// Send a local change to the signed-in account's other devices.
+  void _push(CustomCategory? category, {String? deletedId}) {
+    final sync = SyncService();
+    final uid = sync.currentUid;
+    if (uid == null) return;
+    if (category != null) sync.categorySync.push(uid, category);
+    if (deletedId != null) sync.categorySync.pushDelete(uid, deletedId);
+  }
 
   void _loadCategories() {
     state = _service.getAllCustomCategories();
@@ -59,6 +78,7 @@ class CustomCategoryNotifier extends StateNotifier<List<CustomCategory>> {
       colorHex: colorHex,
     );
     _loadCategories();
+    _push(category);
     return category;
   }
 
@@ -66,18 +86,23 @@ class CustomCategoryNotifier extends StateNotifier<List<CustomCategory>> {
   Future<void> updateCategory(CustomCategory category) async {
     await _service.updateCategory(category);
     _loadCategories();
+    _push(_service.getCategoryById(category.id));
   }
 
   /// Delete a category
   Future<void> deleteCategory(String id) async {
     await _service.deleteCategory(id);
     _loadCategories();
+    _push(null, deletedId: id);
   }
 
   /// Reorder categories
   Future<void> reorderCategories(List<String> categoryIds) async {
     await _service.reorderCategories(categoryIds);
     _loadCategories();
+    for (final id in categoryIds) {
+      _push(_service.getCategoryById(id));
+    }
   }
 }
 
@@ -124,15 +149,39 @@ final builtInCategoriesProvider = Provider<List<UnifiedCategory>>((ref) {
       .toList();
 });
 
+/// Other household members' custom categories, by id (live).
+final memberCategoriesProvider =
+    StreamProvider<Map<String, CustomCategory>>((ref) {
+  final notifier = SyncService().memberCategories;
+  final controller = StreamController<Map<String, CustomCategory>>()
+    ..add(notifier.value);
+  void listener() {
+    if (!controller.isClosed) controller.add(notifier.value);
+  }
+
+  notifier.addListener(listener);
+  ref.onDispose(() {
+    notifier.removeListener(listener);
+    controller.close();
+  });
+  return controller.stream;
+});
+
 /// The category a subscription is filed under: its custom category when
-/// that id exists on this device, else its built-in [Subscription.category].
+/// that id exists on this device — or, for a household member's sub, among
+/// that member's categories — else its built-in [Subscription.category].
 /// The one place Home, Analytics, budgets and export decide this (BUG-17).
 final categoryOfProvider = Provider<UnifiedCategory Function(Subscription)>((ref) {
   final customs = ref.watch(customCategoriesProvider);
+  final members = ref.watch(memberCategoriesProvider).value ?? const {};
   final byId = {
     for (var i = 0; i < customs.length; i++)
       customs[i].id: UnifiedCategory.fromCustom(customs[i], order: i),
   };
+  var order = customs.length;
+  for (final c in members.values) {
+    byId.putIfAbsent(c.id, () => UnifiedCategory.fromCustom(c, order: order++));
+  }
   return (sub) {
     final customId = sub.customCategoryId;
     return (customId == null ? null : byId[customId]) ??

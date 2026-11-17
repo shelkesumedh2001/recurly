@@ -7,6 +7,7 @@ import '../providers/preferences_providers.dart';
 import '../services/household_service.dart';
 import '../services/sync_service.dart';
 import '../utils/adaptive.dart';
+import '../widgets/household_sharing_dialog.dart';
 import '../widgets/invite_code_card.dart';
 import 'join_household_screen.dart';
 
@@ -79,7 +80,8 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Create a household to share subscriptions with your partner, '
+              'Create a household to share subscriptions with your partner or '
+              'housemates (up to 6 people), '
               'or join one with an invite code.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyLarge?.copyWith(
@@ -234,13 +236,14 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    isMe ? 'You' : ref.watch(partnerLabelProvider),
+                    isMe ? 'You' : ref.watch(memberNameProvider)(memberId),
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                if (!isMe)
+                // Your own label for the other person — only in a pair.
+                if (!isMe && household.members.length == 2)
                   IconButton(
                     icon: const Icon(Icons.edit_outlined, size: 18),
                     tooltip: 'Rename',
@@ -268,6 +271,22 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
             ),
           );
         }),
+
+        const SizedBox(height: 8),
+
+        // What the others see of my subs
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.visibility_outlined),
+          title: const Text('What your household sees'),
+          subtitle: Text(
+            ref.watch(preferencesProvider).householdShareAll
+                ? 'All your subscriptions'
+                : 'Only the ones you split',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: _isLoading ? null : _changeSharing,
+        ),
 
         const SizedBox(height: 24),
 
@@ -352,7 +371,12 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
               final name = nameController.text.trim();
               if (name.isEmpty) return;
               Navigator.pop(context);
-              await _createHousehold(name);
+              final shareAll = await askHouseholdSharing(
+                this.context,
+                current: ref.read(preferencesProvider).householdShareAll,
+              );
+              if (shareAll == null) return;
+              await _createHousehold(name, shareAll: shareAll);
             },
             child: const Text('Create'),
           ),
@@ -361,11 +385,12 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
     );
   }
 
-  Future<void> _createHousehold(String name) async {
+  Future<void> _createHousehold(String name, {required bool shareAll}) async {
     setState(() => _isLoading = true);
     try {
       final user = ref.read(currentFirebaseUserProvider);
       if (user == null) return;
+      await applyHouseholdSharing(ref, shareAll: shareAll);
       final household = await HouseholdService().createHousehold(user.uid, name);
 
       // Start listening for partner subscriptions immediately
@@ -443,6 +468,20 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
           SnackBar(content: Text('Failed to rename: $e')),
         );
       }
+    }
+  }
+
+  Future<void> _changeSharing() async {
+    final shareAll = await askHouseholdSharing(
+      context,
+      current: ref.read(preferencesProvider).householdShareAll,
+    );
+    if (shareAll == null || !mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      await applyHouseholdSharing(ref, shareAll: shareAll);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -561,7 +600,7 @@ class _HouseholdScreenState extends ConsumerState<HouseholdScreen> {
   Future<void> _clearLocalSplitData() async {
     final uid = ref.read(currentFirebaseUserProvider)?.uid;
     if (uid == null) return;
-    await SyncService().syncSplits(uid, partnerUid: null);
+    await SyncService().syncSplits(uid, members: const {});
   }
 
   void _confirmLeave(BuildContext context) {

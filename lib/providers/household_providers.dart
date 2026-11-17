@@ -6,6 +6,7 @@ import '../models/household.dart';
 import '../services/household_service.dart';
 import '../services/sync_service.dart';
 import 'auth_providers.dart';
+import 'preferences_providers.dart';
 import 'subscription_providers.dart';
 
 /// Provider for the household service singleton
@@ -27,6 +28,33 @@ final currentHouseholdProvider = StreamProvider<Household?>((ref) {
 final householdMembersProvider = Provider<List<String>>((ref) {
   final household = ref.watch(currentHouseholdProvider).value;
   return household?.members ?? [];
+});
+
+/// How a household member is named in the UI: in a two-person household
+/// the user's own label for their partner wins when they set one (the
+/// pre-1.0.6 "Partner" rename); otherwise the name the member gave on
+/// joining, else "Partner" / "Member".
+final memberNameProvider = Provider<String Function(String? uid)>((ref) {
+  final household = ref.watch(currentHouseholdProvider).value;
+  final label = ref.watch(partnerLabelProvider);
+  final names = household?.memberNames ?? const <String, String>{};
+  final pair = (household?.members.length ?? 2) <= 2;
+  return (uid) {
+    if (pair && label != 'Partner') return label;
+    final name = uid == null ? null : names[uid];
+    if (name != null && name.trim().isNotEmpty) return name;
+    return pair ? label : 'Member';
+  };
+});
+
+/// The other members, as one label: their name when there's one other
+/// person, "Others" when there are more.
+final othersLabelProvider = Provider<String>((ref) {
+  final members = ref.watch(householdMembersProvider);
+  final me = ref.watch(currentFirebaseUserProvider)?.uid;
+  final others = members.where((m) => m != me).toList();
+  if (others.length > 1) return 'Others';
+  return ref.watch(memberNameProvider)(others.isEmpty ? null : others.first);
 });
 
 /// Provider for whether user is in a household
@@ -69,7 +97,7 @@ final householdCleanupProvider = Provider<void>((ref) {
 
       // 3. Clean up local split data (copies + splitWith, archived subs
       //    too) and push it with a bumped updatedAt (BUG-10).
-      SyncService().syncSplits(uid, partnerUid: null);
+      SyncService().syncSplits(uid, members: const {});
 
       // 4. Stop household sync listener
       SyncService().disposeHouseholdSync();

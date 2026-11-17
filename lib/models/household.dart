@@ -8,6 +8,7 @@ class Household {
     required this.inviteCode,
     this.inviteExpiry,
     required this.createdAt,
+    this.memberNames = const {},
   });
 
   factory Household.fromJson(Map<String, dynamic> json) {
@@ -23,6 +24,10 @@ class Household {
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
           : DateTime.now(),
+      memberNames: (json['memberNames'] as Map?)?.map(
+            (k, v) => MapEntry(k as String, v as String),
+          ) ??
+          const {},
     );
   }
 
@@ -34,6 +39,10 @@ class Household {
   final DateTime? inviteExpiry;
   final DateTime createdAt;
 
+  /// Display name each member gave when creating/joining (since 1.0.6;
+  /// members of older households may be missing).
+  final Map<String, String> memberNames;
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -43,6 +52,7 @@ class Household {
       'inviteCode': inviteCode,
       'inviteExpiry': inviteExpiry?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
+      'memberNames': memberNames,
     };
   }
 
@@ -54,6 +64,7 @@ class Household {
     String? inviteCode,
     DateTime? inviteExpiry,
     DateTime? createdAt,
+    Map<String, String>? memberNames,
   }) {
     return Household(
       id: id ?? this.id,
@@ -63,6 +74,7 @@ class Household {
       inviteCode: inviteCode ?? this.inviteCode,
       inviteExpiry: inviteExpiry ?? this.inviteExpiry,
       createdAt: createdAt ?? this.createdAt,
+      memberNames: memberNames ?? this.memberNames,
     );
   }
 }

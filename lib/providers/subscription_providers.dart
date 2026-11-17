@@ -203,6 +203,36 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
     }
   }
 
+  /// Show or hide one of my subs from the household.
+  Future<void> setHouseholdVisible(String id, {required bool visible}) async {
+    final sub = _databaseService.getSubscriptionById(id);
+    if (sub == null || sub.householdVisible == visible) return;
+    final updated =
+        sub.copyWith(householdVisible: visible, updatedAt: clock.now());
+    await _databaseService.updateSubscription(updated);
+    _syncPush(updated);
+    await loadSubscriptions();
+  }
+
+  /// Apply "what the household sees" to my own subs: everything, or only
+  /// the ones I split (a split sub must stay readable by its members).
+  /// Copies of other members' subs are left alone.
+  Future<void> applyHouseholdVisibility({required bool shareAll}) async {
+    final uid = _ref.read(currentFirebaseUserProvider)?.uid;
+    for (final sub in _databaseService.getAllSubscriptions()) {
+      if (sub.ownerUid != null && sub.ownerUid != uid) continue;
+      final visible = shareAll || (sub.splitWith?.isNotEmpty ?? false);
+      if (sub.householdVisible == visible) continue;
+      final updated =
+          sub.copyWith(householdVisible: visible, updatedAt: clock.now());
+      await _databaseService.updateSubscription(updated);
+      // Awaited (not fire-and-forget): hiding should land before a
+      // household join makes the subs readable to others.
+      if (uid != null) await SyncService().pushSubscription(uid, updated);
+    }
+    await loadSubscriptions();
+  }
+
   /// Archive a subscription
   Future<void> archiveSubscription(String id) async {
     try {

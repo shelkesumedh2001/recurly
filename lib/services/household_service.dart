@@ -1,9 +1,11 @@
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import '../models/household.dart';
 import '../utils/constants.dart';
+import 'auth_service.dart';
 
 /// Service for managing household creation, invites, and membership
 class HouseholdService {
@@ -18,6 +20,15 @@ class HouseholdService {
   static const Duration _opTimeout = Duration(seconds: 10);
 
   Future<T> _timed<T>(Future<T> future) => future.timeout(_opTimeout);
+
+  /// How the signed-in user is shown to the rest of the household.
+  String _myName() {
+    final user = FirebaseAuth.instance.currentUser;
+    final name = user?.displayName?.trim() ?? '';
+    if (name.isNotEmpty) return name;
+    final email = user?.email ?? '';
+    return email.contains('@') ? email.split('@').first : 'Member';
+  }
 
   /// Households are an online feature (invite codes, partner membership).
   /// Without this pre-flight, Firestore's offline persistence QUEUES the
@@ -47,6 +58,9 @@ class HouseholdService {
   /// otherwise leave an orphaned household or invite.
   Future<Household> createHousehold(String uid, String name) async {
     await _ensureOnline(uid);
+    // Both write householdId with update(), which needs the profile doc
+    // (missing after an interrupted sign-up — Lead L1).
+    await _timed(AuthService().ensureProfileFor(uid));
     final inviteCode = generateInviteCode();
     final householdId = _firestore.collection('households').doc().id;
 
@@ -55,6 +69,7 @@ class HouseholdService {
       name: name,
       createdBy: uid,
       members: [uid],
+      memberNames: {uid: _myName()},
       inviteCode: inviteCode,
       inviteExpiry: DateTime.now().add(
         const Duration(hours: AppConstants.inviteCodeExpiryHours),
@@ -93,6 +108,9 @@ class HouseholdService {
   /// Join a household with an invite code
   Future<Household> joinHousehold(String uid, String code) async {
     await _ensureOnline(uid);
+    // Both write householdId with update(), which needs the profile doc
+    // (missing after an interrupted sign-up — Lead L1).
+    await _timed(AuthService().ensureProfileFor(uid));
     final codeUpper = code.toUpperCase().trim();
 
     // Look up invite code
@@ -132,8 +150,10 @@ class HouseholdService {
 
     // Add member
     final updatedMembers = [...household.members, uid];
+    final myName = _myName();
     await _timed(_firestore.collection('households').doc(householdId).update({
       'members': updatedMembers,
+      'memberNames.$uid': myName,
     }),);
 
     // Update user's householdId
@@ -141,7 +161,10 @@ class HouseholdService {
       'householdId': householdId,
     }),);
 
-    return household.copyWith(members: updatedMembers);
+    return household.copyWith(
+      members: updatedMembers,
+      memberNames: {...household.memberNames, uid: myName},
+    );
   }
 
   /// Rename the household. Creator-only — matches the "creator refresh"
@@ -184,6 +207,7 @@ class HouseholdService {
 
     await _timed(_firestore.collection('households').doc(householdId).update({
       'members': members,
+      'memberNames.$uid': FieldValue.delete(),
     }),);
 
     await _timed(_firestore.collection('users').doc(uid).update({

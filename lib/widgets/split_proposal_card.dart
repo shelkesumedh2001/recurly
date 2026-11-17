@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/split_proposal.dart';
 import '../providers/auth_providers.dart';
+import '../providers/household_providers.dart';
 import '../providers/subscription_providers.dart';
 import '../services/split_service.dart';
 import '../utils/money.dart';
@@ -51,7 +52,8 @@ class _SplitProposalCardState extends ConsumerState<SplitProposalCard> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Split Request',
+                  'Split request from '
+                  '${ref.watch(memberNameProvider)(widget.proposal.ownerUid)}',
                   style: theme.textTheme.labelLarge?.copyWith(
                     color: theme.colorScheme.primary,
                     fontWeight: FontWeight.w600,
@@ -74,7 +76,8 @@ class _SplitProposalCardState extends ConsumerState<SplitProposalCard> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Total: ${formatMoney(p.totalPrice, p.currencySymbol)}',
+                'Total: ${formatMoney(p.totalPrice, p.currencySymbol)}'
+                '${p.afterTrial ? ' after trial' : ''}',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
