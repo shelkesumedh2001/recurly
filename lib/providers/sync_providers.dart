@@ -48,6 +48,10 @@ final syncInitProvider = Provider<void>((ref) {
 
   if (user == null) return;
 
+  // A sign-up that lost the network can leave no users/{uid} doc (Lead L1);
+  // repair it on every auth change, retrying until the connection is back.
+  unawaited(ref.read(authServiceProvider).ensureProfileWithRetry(user));
+
   // Initialize sync (pulls data from Firestore into Hive)
   syncService.initialize(user.uid).then((_) {
     // Force reload subscriptions after sync completes

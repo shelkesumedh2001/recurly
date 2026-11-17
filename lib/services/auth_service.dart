@@ -48,7 +48,7 @@ class AuthService {
     );
 
     final userCredential = await _auth.signInWithCredential(credential);
-    await _ensureUserProfile(userCredential.user!);
+    await _profileAfterSignIn(userCredential.user!);
     return userCredential;
   }
 
@@ -58,7 +58,7 @@ class AuthService {
       email: email,
       password: password,
     );
-    await _ensureUserProfile(userCredential.user!);
+    await _profileAfterSignIn(userCredential.user!);
     return userCredential;
   }
 
@@ -72,8 +72,17 @@ class AuthService {
       email: email,
       password: password,
     );
-    await userCredential.user?.updateDisplayName(displayName);
-    await _ensureUserProfile(userCredential.user!, displayName: displayName);
+    // The account exists and the user is signed in from here on: a dropped
+    // network in the steps below must not show "sign-up failed" (Lead L1).
+    // ensureProfile() retries on the next auth change / app start.
+    final user = userCredential.user!;
+    _pendingDisplayNames[user.uid] = displayName;
+    try {
+      await user.updateDisplayName(displayName);
+    } catch (e) {
+      debugPrint('Sign-up: setting the display name failed: $e');
+    }
+    await _profileAfterSignIn(user, displayName: displayName);
     return userCredential;
   }
 
@@ -107,7 +116,8 @@ class AuthService {
       await userCredential.user?.updateDisplayName(name);
     }
 
-    await _ensureUserProfile(
+    if (name.isNotEmpty) _pendingDisplayNames[userCredential.user!.uid] = name;
+    await _profileAfterSignIn(
       userCredential.user!,
       displayName: name.isNotEmpty ? name : null,
     );
@@ -300,6 +310,70 @@ class AuthService {
         .set(profile.toJson(), SetOptions(merge: true));
   }
 
+  /// Names given at sign-up (or by Apple on first sign-in) whose profile
+  /// write hasn't landed yet, so a later [ensureProfile] can still use them.
+  final Map<String, String> _pendingDisplayNames = {};
+
+  /// Profile step after a successful sign-in. Never throws: the user IS
+  /// signed in, and [ensureProfile] (run on every auth change) repairs a
+  /// missing profile once the network is back.
+  Future<void> _profileAfterSignIn(User user, {String? displayName}) async {
+    try {
+      await _ensureUserProfile(user, displayName: displayName);
+      _pendingDisplayNames.remove(user.uid);
+    } catch (e) {
+      debugPrint('Profile write after sign-in failed (will retry): $e');
+    }
+  }
+
+  /// Make sure users/{uid} exists for [user]. Idempotent; called on every
+  /// auth change and before household writes that `update()` the profile.
+  /// Throws when the server can't be reached (callers retry).
+  Future<void> ensureProfile(User user) async {
+    final displayName = _pendingDisplayNames[user.uid];
+    if (displayName != null && (user.displayName ?? '').isEmpty) {
+      try {
+        await user.updateDisplayName(displayName);
+      } catch (e) {
+        debugPrint('Retrying display name failed: $e');
+      }
+    }
+    await ensureUserProfileDoc(
+      _firestore,
+      uid: user.uid,
+      displayName: displayName ?? user.displayName ?? '',
+      email: user.email ?? '',
+      photoUrl: user.photoURL,
+    );
+    _pendingDisplayNames.remove(user.uid);
+  }
+
+  /// [ensureProfile] for the signed-in user with [uid]; no-op otherwise.
+  Future<void> ensureProfileFor(String uid) async {
+    final user = _auth.currentUser;
+    if (user == null || user.uid != uid) return;
+    await ensureProfile(user);
+  }
+
+  /// [ensureProfile] with backoff, for the auth-state listener: a sign-up
+  /// that lost the network gets its profile once the connection is back.
+  Future<void> ensureProfileWithRetry(User user) async {
+    const delays = [5, 15, 45, 120, 300];
+    for (var attempt = 0; ; attempt++) {
+      try {
+        await ensureProfile(user);
+        return;
+      } catch (e) {
+        if (attempt >= delays.length || _auth.currentUser?.uid != user.uid) {
+          debugPrint('Profile still missing, giving up until next start: $e');
+          return;
+        }
+        await Future<void>.delayed(Duration(seconds: delays[attempt]));
+        if (_auth.currentUser?.uid != user.uid) return;
+      }
+    }
+  }
+
   /// Ensure user profile exists in Firestore after sign-in
   Future<void> _ensureUserProfile(User user, {String? displayName}) async {
     final doc = await _firestore.collection('users').doc(user.uid).get();
@@ -340,3 +414,32 @@ class AuthService {
   }
 }
 
+/// Create users/{uid} if it doesn't exist; leave an existing one alone.
+///
+/// Reads from the server, never the local cache: an offline cache that
+/// hasn't seen the doc would report "missing", and recreating it would
+/// wipe the user's householdId. Offline → throws, nothing written.
+/// The create is a merge that never sets householdId, so even a race with
+/// a household write can't clear it.
+Future<void> ensureUserProfileDoc(
+  FirebaseFirestore firestore, {
+  required String uid,
+  required String displayName,
+  required String email,
+  String? photoUrl,
+  DateTime? now,
+}) async {
+  final ref = firestore.collection('users').doc(uid);
+  final doc = await ref.get(const GetOptions(source: Source.server));
+  if (doc.exists) return;
+  final at = (now ?? DateTime.now()).toIso8601String();
+  await ref.set({
+    'uid': uid,
+    'displayName': displayName,
+    'email': email,
+    'photoUrl': photoUrl,
+    'isPro': false,
+    'createdAt': at,
+    'updatedAt': at,
+  }, SetOptions(merge: true),);
+}

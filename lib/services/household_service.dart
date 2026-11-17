@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/household.dart';
 import '../utils/constants.dart';
+import 'auth_service.dart';
 
 /// Service for managing household creation, invites, and membership
 class HouseholdService {
@@ -47,6 +48,9 @@ class HouseholdService {
   /// otherwise leave an orphaned household or invite.
   Future<Household> createHousehold(String uid, String name) async {
     await _ensureOnline(uid);
+    // Both write householdId with update(), which needs the profile doc
+    // (missing after an interrupted sign-up — Lead L1).
+    await _timed(AuthService().ensureProfileFor(uid));
     final inviteCode = generateInviteCode();
     final householdId = _firestore.collection('households').doc().id;
 
@@ -93,6 +97,9 @@ class HouseholdService {
   /// Join a household with an invite code
   Future<Household> joinHousehold(String uid, String code) async {
     await _ensureOnline(uid);
+    // Both write householdId with update(), which needs the profile doc
+    // (missing after an interrupted sign-up — Lead L1).
+    await _timed(AuthService().ensureProfileFor(uid));
     final codeUpper = code.toUpperCase().trim();
 
     // Look up invite code
