@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:clock/clock.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -18,6 +20,7 @@ import 'budget_service.dart';
 import 'credit_card_service.dart';
 import 'custom_category_service.dart';
 import 'database_service.dart';
+import 'sync_service.dart';
 
 /// What a restore actually imported, for the confirmation toast.
 class BackupRestoreResult {
@@ -213,6 +216,14 @@ class BackupService {
       }
     }
 
+    // Give restored categories to the signed-in account's other devices.
+    final uid = SyncService().currentUid;
+    if (uid != null && catCount > 0) {
+      unawaited(SyncService().categorySync.syncAll(uid).catchError(
+            (Object e) => debugPrint('Category sync after restore failed: $e'),
+          ),);
+    }
+
     var cardCount = 0;
     for (final raw in (data['creditCards'] as List?) ?? const []) {
       try {
@@ -247,26 +258,12 @@ class BackupService {
 
   // --- per-model JSON (subscription has its own toJson/fromJson) ---
 
-  Map<String, dynamic> _categoryToJson(CustomCategory c) => {
-        'id': c.id,
-        'name': c.name,
-        'icon': c.icon,
-        'isEmoji': c.isEmoji,
-        'colorHex': c.colorHex,
-        'createdAt': c.createdAt.toIso8601String(),
-        'sortOrder': c.sortOrder,
-      };
+  Map<String, dynamic> _categoryToJson(CustomCategory c) => c.toJson();
 
+  // Restored categories win over synced copies (stamped now) and get
+  // pushed to the signed-in account on its next sync.
   CustomCategory _categoryFromJson(Map<String, dynamic> json) =>
-      CustomCategory(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        icon: json['icon'] as String,
-        isEmoji: json['isEmoji'] as bool? ?? true,
-        colorHex: json['colorHex'] as String?,
-        createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
-        sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
-      );
+      CustomCategory.fromJson(json).copyWith(updatedAt: DateTime.now());
 
   Map<String, dynamic> _cardToJson(CreditCardInfo c) => {
         'id': c.id,

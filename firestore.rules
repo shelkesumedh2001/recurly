@@ -29,6 +29,14 @@ service cloud.firestore {
           && isHouseholdMember(uid, request.auth.uid);
       }
 
+      // Custom categories (1.0.6): synced across the owner's devices;
+      // household members may read them to label shared subs.
+      match /categories/{catId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+        allow read: if request.auth != null
+          && isHouseholdMember(uid, request.auth.uid);
+      }
+
       // Split proposals: partner (recipient) can read and write
       match /split_proposals/{proposalId} {
         allow read, write: if request.auth != null && request.auth.uid == uid;

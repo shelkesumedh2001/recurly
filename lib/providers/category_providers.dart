@@ -3,6 +3,7 @@ import '../models/custom_category.dart';
 import '../models/enums.dart';
 import '../models/subscription.dart';
 import '../services/custom_category_service.dart';
+import '../services/sync_service.dart';
 import 'subscription_providers.dart';
 
 /// Built-in categories sorted by how often the user actually uses them
@@ -32,9 +33,25 @@ final customCategoryServiceProvider = Provider<CustomCategoryService>((ref) {
 class CustomCategoryNotifier extends StateNotifier<List<CustomCategory>> {
   CustomCategoryNotifier(this._service) : super([]) {
     _loadCategories();
+    SyncService().categorySync.changed.addListener(_loadCategories);
   }
 
   final CustomCategoryService _service;
+
+  @override
+  void dispose() {
+    SyncService().categorySync.changed.removeListener(_loadCategories);
+    super.dispose();
+  }
+
+  /// Send a local change to the signed-in account's other devices.
+  void _push(CustomCategory? category, {String? deletedId}) {
+    final sync = SyncService();
+    final uid = sync.currentUid;
+    if (uid == null) return;
+    if (category != null) sync.categorySync.push(uid, category);
+    if (deletedId != null) sync.categorySync.pushDelete(uid, deletedId);
+  }
 
   void _loadCategories() {
     state = _service.getAllCustomCategories();
@@ -59,6 +76,7 @@ class CustomCategoryNotifier extends StateNotifier<List<CustomCategory>> {
       colorHex: colorHex,
     );
     _loadCategories();
+    _push(category);
     return category;
   }
 
@@ -66,18 +84,23 @@ class CustomCategoryNotifier extends StateNotifier<List<CustomCategory>> {
   Future<void> updateCategory(CustomCategory category) async {
     await _service.updateCategory(category);
     _loadCategories();
+    _push(_service.getCategoryById(category.id));
   }
 
   /// Delete a category
   Future<void> deleteCategory(String id) async {
     await _service.deleteCategory(id);
     _loadCategories();
+    _push(null, deletedId: id);
   }
 
   /// Reorder categories
   Future<void> reorderCategories(List<String> categoryIds) async {
     await _service.reorderCategories(categoryIds);
     _loadCategories();
+    for (final id in categoryIds) {
+      _push(_service.getCategoryById(id));
+    }
   }
 }
 
