@@ -76,6 +76,9 @@ backup_ui_v1/
 # Internal working docs — local only, never push
 AUDIT_REPORT.md
 DEV_STATUS.md
+# Firestore security rules: deployed by hand from the Firebase Console,
+# kept local-only by choice (2026-11-17)
+firestore.rules
 GROWTH_REVIEW.txt
 PROJECT_SPECIFICATION.md
 PROJECT_STATE.md
