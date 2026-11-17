@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -170,7 +171,10 @@ class DatabaseService {
     try {
       final subscription = _box.get(id);
       if (subscription != null) {
-        final updated = subscription.copyWith(isArchived: true);
+        final updated = subscription.copyWith(
+          isArchived: true,
+          archivedAt: clock.now(),
+        );
         await _box.put(id, updated);
       }
     } catch (e) {
@@ -183,7 +187,10 @@ class DatabaseService {
     try {
       final subscription = _box.get(id);
       if (subscription != null) {
-        final updated = subscription.copyWith(isArchived: false);
+        final updated = subscription.copyWith(
+          isArchived: false,
+          clearArchivedAt: true,
+        );
         await _box.put(id, updated);
       }
     } catch (e) {

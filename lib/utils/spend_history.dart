@@ -64,6 +64,10 @@ class MonthSpend {
 /// their renewal month, weekly subs bill 4 or 5 times) and prices each bill
 /// at what it cost on that day. Bills before a subscription's first bill
 /// date don't exist, so history starts where the user's data does.
+///
+/// Archived subs count up to the day they were archived ([Subscription.archivedAt]);
+/// archived subs without that date (archived before 1.0.6) and deleted
+/// subs are skipped — there's no recorded end to stop their history at.
 List<MonthSpend> computeSpendHistory({
   required List<Subscription> subscriptions,
   required DateTime now,
@@ -81,7 +85,17 @@ List<MonthSpend> computeSpendHistory({
     final byCategory = <UnifiedCategory, double>{};
 
     for (final sub in subscriptions) {
-      for (final billDate in sub.renewalsInRange(start, end)) {
+      if (sub.deletedAt != null) continue;
+      var lastDay = end;
+      if (sub.isArchived) {
+        final archivedAt = sub.archivedAt;
+        if (archivedAt == null) continue;
+        final archivedDay =
+            DateTime(archivedAt.year, archivedAt.month, archivedAt.day);
+        if (archivedDay.isBefore(start)) continue;
+        if (archivedDay.isBefore(lastDay)) lastDay = archivedDay;
+      }
+      for (final billDate in sub.renewalsInRange(start, lastDay)) {
         final charge = priceOn(sub, billDate);
         if (charge.price <= 0) continue;
         // My share of the bill (D2); 1 for unsplit subs.
@@ -129,7 +143,15 @@ double monthSpendRate(
   double total = 0;
   for (final sub in subscriptions) {
     if (sub.deletedAt != null && sub.deletedAt!.isBefore(startOfMonth)) continue;
-    if (sub.isArchived) continue;
+    if (sub.isArchived) {
+      // Counted for whole months it was live before being archived; the
+      // month it was archived in matches the hero total (archived = gone).
+      final archivedAt = sub.archivedAt;
+      if (archivedAt == null) continue;
+      final archivedDay =
+          DateTime(archivedAt.year, archivedAt.month, archivedAt.day);
+      if (!archivedDay.isAfter(endOfMonth)) continue;
+    }
 
     final trialEnd = sub.isFreeTrial ? sub.trialEndDate : null;
     final ({double price, String currency}) charge;

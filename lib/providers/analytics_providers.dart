@@ -187,9 +187,18 @@ final totalPriceChangeImpactProvider = Provider<double?>((ref) {
   );
 });
 
+/// Archived subs with a recorded archive date (not in Recently Deleted).
+/// Read, not watched: callers already rebuild when the active list
+/// reloads, which archive and unarchive both trigger.
+List<Subscription> _datedArchived(Ref ref) => ref
+    .read(databaseServiceProvider)
+    .getArchivedSubscriptions()
+    .where((s) => s.archivedAt != null && s.deletedAt == null)
+    .toList();
+
 /// Actual bills per month for the past 12 months (incl. this month), split
-/// by category and converted to the display currency. Active subs only —
-/// archived subs have no recorded end date to stop their history at.
+/// by category and converted to the display currency. Includes archived
+/// subs up to the day they were archived (see [computeSpendHistory]).
 final spendHistoryProvider = Provider<List<MonthSpend>>((ref) {
   final subscriptionsAsync = ref.watch(subscriptionProvider);
   final displayCurrency = ref.watch(displayCurrencyProvider);
@@ -199,7 +208,7 @@ final spendHistoryProvider = Provider<List<MonthSpend>>((ref) {
 
   return subscriptionsAsync.when(
     data: (subscriptions) => computeSpendHistory(
-      subscriptions: subscriptions,
+      subscriptions: [...subscriptions, ..._datedArchived(ref)],
       now: clock.now(),
       shareOf: shareOf,
       categoryOf: ref.watch(categoryOfProvider),
@@ -252,17 +261,19 @@ final monthlyComparisonProvider = Provider<MonthlyComparison?>((ref) {
   return subscriptionsAsync.when(
     data: (subscriptions) {
       if (subscriptions.isEmpty) return null;
+      // Last month still had the subs archived since then.
+      final withArchived = [...subscriptions, ..._datedArchived(ref)];
 
       final now = clock.now();
       final thisMonth = DateTime(now.year, now.month, 1);
       final lastMonth = DateTime(now.year, now.month - 1, 1);
 
       final current = roundMoney(monthSpendRate(
-        subscriptions, thisMonth,
+        withArchived, thisMonth,
         shareOf: shareOf, convert: convert, today: now,
       ),);
       final previous = roundMoney(monthSpendRate(
-        subscriptions, lastMonth,
+        withArchived, lastMonth,
         shareOf: shareOf, convert: convert, today: now,
       ),);
 

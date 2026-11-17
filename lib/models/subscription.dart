@@ -36,6 +36,7 @@ class Subscription extends HiveObject { // For recently deleted feature
     this.customDays,
     this.cardId,
     this.customCategoryId,
+    this.archivedAt,
   });
 
   /// Create from JSON (Firebase)
@@ -82,6 +83,9 @@ class Subscription extends HiveObject { // For recently deleted feature
       customDays: json['customDays'] as int?,
       cardId: json['cardId'] as String?,
       customCategoryId: json['customCategoryId'] as String?,
+      archivedAt: json['archivedAt'] != null
+          ? DateTime.tryParse(json['archivedAt'] as String)
+          : null,
     );
   }
   @HiveField(0)
@@ -168,6 +172,12 @@ class Subscription extends HiveObject { // For recently deleted feature
   /// [category] is the fallback, which is `other` for custom picks (BUG-17).
   @HiveField(24)
   String? customCategoryId;
+
+  /// When the sub was archived (null while active, and for subs archived
+  /// before 1.0.6, which have no recorded end). Spending history counts an
+  /// archived sub's bills up to this day.
+  @HiveField(25)
+  DateTime? archivedAt;
 
   /// Whether this subscription has any recorded price changes
   bool get hasPriceHistory => priceHistory != null && priceHistory!.isNotEmpty;
@@ -378,6 +388,7 @@ class Subscription extends HiveObject { // For recently deleted feature
       'customDays': customDays,
       'cardId': cardId,
       'customCategoryId': customCategoryId,
+      'archivedAt': archivedAt?.toIso8601String(),
     };
   }
 
@@ -416,6 +427,8 @@ class Subscription extends HiveObject { // For recently deleted feature
     bool clearCardId = false,
     String? customCategoryId,
     bool clearCustomCategoryId = false,
+    DateTime? archivedAt,
+    bool clearArchivedAt = false,
   }) {
     return Subscription(
       id: id ?? this.id,
@@ -447,6 +460,7 @@ class Subscription extends HiveObject { // For recently deleted feature
       customCategoryId: clearCustomCategoryId
           ? null
           : (customCategoryId ?? this.customCategoryId),
+      archivedAt: clearArchivedAt ? null : (archivedAt ?? this.archivedAt),
     );
   }
 
