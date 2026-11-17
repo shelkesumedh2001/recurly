@@ -10,6 +10,7 @@ class SplitProposal {
     this.currency = 'USD',
     this.accepted = false,
     required this.createdAt,
+    this.afterTrial = false,
   });
 
   factory SplitProposal.fromJson(Map<String, dynamic> json) {
@@ -25,6 +26,7 @@ class SplitProposal {
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
           : DateTime.now(),
+      afterTrial: json['afterTrial'] as bool? ?? false,
     );
   }
 
@@ -37,6 +39,10 @@ class SplitProposal {
   final String currency;
   final bool accepted;
   final DateTime createdAt;
+
+  /// The sub is still in its free trial: [totalPrice] is what it will
+  /// charge once the trial ends, not what it charges now.
+  final bool afterTrial;
 
   double get partnerShareAmount => totalPrice * (partnerSharePercent / 100);
   double get ownerShareAmount => totalPrice * (1 - partnerSharePercent / 100);
@@ -67,6 +73,7 @@ class SplitProposal {
       'currency': currency,
       'accepted': accepted,
       'createdAt': createdAt.toIso8601String(),
+      'afterTrial': afterTrial,
     };
   }
 
@@ -80,6 +87,7 @@ class SplitProposal {
     String? currency,
     bool? accepted,
     DateTime? createdAt,
+    bool? afterTrial,
   }) {
     return SplitProposal(
       subId: subId ?? this.subId,
@@ -91,6 +99,7 @@ class SplitProposal {
       currency: currency ?? this.currency,
       accepted: accepted ?? this.accepted,
       createdAt: createdAt ?? this.createdAt,
+      afterTrial: afterTrial ?? this.afterTrial,
     );
   }
 }

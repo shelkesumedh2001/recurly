@@ -19,6 +19,28 @@ class SplitService {
 
   Future<T> _timed<T>(Future<T> future) => future.timeout(_opTimeout);
 
+  /// The proposal sent to the partner for [sub]. A running trial is split
+  /// at what it will charge, not its $0 trial price; once the trial has
+  /// ended the two are the same.
+  static SplitProposal buildProposal(
+    Subscription sub, {
+    required String ownerUid,
+    required String partnerUid,
+    required double sharePercent,
+    required DateTime now,
+  }) =>
+      SplitProposal(
+        subId: sub.id,
+        ownerUid: ownerUid,
+        partnerUid: partnerUid,
+        subscriptionName: sub.name,
+        totalPrice: sub.chargePerRenewal,
+        afterTrial: sub.isFreeTrial && !sub.isTrialExpiredAt(now),
+        partnerSharePercent: sharePercent,
+        currency: sub.currency,
+        createdAt: now,
+      );
+
   /// Propose a split to a partner
   Future<void> proposeSplit({
     required String ownerUid,
@@ -29,15 +51,12 @@ class SplitService {
     final sub = _db.getSubscriptionById(subId);
     if (sub == null) throw Exception('Subscription not found');
 
-    final proposal = SplitProposal(
-      subId: subId,
+    final proposal = buildProposal(
+      sub,
       ownerUid: ownerUid,
       partnerUid: partnerUid,
-      subscriptionName: sub.name,
-      totalPrice: sub.currentPrice,
-      partnerSharePercent: sharePercent,
-      currency: sub.currency,
-      createdAt: DateTime.now(),
+      sharePercent: sharePercent,
+      now: DateTime.now(),
     );
 
     // Store proposal under partner's split_proposals subcollection
