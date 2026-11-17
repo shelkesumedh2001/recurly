@@ -51,8 +51,12 @@ class _SplitSubscriptionSheetState
     final partnerLabel = ref.watch(partnerLabelProvider);
     // Partner's share rounded to the cent (what their copy shows); mine is
     // the rest, so the two always add up to the price (BUG-14).
-    final partnerShare = roundCents(sub.currentPrice * (_sharePercent / 100));
-    final myShare = roundCents(sub.currentPrice) - partnerShare;
+    // A running trial is split at its post-trial price (chargePerRenewal);
+    // splitting $0 showed "$0.00 / $0.00".
+    final inTrial = sub.isFreeTrial && !sub.isTrialExpired;
+    final base = sub.chargePerRenewal;
+    final partnerShare = roundCents(base * (_sharePercent / 100));
+    final myShare = roundCents(base) - partnerShare;
     final hasSplit = _existing != null;
 
     return Container(
@@ -107,7 +111,9 @@ class _SplitSubscriptionSheetState
                       ),
                     ),
                     Text(
-                      sub.formattedPrice,
+                      inTrial
+                          ? '${sub.formatAmount(base)} after trial'
+                          : sub.formatAmount(base),
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -115,6 +121,15 @@ class _SplitSubscriptionSheetState
                   ],
                 ),
               ),
+              if (inTrial) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Free until the trial ends — shares apply from the first paid bill.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
 
               // Slider

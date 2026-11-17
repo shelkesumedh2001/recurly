@@ -74,7 +74,8 @@ class _SplitProposalCardState extends ConsumerState<SplitProposalCard> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Total: ${formatMoney(p.totalPrice, p.currencySymbol)}',
+                'Total: ${formatMoney(p.totalPrice, p.currencySymbol)}'
+                '${p.afterTrial ? ' after trial' : ''}',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
