@@ -97,6 +97,7 @@ Subscription? partnerCopyFor(
     color: ownerSub.color,
     notes: ownerSub.notes,
     isArchived: ownerSub.isArchived,
+    archivedAt: ownerSub.archivedAt,
     createdAt: ownerSub.createdAt,
     isFreeTrial: ownerSub.isFreeTrial,
     trialEndDate: ownerSub.trialEndDate,
