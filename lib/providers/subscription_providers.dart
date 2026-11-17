@@ -203,6 +203,17 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
     }
   }
 
+  /// Show or hide one of my subs from the household.
+  Future<void> setHouseholdVisible(String id, {required bool visible}) async {
+    final sub = _databaseService.getSubscriptionById(id);
+    if (sub == null || sub.householdVisible == visible) return;
+    final updated =
+        sub.copyWith(householdVisible: visible, updatedAt: clock.now());
+    await _databaseService.updateSubscription(updated);
+    _syncPush(updated);
+    await loadSubscriptions();
+  }
+
   /// Apply "what the household sees" to my own subs: everything, or only
   /// the ones I split (a split sub must stay readable by its members).
   /// Copies of other members' subs are left alone.

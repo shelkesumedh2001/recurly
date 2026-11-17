@@ -488,11 +488,12 @@ class _SplitSubscriptionSheetState
           ownerUid: user.uid,
           subId: widget.subscription.id,
         );
-        // "Only what I split": an unsplit sub goes private again.
+        // "Only what I split": this sub goes private again — only this
+        // one; others the user chose to show stay visible (F4).
         if (!ref.read(preferencesProvider).householdShareAll) {
           await ref
               .read(subscriptionProvider.notifier)
-              .applyHouseholdVisibility(shareAll: false);
+              .setHouseholdVisible(widget.subscription.id, visible: false);
         }
       },
       done: 'Stopped splitting ${widget.subscription.name}',
