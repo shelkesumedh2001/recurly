@@ -131,7 +131,14 @@ class _SplitSubscriptionSheetState
     final hasSplit = _existing.isNotEmpty;
 
     return Container(
-      margin: const EdgeInsets.all(12),
+      // Lift the sheet above the keyboard: the share fields sit at the
+      // bottom and were typed into blind (F2, 1.0.6 test pass).
+      margin: EdgeInsets.fromLTRB(
+        12,
+        12,
+        12,
+        12 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(24),
