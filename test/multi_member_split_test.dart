@@ -89,4 +89,31 @@ void main() {
     expect(myShareFraction(sub, 'a'), closeTo(2 / 3, 1e-9));
     expect(myShareFraction(sub, 'a', includePending: true), closeTo(1 / 3, 1e-9));
   });
+
+  group('splitSharesError (unequal shares)', () {
+    test('any mix that leaves the owner something is fine', () {
+      expect(splitSharesError({'b': 50, 'c': 20}), isNull);
+      expect(splitSharesError({'b': 12.5, 'c': 37.5, 'd': 25}), isNull);
+    });
+    test('members may cover the whole price', () {
+      expect(splitSharesError({'b': 60, 'c': 40}), isNull);
+    });
+    test('over 100% is refused', () {
+      expect(splitSharesError({'b': 60, 'c': 50}), contains('110%'));
+    });
+    test('zero, negative or unreadable shares are refused', () {
+      expect(splitSharesError({'b': 0, 'c': 50}), isNotNull);
+      expect(splitSharesError({'b': -5, 'c': 50}), isNotNull);
+      expect(splitSharesError({'b': double.nan, 'c': 50}), isNotNull);
+    });
+    test('unequal shares keep acceptance only where unchanged', () {
+      final current = [
+        {'uid': 'b', 'sharePercent': 50, 'accepted': true},
+        {'uid': 'c', 'sharePercent': 25, 'accepted': true},
+      ];
+      final p = planSplitChange(current, {'b': 50, 'c': 30});
+      expect(p.propose, ['c']);
+    });
+  });
 }
+

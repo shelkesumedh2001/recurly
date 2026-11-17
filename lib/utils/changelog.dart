@@ -21,7 +21,7 @@ const List<ChangelogRelease> kChangelog = [
   ChangelogRelease(
     build: '1.0.6+11',
     notes: [
-      'Households now hold up to 6 people — split a subscription with one person or several',
+      'Households now hold up to 6 people — split a subscription with one person or several, equally or with your own percentages',
       'Choose what your household sees: all your subscriptions, or only the ones you split. Each subscription also has its own "Visible to household" switch',
       'Your own categories now sync across your devices, and shared subscriptions show the category their owner picked',
       'Spending over time now includes subscriptions you archived, up to the day you archived them',
