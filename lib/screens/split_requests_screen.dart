@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../providers/preferences_providers.dart';
 import '../providers/split_providers.dart';
 import '../utils/adaptive.dart';
 import '../widgets/common/app_empty_state.dart';
@@ -26,11 +25,11 @@ class SplitRequestsScreen extends ConsumerWidget {
         child: proposalsAsync.when(
           data: (proposals) {
             if (proposals.isEmpty) {
-              return AppEmptyState(
+              return const AppEmptyState(
                 icon: Icons.call_split,
                 title: 'No pending requests',
                 message:
-                    'When ${ref.watch(partnerLabelProvider)} proposes splitting a '
+                    'When someone in your household proposes splitting a '
                     'subscription, it appears here for you to accept or decline.',
               );
             }

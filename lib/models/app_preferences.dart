@@ -22,6 +22,7 @@ class AppPreferences extends HiveObject {
     this.notificationPrimerShown = false,
     this.sessionCount = 0,
     this.reviewRequested = false,
+    this.householdShareAll = true,
   });
 
   /// Master switch for all notifications
@@ -120,6 +121,12 @@ class AppPreferences extends HiveObject {
   @HiveField(15, defaultValue: false)
   bool reviewRequested;
 
+  /// What the household sees of my subscriptions: all of them (default,
+  /// the pre-1.0.6 behaviour) or only the ones I split. Decides the
+  /// `householdVisible` of new subs; the per-sub switch overrides it.
+  @HiveField(16, defaultValue: true)
+  bool householdShareAll;
+
   /// Create copy with updated fields
   AppPreferences copyWith({
     bool? notificationsEnabled,
@@ -138,6 +145,7 @@ class AppPreferences extends HiveObject {
     bool? notificationPrimerShown,
     int? sessionCount,
     bool? reviewRequested,
+    bool? householdShareAll,
   }) {
     return AppPreferences(
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
@@ -160,6 +168,7 @@ class AppPreferences extends HiveObject {
           notificationPrimerShown ?? this.notificationPrimerShown,
       sessionCount: sessionCount ?? this.sessionCount,
       reviewRequested: reviewRequested ?? this.reviewRequested,
+      householdShareAll: householdShareAll ?? this.householdShareAll,
     );
   }
 }

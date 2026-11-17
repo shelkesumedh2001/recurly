@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import '../models/household.dart';
 import '../utils/constants.dart';
@@ -19,6 +20,15 @@ class HouseholdService {
   static const Duration _opTimeout = Duration(seconds: 10);
 
   Future<T> _timed<T>(Future<T> future) => future.timeout(_opTimeout);
+
+  /// How the signed-in user is shown to the rest of the household.
+  String _myName() {
+    final user = FirebaseAuth.instance.currentUser;
+    final name = user?.displayName?.trim() ?? '';
+    if (name.isNotEmpty) return name;
+    final email = user?.email ?? '';
+    return email.contains('@') ? email.split('@').first : 'Member';
+  }
 
   /// Households are an online feature (invite codes, partner membership).
   /// Without this pre-flight, Firestore's offline persistence QUEUES the
@@ -59,6 +69,7 @@ class HouseholdService {
       name: name,
       createdBy: uid,
       members: [uid],
+      memberNames: {uid: _myName()},
       inviteCode: inviteCode,
       inviteExpiry: DateTime.now().add(
         const Duration(hours: AppConstants.inviteCodeExpiryHours),
@@ -139,8 +150,10 @@ class HouseholdService {
 
     // Add member
     final updatedMembers = [...household.members, uid];
+    final myName = _myName();
     await _timed(_firestore.collection('households').doc(householdId).update({
       'members': updatedMembers,
+      'memberNames.$uid': myName,
     }),);
 
     // Update user's householdId
@@ -148,7 +161,10 @@ class HouseholdService {
       'householdId': householdId,
     }),);
 
-    return household.copyWith(members: updatedMembers);
+    return household.copyWith(
+      members: updatedMembers,
+      memberNames: {...household.memberNames, uid: myName},
+    );
   }
 
   /// Rename the household. Creator-only — matches the "creator refresh"
@@ -191,6 +207,7 @@ class HouseholdService {
 
     await _timed(_firestore.collection('households').doc(householdId).update({
       'members': members,
+      'memberNames.$uid': FieldValue.delete(),
     }),);
 
     await _timed(_firestore.collection('users').doc(uid).update({

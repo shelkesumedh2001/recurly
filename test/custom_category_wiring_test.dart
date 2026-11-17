@@ -117,7 +117,8 @@ void main() {
     );
   });
 
-  test("a partner's copy doesn't carry the owner's local category id", () {
+  test("a partner's copy keeps the owner's category id (synced since 1.0.6)",
+      () {
     final owned = _sub('cleaner', 40, customId: 'cat-home').copyWith(
       ownerUid: 'A',
       splitWith: [
@@ -125,7 +126,9 @@ void main() {
       ],
     );
     final copy = partnerCopyFor(owned, ownerUid: 'A', myUid: 'B')!;
-    expect(copy.customCategoryId, isNull);
+    // Resolved through the owner's synced categories; `other` is the
+    // fallback where they can't be read.
+    expect(copy.customCategoryId, 'cat-home');
     expect(copy.category, SubscriptionCategory.other);
   });
 }

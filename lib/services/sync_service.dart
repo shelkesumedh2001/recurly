@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import '../models/custom_category.dart';
 import '../models/subscription.dart';
 import '../models/sync_status.dart';
 import '../utils/split_copies.dart';
@@ -35,12 +36,30 @@ class SyncService {
   String? get currentUid => _currentUid;
 
   StreamSubscription<QuerySnapshot>? _syncListener;
-  StreamSubscription<QuerySnapshot>? _householdListener;
+
+  /// One listener per other household member: their visible subs, and
+  /// their custom categories (to label shared subs).
+  final Map<String, StreamSubscription<QuerySnapshot>> _memberListeners = {};
+  final Map<String, StreamSubscription<QuerySnapshot>> _memberCategoryListeners =
+      {};
+
+  /// Other members right now, and each one's last server-confirmed docs.
+  Set<String> _members = {};
+  final Map<String, List<Subscription>> _memberDocs = {};
+  final Map<String, List<Subscription>> _memberVisible = {};
+  final Map<String, Map<String, CustomCategory>> _memberCats = {};
+
+  /// Custom categories of the other members, by id (shared subs filed
+  /// under them resolve here when this device doesn't have them).
+  final ValueNotifier<Map<String, CustomCategory>> memberCategories =
+      ValueNotifier({});
 
   final ValueNotifier<SyncStatus> syncStatus =
       ValueNotifier(SyncStatus.idle);
 
-  /// Partner subscriptions (in-memory, not persisted to Hive)
+  /// Other members' own subscriptions (in-memory, not persisted to Hive).
+  /// Their copies of other people's subs are left out — the owner's doc
+  /// stands for those — and `ownerUid` is always set.
   final ValueNotifier<List<Subscription>> partnerSubscriptions =
       ValueNotifier([]);
 
@@ -106,7 +125,7 @@ class SyncService {
   /// Uid whose local data has been checked by [_dropForeignLocalData];
   /// [syncSplits] waits for it (P3-4: it raced the merge).
   String? _accountReadyUid;
-  ({String uid, String? partnerUid, List<Subscription> docs})?
+  ({String uid, Set<String> members, Map<String, List<Subscription>> docs})?
       _deferredSplitSync;
 
   Future<void> _dropForeignLocalData(String uid) async {
@@ -124,7 +143,7 @@ class SyncService {
     final d = _deferredSplitSync;
     _deferredSplitSync = null;
     if (d != null && d.uid == _accountReadyUid) {
-      unawaited(syncSplits(d.uid, partnerUid: d.partnerUid, partnerDocs: d.docs));
+      unawaited(syncSplits(d.uid, members: d.members, ownerDocs: d.docs));
     }
   }
 
@@ -446,19 +465,17 @@ class SyncService {
     }
   }
 
-  /// Initialize household sync — listen to partner's visible subscriptions
-  /// and keep my split copies of them in line with the owner's docs.
+  /// Initialize household sync — listen to every other member's visible
+  /// subscriptions and keep my split copies of them in line with the
+  /// owners' docs.
   ///
-  /// Re-run whenever the household's member list changes (a partner joins
+  /// Re-run whenever the household's member list changes (someone joins
   /// or leaves), not only when my own profile changes (BUG-11).
   Future<void> initializeHouseholdSync(
       String uid, String householdId,) async {
-    await _householdListener?.cancel();
-    _householdListener = null;
-
     try {
-      // Server read: the member list decides whether every split gets torn
-      // down, so a stale cached "alone" must not be trusted.
+      // Server read: the member list decides which splits get torn down,
+      // so a stale cached member list must not be trusted.
       final householdDoc = await _firestore
           .collection('households')
           .doc(householdId)
@@ -466,51 +483,108 @@ class SyncService {
           .timeout(const Duration(seconds: 10));
       if (!householdDoc.exists) return;
 
-      final members = (householdDoc.data()?['members'] as List<dynamic>?)
-              ?.cast<String>() ??
-          [];
-      final partnerUid = members.firstWhere(
-        (m) => m != uid,
-        orElse: () => '',
-      );
-      if (partnerUid.isEmpty) {
-        // Alone in the household (partner left, or not joined yet): no
-        // split can stand — drop copies of the ex-partner's subs and clear
-        // their name from mine (BUG-9).
-        partnerSubscriptions.value = [];
-        await syncSplits(uid, partnerUid: null);
+      final members = ((householdDoc.data()?['members'] as List<dynamic>?)
+                  ?.cast<String>() ??
+              const <String>[])
+          .where((m) => m != uid)
+          .toSet();
+      _members = members;
+
+      // Drop listeners and data of members who left.
+      for (final gone in _memberListeners.keys
+          .where((m) => !members.contains(m))
+          .toList()) {
+        await _memberListeners.remove(gone)?.cancel();
+        await _memberCategoryListeners.remove(gone)?.cancel();
+        _memberDocs.remove(gone);
+        _memberVisible.remove(gone);
+        _memberCats.remove(gone);
+      }
+      _publishMemberData();
+
+      if (members.isEmpty) {
+        // Alone in the household (everyone left, or nobody joined yet): no
+        // split can stand — drop copies and clear names from mine (BUG-9).
+        await syncSplits(uid, members: const {});
         return;
       }
+      // Someone left: their splits/copies go now, without waiting for the
+      // others' snapshots (members still pending keep theirs).
+      unawaited(_resyncSplits(uid));
 
-      // Query must match Firestore rules: only householdVisible == true docs are readable
-      _householdListener = _firestore
-          .collection('users')
-          .doc(partnerUid)
-          .collection('subscriptions')
-          .where('householdVisible', isEqualTo: true)
-          .snapshots(includeMetadataChanges: true)
-          .listen(
-        (snapshot) {
-          final all = snapshot.docs
-              .map((doc) => Subscription.fromJson(doc.data()))
-              .toList();
-          // Exclude the partner's soft-deleted subs (deletedAt set) so they
-          // don't linger in household spend views / partner lists.
-          partnerSubscriptions.value =
-              all.where((sub) => sub.deletedAt == null).toList();
-          // Only a server-confirmed snapshot is the owner's real state.
-          if (!snapshot.metadata.isFromCache) {
-            unawaited(syncSplits(uid, partnerUid: partnerUid, partnerDocs: all));
-          }
-        },
-        onError: (e) {
-          debugPrint('Household sync error: $e');
-        },
-      );
+      for (final member in members) {
+        if (_memberListeners.containsKey(member)) continue;
+        // Query must match Firestore rules: only householdVisible == true
+        // docs are readable.
+        _memberListeners[member] = _firestore
+            .collection('users')
+            .doc(member)
+            .collection('subscriptions')
+            .where('householdVisible', isEqualTo: true)
+            .snapshots(includeMetadataChanges: true)
+            .listen(
+          (snapshot) {
+            final all = snapshot.docs
+                .map((doc) => Subscription.fromJson(doc.data()))
+                .toList();
+            // Their own, live subs only: soft-deleted ones and their copies
+            // of other people's subs don't belong in household views.
+            _memberVisible[member] = [
+              for (final sub in all)
+                if (sub.deletedAt == null &&
+                    (sub.ownerUid == null || sub.ownerUid == member))
+                  sub..ownerUid = member,
+            ];
+            _publishMemberData();
+            // Only a server-confirmed snapshot is the owner's real state.
+            if (!snapshot.metadata.isFromCache) {
+              _memberDocs[member] = all;
+              unawaited(_resyncSplits(uid));
+            }
+          },
+          onError: (Object e) => debugPrint('Household sync error ($member): $e'),
+        );
+        _memberCategoryListeners[member] = _firestore
+            .collection('users')
+            .doc(member)
+            .collection('categories')
+            .snapshots()
+            .listen(
+          (snapshot) {
+            _memberCats[member] = {
+              for (final doc in snapshot.docs)
+                if (parseCategoryDoc(doc.id, doc.data()).category
+                    case final c?)
+                  c.id: c,
+            };
+            _publishMemberData();
+          },
+          onError: (Object e) =>
+              debugPrint('Household categories error ($member): $e'),
+        );
+      }
     } catch (e) {
       debugPrint('Household sync init error: $e');
     }
   }
+
+  void _publishMemberData() {
+    partnerSubscriptions.value = [
+      for (final m in _members) ...?_memberVisible[m],
+    ];
+    memberCategories.value = {
+      for (final m in _members) ...?_memberCats[m],
+    };
+  }
+
+  Future<void> _resyncSplits(String uid) => syncSplits(
+        uid,
+        members: _members,
+        ownerDocs: {
+          for (final m in _members)
+            if (_memberDocs[m] case final docs?) m: docs,
+        },
+      );
 
   /// Fires after [syncSplits] changed local data: ids of copies written
   /// and removed, so reminders can be rescheduled / cancelled.
@@ -519,7 +593,8 @@ class SyncService {
       ValueNotifier((upserted: <String>{}, deleted: <String>{}));
 
   bool _syncingSplits = false;
-  ({String? partnerUid, List<Subscription> docs})? _pendingSplitSync;
+  ({Set<String> members, Map<String, List<Subscription>> docs})?
+      _pendingSplitSync;
 
   /// Bring my split data in line with the household (see [planSplitSync]):
   /// copies follow the owner's docs, splits with an ex-partner go.
@@ -527,28 +602,27 @@ class SyncService {
   /// my other devices' last-write-wins listener takes the change (BUG-10).
   Future<void> syncSplits(
     String uid, {
-    required String? partnerUid,
-    List<Subscription> partnerDocs = const [],
+    required Set<String> members,
+    Map<String, List<Subscription>> ownerDocs = const {},
   }) async {
     if (_accountReadyUid != uid) {
       // Sign-in still checking this device's data for another account's
       // subs; run once it's done.
-      _deferredSplitSync =
-          (uid: uid, partnerUid: partnerUid, docs: partnerDocs);
+      _deferredSplitSync = (uid: uid, members: members, docs: ownerDocs);
       return;
     }
     if (_syncingSplits) {
       // Coalesce: run once more with the latest input when this finishes.
-      _pendingSplitSync = (partnerUid: partnerUid, docs: partnerDocs);
+      _pendingSplitSync = (members: members, docs: ownerDocs);
       return;
     }
     _syncingSplits = true;
     try {
       final plan = planSplitSync(
         myUid: uid,
-        partnerUid: partnerUid,
+        members: members,
         local: _db.getAllSubscriptions(),
-        partnerDocs: partnerDocs,
+        ownerDocs: ownerDocs,
       );
       if (plan.isEmpty) return;
       debugPrint('Split sync: ${plan.upsertCopies.length} copies written, '
@@ -598,7 +672,7 @@ class SyncService {
       _pendingSplitSync = null;
       if (next != null) {
         unawaited(
-          syncSplits(uid, partnerUid: next.partnerUid, partnerDocs: next.docs),
+          syncSplits(uid, members: next.members, ownerDocs: next.docs),
         );
       }
     }
@@ -619,14 +693,25 @@ class SyncService {
       debugPrint('Split cleanup skipped (offline?): $e');
       return;
     }
-    await syncSplits(uid, partnerUid: null);
+    await syncSplits(uid, members: const {});
   }
 
-  /// Dispose household sync — cancel listener and clear partner subs
+  /// Dispose household sync — cancel listeners and clear members' data
   void disposeHouseholdSync() {
-    _householdListener?.cancel();
-    _householdListener = null;
+    for (final l in [
+      ..._memberListeners.values,
+      ..._memberCategoryListeners.values,
+    ]) {
+      unawaited(l.cancel());
+    }
+    _memberListeners.clear();
+    _memberCategoryListeners.clear();
+    _members = {};
+    _memberDocs.clear();
+    _memberVisible.clear();
+    _memberCats.clear();
     partnerSubscriptions.value = [];
+    memberCategories.value = {};
   }
 
   /// Backfill householdVisible on existing Firestore docs that may lack the field
@@ -675,9 +760,8 @@ class SyncService {
     _drainRetryTimer?.cancel();
     _drainRetryTimer = null;
     _syncListener?.cancel();
-    _householdListener?.cancel();
     _syncListener = null;
-    _householdListener = null;
+    disposeHouseholdSync();
     _initialized = false;
     _currentUid = null;
     _accountReadyUid = null;

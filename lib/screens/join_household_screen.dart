@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/auth_providers.dart';
+import '../providers/preferences_providers.dart';
 import '../services/household_service.dart';
 import '../services/sync_service.dart';
 import '../utils/adaptive.dart';
+import '../widgets/household_sharing_dialog.dart';
 
 class JoinHouseholdScreen extends ConsumerStatefulWidget {
   const JoinHouseholdScreen({super.key});
@@ -126,8 +128,17 @@ class _JoinHouseholdScreenState extends ConsumerState<JoinHouseholdScreen> {
       return;
     }
 
+    // Decide what the household sees BEFORE joining, so private subs are
+    // hidden before anyone else can read them.
+    final shareAll = await askHouseholdSharing(
+      context,
+      current: ref.read(preferencesProvider).householdShareAll,
+    );
+    if (shareAll == null || !mounted) return;
+
     setState(() => _isLoading = true);
     try {
+      await applyHouseholdSharing(ref, shareAll: shareAll);
       final household = await HouseholdService().joinHousehold(
         user.uid,
         _codeController.text.trim(),
