@@ -21,6 +21,20 @@ Map<String, double> splitShares(List<String> members, double singleShare) {
   return {for (final m in members) m: each};
 }
 
+/// Why [shares] can't be proposed, or null when they're fine: everyone
+/// pays something, and together the members pay at most the whole price
+/// (the owner covers the rest, possibly nothing).
+String? splitSharesError(Map<String, double> shares) {
+  if (shares.values.any((p) => p.isNaN || p <= 0)) {
+    return 'Everyone in the split needs a share above 0%';
+  }
+  final total = shares.values.fold<double>(0, (a, b) => a + b);
+  if (total > 100 + 1e-9) {
+    return 'Shares add up to ${total.toStringAsFixed(total % 1 == 0 ? 0 : 1)}% — more than 100%';
+  }
+  return null;
+}
+
 class SplitSubscriptionSheet extends ConsumerStatefulWidget {
   const SplitSubscriptionSheet({
     super.key,
@@ -42,6 +56,18 @@ class _SplitSubscriptionSheetState
   /// Members picked for the split, in household order.
   final Set<String> _selected = {};
 
+  /// Per-member percentages typed in when splitting with several people;
+  /// a member without one gets the equal share.
+  final Map<String, double> _custom = {};
+
+  /// Bumped to rebuild the percent fields with fresh values.
+  int _fieldsGen = 0;
+
+  void _resetToEqual() {
+    _custom.clear();
+    _fieldsGen++;
+  }
+
   List<Map<String, dynamic>> get _existing =>
       widget.subscription.splitWith ?? const [];
 
@@ -55,6 +81,13 @@ class _SplitSubscriptionSheetState
     if (_existing.length == 1) {
       final pct = _existing.single['sharePercent'];
       if (pct is num) _sharePercent = pct.toDouble().clamp(10, 90);
+    } else {
+      for (final e in _existing) {
+        final pct = e['sharePercent'];
+        if (e['uid'] is String && pct is num) {
+          _custom[e['uid'] as String] = pct.toDouble();
+        }
+      }
     }
   }
 
@@ -74,7 +107,11 @@ class _SplitSubscriptionSheetState
       _selected.add(others.single);
     }
     final picked = others.where(_selected.contains).toList();
-    final shares = splitShares(picked, _sharePercent);
+    final equal = splitShares(picked, _sharePercent);
+    final shares = picked.length > 1
+        ? {for (final m in picked) m: _custom[m] ?? equal[m]!}
+        : equal;
+    final error = splitSharesError(shares);
 
     // A running trial is split at its post-trial price (chargePerRenewal);
     // splitting $0 showed "$0.00 / $0.00".
@@ -83,12 +120,14 @@ class _SplitSubscriptionSheetState
     // Members' shares rounded to the cent (what their copies show); mine
     // is the rest, so it all adds up to the price (BUG-14).
     final memberAmounts = {
-      for (final e in shares.entries) e.key: roundCents(base * e.value / 100),
+      // A half-typed field (NaN) counts as 0 here; [error] blocks sending.
+      for (final e in shares.entries)
+        e.key: e.value.isNaN ? 0.0 : roundCents(base * e.value / 100),
     };
     final myShare = roundCents(base) -
         memberAmounts.values.fold<double>(0, (a, b) => a + b);
-    final myPercent =
-        100 - shares.values.fold<double>(0, (a, b) => a + b);
+    final myPercent = 100 -
+        shares.values.fold<double>(0, (a, b) => a + (b.isNaN ? 0 : b));
     final hasSplit = _existing.isNotEmpty;
 
     return Container(
@@ -185,6 +224,8 @@ class _SplitSubscriptionSheetState
                         selected: _selected.contains(m),
                         onSelected: (on) => setState(() {
                           on ? _selected.add(m) : _selected.remove(m);
+                          // A different group starts from equal shares.
+                          _resetToEqual();
                         }),
                       ),
                   ],
@@ -214,25 +255,56 @@ class _SplitSubscriptionSheetState
                   label: '${_sharePercent.round()}%',
                   onChanged: (value) => setState(() => _sharePercent = value),
                 ),
-              ] else if (picked.length > 1)
-                Text(
-                  'Split equally between you and ${picked.length} others.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+              ] else if (picked.length > 1) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Shares',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _custom.isEmpty
+                          ? null
+                          : () => setState(_resetToEqual),
+                      child: const Text('Split equally'),
+                    ),
+                  ],
                 ),
-
-              // Share breakdown
-              if (picked.isNotEmpty) ...[
-                const SizedBox(height: 8),
                 _shareRow(theme, 'You', sub.formatAmount(myShare), myPercent),
                 for (final m in picked)
-                  _shareRow(
+                  _editableShareRow(
                     theme,
-                    nameOf(m),
-                    sub.formatAmount(memberAmounts[m]!),
-                    shares[m]!,
+                    member: m,
+                    label: nameOf(m),
+                    amount: sub.formatAmount(memberAmounts[m]!),
+                    percent: shares[m]!,
                   ),
+                if (error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      error,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                  ),
+              ],
+
+              // Share breakdown (one member: the slider sets it)
+              if (picked.length == 1) ...[
+                const SizedBox(height: 8),
+                _shareRow(theme, 'You', sub.formatAmount(myShare), myPercent),
+                _shareRow(
+                  theme,
+                  nameOf(picked.single),
+                  sub.formatAmount(memberAmounts[picked.single]!),
+                  shares[picked.single]!,
+                ),
               ],
               const SizedBox(height: 24),
 
@@ -240,7 +312,7 @@ class _SplitSubscriptionSheetState
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _isLoading || picked.isEmpty
+                  onPressed: _isLoading || picked.isEmpty || error != null
                       ? null
                       : () => _proposeSplit(shares),
                   style: FilledButton.styleFrom(
@@ -281,6 +353,64 @@ class _SplitSubscriptionSheetState
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// A member's share with an editable percentage (several-member split).
+  Widget _editableShareRow(
+    ThemeData theme, {
+    required String member,
+    required String label,
+    required String amount,
+    required double percent,
+  }) {
+    final text = (percent - percent.roundToDouble()).abs() < 0.005
+        ? percent.round().toString()
+        : percent.toStringAsFixed(2);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+          SizedBox(
+            width: 76,
+            child: TextFormField(
+              key: ValueKey('share-$member-$_fieldsGen'),
+              initialValue: text,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              textAlign: TextAlign.end,
+              decoration: const InputDecoration(
+                isDense: true,
+                suffixText: '%',
+                border: OutlineInputBorder(),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              ),
+              onChanged: (v) => setState(() {
+                _custom[member] = double.tryParse(v.trim()) ?? double.nan;
+              }),
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 72,
+            child: Text(
+              amount,
+              textAlign: TextAlign.end,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
